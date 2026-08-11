@@ -135,6 +135,59 @@ de inicio". Queda instalada como app, sin pasar por Play Store/App Store.
 Si tocás `agenda-frontend/`, reconstruí la imagen (`docker compose up -d
 --build web`) para que el manifest/service worker reflejen el cambio.
 
+## Correr este mismo proyecto en una Raspberry Pi
+
+El repo vive en GitHub (`https://github.com/yueLight12/agenda-proyecto`,
+privado) justo para poder clonarlo en otra máquina, como una Raspberry Pi 4
+Model B. Todo el stack (PostgreSQL, backend en Python, frontend en Node)
+tiene imágenes Docker con soporte ARM64, así que corre en la Pi sin cambiar
+código.
+
+1. En la Pi (requiere Raspberry Pi OS de **64 bits**, Docker y git ya
+   instalados):
+   ```bash
+   git clone https://github.com/yueLight12/agenda-proyecto.git
+   cd agenda-proyecto
+   cp .env.example .env
+   ```
+2. Edita `.env` y pon en `VITE_API_URL` la IP local de la Pi en vez de
+   `localhost` (necesario para poder abrir el frontend desde el navegador de
+   otro dispositivo en la misma red, por ejemplo tu celular):
+   ```
+   VITE_API_URL=http://<ip-de-la-pi>:8010
+   ```
+   Si solo vas a usar el navegador de la propia Pi, `http://localhost:8010`
+   (el valor por defecto) funciona igual.
+3. Levanta todo igual que en la laptop:
+   ```bash
+   docker compose up --build
+   docker compose exec api python seed.py   # datos de prueba, primera vez
+   ```
+
+### Qué NO va a funcionar igual en la Pi
+
+- **Chatbot (Ollama)**: corre fuera de Docker, en la máquina host — en la Pi
+  probablemente no tenga RAM/CPU suficiente para `mistral:7b-instruct-q4_0`
+  a una velocidad usable. El resto de la app no se ve afectado: si Ollama no
+  está corriendo, `POST /chatbot/consulta` responde con un error controlado
+  (ver `app/services/chatbot.py`), no tumba nada más. Opciones si quieres el
+  chatbot ahí de todos modos:
+  - Probar un modelo más chico (`llama3.2:3b` o `phi3`, ya probados según
+    `agenda-backend/README.md`).
+  - O dejar Ollama corriendo en la laptop y apuntar `OLLAMA_URL` del backend
+    de la Pi a la IP de la laptop en la red local, en vez de instalar Ollama
+    en la Pi.
+- **Transcripción de audio (whisper)**: sí corre (la imagen tiene build
+  ARM64), pero más lento que en la laptop al no tener aceleración por
+  hardware — para pruebas rápidas está bien, no para uso pesado.
+
+### Mantener la laptop y la Pi sincronizadas
+
+Cada máquina tiene su propio `.env` (no se versiona, cada una con su propia
+`VITE_API_URL`/URLs locales). El código sí se sincroniza por git: `git push`
+desde donde hiciste el cambio, `git pull` en la otra máquina antes de seguir
+trabajando ahí.
+
 ## Cómo correrlo sin Docker (backend y frontend por separado)
 
 Ver las instrucciones detalladas en `agenda-backend/README.md` y

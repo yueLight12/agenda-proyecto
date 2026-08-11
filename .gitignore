@@ -14,3 +14,4 @@ agenda-frontend/.env
 # General
 .DS_Store
 *.log
+/.env

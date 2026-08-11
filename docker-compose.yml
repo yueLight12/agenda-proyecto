@@ -43,7 +43,7 @@ services:
     build:
       context: ./agenda-frontend
       args:
-        VITE_API_URL: https://5xtz0906-8010.usw3.devtunnels.ms
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8010}
     restart: unless-stopped
     depends_on:
       - api
