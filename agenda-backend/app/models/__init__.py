@@ -11,3 +11,4 @@ from app.models.notificacion import Notificacion, TipoNotificacion  # noqa: F401
 from app.models.reunion import Reunion, ReunionParticipante  # noqa: F401
 from app.models.equipo_miembro import EquipoMiembro  # noqa: F401
 from app.models.minuta import Minuta, AcuerdoMinuta  # noqa: F401
+from app.models.nota import Nota  # noqa: F401

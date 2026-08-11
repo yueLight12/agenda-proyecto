@@ -99,6 +99,7 @@ export default function CalendarioGlobal() {
           reunion={modalReunion}
           miembros={equiposPorProyecto[modalReunion.proyecto_id] || []}
           organizadorId={modalReunion.organizador_id}
+          puedeAdministrar={puedeEditar({ proyecto_id: modalReunion.proyecto_id })}
           onGuardado={async () => {
             setModalReunion(null);
             await cargarTodo();

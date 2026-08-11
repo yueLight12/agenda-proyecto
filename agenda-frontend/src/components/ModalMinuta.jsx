@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { minutasApi } from "../api/endpoints";
 import Modal from "./Modal";
+import SeccionNotas from "./SeccionNotas";
 
 /**
  * Minuta de una reunión: notas libres + acuerdos, con la opción de
@@ -8,7 +9,7 @@ import Modal from "./Modal";
  * límite). `miembros` es el equipo visible del proyecto, mismo formato que
  * usa ModalReunion/FormularioEntregable.
  */
-export default function ModalMinuta({ reunion, miembros, onCerrar }) {
+export default function ModalMinuta({ reunion, miembros, puedeAdministrar = false, onCerrar }) {
   const [minuta, setMinuta] = useState(null);
   const [contenido, setContenido] = useState("");
   const [cargando, setCargando] = useState(true);
@@ -213,6 +214,10 @@ export default function ModalMinuta({ reunion, miembros, onCerrar }) {
                   {agregandoAcuerdo ? "Agregando..." : "Agregar acuerdo"}
                 </button>
               </form>
+
+              <div style={{ marginTop: 16, borderTop: "1px solid var(--color-border)", paddingTop: 16 }}>
+                <SeccionNotas minutaId={minuta.id} puedeAdministrar={puedeAdministrar} />
+              </div>
             </div>
           )}
         </div>

@@ -91,6 +91,13 @@ export const minutasApi = {
     (await api.post(`/acuerdos/${acuerdoId}/convertir-a-entregable`, datos)).data,
 };
 
+export const notasApi = {
+  // params: { entregable_id } | { reunion_id } | { minuta_id } (uno solo)
+  listar: async (params) => (await api.get("/notas", { params })).data,
+  crear: async (datos) => (await api.post("/notas", datos)).data,
+  eliminar: async (notaId) => api.delete(`/notas/${notaId}`),
+};
+
 export const chatbotApi = {
   consultar: async (pregunta) =>
     (await api.post("/chatbot/consulta", { pregunta }, { timeout: 150000 })).data,

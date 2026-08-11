@@ -20,6 +20,7 @@ from app.routers import (
     equipo_resumen,
     equipos,
     minutas,
+    notas,
     notificaciones,
     proyectos,
     resumen,
@@ -58,6 +59,7 @@ app.include_router(reuniones.router)
 app.include_router(equipos.router)
 app.include_router(equipo_resumen.router)
 app.include_router(minutas.router)
+app.include_router(notas.router)
 app.include_router(admin.router)
 app.include_router(chatbot.router)
 app.include_router(asistente.router)

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { entregablesApi } from "../api/endpoints";
 import Modal from "./Modal";
+import SeccionNotas from "./SeccionNotas";
 
 export default function FormularioEntregable({
   proyectoId,
@@ -122,6 +123,12 @@ export default function FormularioEntregable({
           {guardando ? "Guardando..." : esEdicion ? "Guardar cambios" : "Crear entregable"}
         </button>
       </form>
+
+      {esEdicion && (
+        <div style={{ marginTop: 16, borderTop: "1px solid var(--color-border)", paddingTop: 16 }}>
+          <SeccionNotas entregableId={entregable.id} puedeAdministrar={puedeAsignarAOtros} />
+        </div>
+      )}
     </Modal>
   );
 }

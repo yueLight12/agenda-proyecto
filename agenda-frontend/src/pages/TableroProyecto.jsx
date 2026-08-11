@@ -341,6 +341,7 @@ export default function TableroProyecto() {
           reunion={modalReunion === "nueva" ? null : modalReunion}
           miembros={equipo}
           organizadorId={modalReunion === "nueva" ? usuario?.id : modalReunion.organizador_id}
+          puedeAdministrar={puedeAdministrar}
           onGuardado={async () => {
             setModalReunion(null);
             await cargarTodo();
@@ -353,6 +354,7 @@ export default function TableroProyecto() {
         <ModalMinuta
           reunion={reunionMinuta}
           miembros={equipo}
+          puedeAdministrar={puedeAdministrar}
           onCerrar={async () => {
             setReunionMinuta(null);
             await cargarTodo();

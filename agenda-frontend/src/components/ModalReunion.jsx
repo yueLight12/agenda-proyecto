@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { reunionesApi } from "../api/endpoints";
 import Modal from "./Modal";
+import SeccionNotas from "./SeccionNotas";
 
 function aFechaYHora(fechaISO) {
   if (!fechaISO) return { fecha: "", hora: "" };
@@ -17,7 +18,15 @@ function aFechaYHora(fechaISO) {
  * (mismo formato que usa ModalEquipo/FormularioEntregable) para elegir participantes.
  * Una reunión es visible solo para organizador + invitados (y siempre para el N1).
  */
-export default function ModalReunion({ proyectoId, reunion, miembros, organizadorId, onGuardado, onCerrar }) {
+export default function ModalReunion({
+  proyectoId,
+  reunion,
+  miembros,
+  organizadorId,
+  puedeAdministrar = false,
+  onGuardado,
+  onCerrar,
+}) {
   const esEdicion = Boolean(reunion);
   const { fecha: fechaInicial, hora: horaInicial } = aFechaYHora(reunion?.fecha_inicio);
 
@@ -175,6 +184,12 @@ export default function ModalReunion({ proyectoId, reunion, miembros, organizado
           </button>
         </div>
       </form>
+
+      {esEdicion && (
+        <div style={{ marginTop: 16, borderTop: "1px solid var(--color-border)", paddingTop: 16 }}>
+          <SeccionNotas reunionId={reunion.id} puedeAdministrar={puedeAdministrar} />
+        </div>
+      )}
     </Modal>
   );
 }
