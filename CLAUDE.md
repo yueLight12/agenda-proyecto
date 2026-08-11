@@ -1,0 +1,105 @@
+# Instrucciones para Claude Code — Agenda Inteligente de Proyectos
+
+Este archivo define cómo debes trabajar en este repositorio. Léelo por completo antes de tocar código.
+
+## 0. Reglas del espacio de trabajo (SIEMPRE se respetan, nunca se olvidan)
+
+1. Siempre di lo que entendiste sobre lo que el usuario está pidiendo, antes de actuar.
+2. Siempre haz preguntas para asegurar que entiendes lo que se necesita, y espera el visto bueno antes de avanzar en cambios grandes o ambiguos. Para cambios pequeños y obvios (typos, ajustes menores) puedes proceder directo.
+3. Tu rol en este proyecto: desarrollador senior full-stack ayudando a Yue a construir este sistema, traduciendo requisitos en funcionalidad concreta.
+4. Antes de construir algo nuevo de tamaño considerable (una fase completa, un módulo nuevo), presenta un plan corto de trabajo y espera confirmación.
+5. Pide lo que necesites (credenciales, decisiones de negocio, aclaraciones) en vez de asumir.
+6. Estas reglas se pueden ampliar más adelante; nunca deben olvidarse ni contradecirse por instrucciones futuras que no las mencionen explícitamente.
+
+## 1. Qué es este proyecto
+
+Sistema interno para una empresa (cliente: David, con Bernardo y equipo) para:
+- Llevar una agenda de entregables por proyecto, con fecha límite y % de avance.
+- Ver histórico de avance (comparar sesión anterior vs. actual).
+- Tener roles y permisos **por proyecto** (no globales): N1 (dirección), N2 (líder), N3 (colaborador interno), N4 (colaborador externo).
+- Enviar recordatorios (por ahora solo dentro de la app; correo/WhatsApp quedan para fase futura).
+- Servir como base que va a crecer con más módulos y usuarios — por eso el código debe estar bien estructurado, documentado y comentado desde el inicio.
+
+Este es el **MVP (Fase 1 backend + Fase 2 frontend)**, ya ampliado con reuniones, minutas/acuerdos, dashboard ejecutivo, "Mi equipo" y una app móvil (PWA) — ver sección 6. Fases futuras que siguen sin aprobación y que NO debes construir a menos que se te pida explícitamente:
+- Minutas de reunión con transcripción/IA (las minutas manuales, sin IA, ya existen — ver sección 6).
+- Notificaciones por correo/WhatsApp.
+- Asistente de voz con capacidad de ejecutar acciones ("agenda una reunión con David el jueves a las 3pm" y que la cree) — **aprobado el 2026-08-08** (Milestone B de la app móvil). El mecanismo y las primeras 2 acciones (`crear_entregable`, `actualizar_avance_entregable`) ya estaban construidos; el 2026-08-08 se agregaron las 4 acciones restantes del plan original (`crear_proyecto`, `agendar_reunion`, `asignar_rol`, `registrar_acuerdo`) — ver sección 6.
+
+El documento de diseño completo (ERD, reglas de visibilidad, wireframes) está en `docs/diseno-fase0-agenda-inteligente.md`. Consúltalo antes de modificar el modelo de datos o las reglas de permisos.
+
+## 2. Estructura del repositorio
+
+```
+agenda-backend/     API en FastAPI (Python). Ver su README.md.
+agenda-frontend/    App web en React + Vite. Ver su README.md.
+docs/                Documento de diseño de Fase 0.
+```
+
+## 3. Regla de oro de este sistema: permisos por proyecto
+
+Toda la lógica de visibilidad vive centralizada en `agenda-backend/app/core/permissions.py`.
+**Nunca dupliques lógica de permisos en un router o endpoint nuevo** — siempre reutiliza
+`query_entregables_visibles`, `puede_ver_entregable`, `puede_editar_entregable`, etc., o
+extiende ese módulo si necesitas una regla nueva.
+
+Resumen de las reglas (no las cambies sin confirmarlo con Yue primero, ya que
+fueron acordadas explícitamente con el cliente):
+- **N1**: ve todo el proyecto.
+- **N2**: ve solo a su equipo (usuarios donde `supervisor_id == N2.id` en ese proyecto), incluyendo entregables sensibles de su equipo.
+- **N3 / N4**: ven solo sus propios entregables + los NO sensibles del proyecto.
+- La sensibilidad (`sensible: bool`) se marca a nivel de **entregable individual**, no de proyecto completo.
+
+## 4. Stack y convenciones
+
+**Backend (FastAPI):**
+- Python + FastAPI + SQLAlchemy + PostgreSQL + JWT.
+- Todo el código, nombres de variables, comentarios y docstrings van **en español**, siguiendo el estilo ya usado en el repo (ver cualquier archivo en `app/`).
+- Cada modelo, schema y router tiene un docstring de módulo explicando su propósito — mantén ese patrón.
+- No agregues lógica de negocio directamente en los routers si ya existe o debería existir un servicio en `app/services/`.
+
+**Frontend (React + Vite):**
+- JSX en español para textos visibles al usuario; nombres de variables pueden ir en español o inglés siguiendo el patrón ya usado (mayormente español para mantener consistencia).
+- Estilos con CSS plano usando las variables de `src/styles/tokens.css` — no introduzcas una librería de CSS/UI nueva sin antes preguntar.
+- Cliente de API centralizado en `src/api/` — no hagas `fetch`/`axios` sueltos dentro de componentes.
+
+**General:**
+- Todo debe poder correr con Docker (`docker-compose.yml` en cada carpeta). Si agregas una dependencia nueva, actualiza también el Dockerfile/requirements.txt/package.json correspondiente.
+- El proyecto eventualmente migra a AWS. Evita atarte a nada específico de "correr en mi laptop" (rutas absolutas, hardcodear `localhost`, etc.) — usa variables de entorno (`.env`).
+- El túnel público estándar para compartir el proyecto es `agenda-demo.usw3` (CLI `devtunnel`) — **no** el de la pestaña "Ports" de VS Code, que causó una falla real por requerir un paso manual (marcar el puerto 8010 como Public) fácil de olvidar. Ver sección "Compartir el proyecto por internet" en `README.md` y el script `verificar-tunel.sh`.
+
+## 5. Antes de escribir código en una tarea nueva
+
+Sigue este flujo (coherente con las reglas del espacio de trabajo, sección 0):
+
+1. Lee el requisito y repite en tus palabras qué entendiste que hay que construir.
+2. Si el requisito toca el modelo de datos o las reglas de permisos, revisa primero `docs/diseno-fase0-agenda-inteligente.md` y `app/core/permissions.py` para no duplicar/contradecir lo ya definido.
+3. Si es una tarea grande (nueva fase, nuevo módulo), propone un plan corto: qué archivos vas a tocar/crear, en qué orden.
+4. Implementa.
+5. Si tocaste el backend, valida que la app importa y arranca sin errores (`uvicorn app.main:app` o una prueba rápida de imports) antes de dar por terminada la tarea.
+6. Si tocaste el frontend, corre `npm run build` para detectar errores antes de dar por terminada la tarea.
+
+## 6. Estado actual (dónde vamos)
+
+- ✅ Fase 0: diseño (ERD, endpoints, wireframes).
+- ✅ Fase 1: backend base (modelos, auth, CRUD, permisos, entregables con histórico de avance, notificaciones in-app, resumen ejecutivo, script de datos de prueba). Incluye scheduler interno (APScheduler) que corre `generar_recordatorios()` automáticamente al arrancar y cada `HORAS_ENTRE_BARRIDOS_RECORDATORIOS` horas (default 6) — ya no depende de llamar `POST /admin/generar-recordatorios` a mano. Backend completo para el MVP.
+- ✅ Fase 2: frontend — login, tablero de proyecto (semáforo + resumen), mis pendientes, creación/edición de entregables desde modal (`FormularioEntregable.jsx`), administración de equipo/roles por proyecto desde modal (`ModalEquipo.jsx`), histórico de avance con gráfica (`ModalHistorial.jsx`, usa `recharts`), notificaciones in-app con polling cada 60s (`ModalNotificaciones.jsx` + `AppLayout.jsx`). Estados de error visibles (no solo silenciosos) en Proyectos, Mis pendientes, Tablero de proyecto y actualización de avance.
+- ✅ Calendario de entregables (`react-big-calendar`, componente reutilizable `CalendarioEntregables.jsx`): vista por proyecto (toggle Tabla/Calendario en `TableroProyecto.jsx`) y vista global (`/calendario`, página `CalendarioGlobal.jsx`). Permite arrastrar un entregable a otra fecha para reprogramarlo, solo si el usuario es N1/N2 en el proyecto correspondiente (reutiliza `PATCH /entregables/{id}`, sin cambios en el backend).
+- ✅ Fase 2/3 completas para el MVP. Nada pendiente de esta lista por ahora.
+- ✅ Chatbot de consulta (solo lectura, fase adelantada del roadmap original — confirmado con Yue antes de construirlo): página `Chatbot.jsx` (ruta `/chatbot`, link "Asistente" en el sidebar) → `POST /chatbot/consulta` → `app/services/chatbot.py`. El servicio arma el contexto reutilizando `query_entregables_visibles` (mismo filtro de permisos que el resto del sistema) y se lo pasa a un LLM **local** vía Ollama (`OLLAMA_URL`/`OLLAMA_MODELO` en `.env`, modelo probado: `mistral:7b-instruct-q4_0`), corriendo fuera de Docker en la máquina host — no sale a internet, para poder hacer demo dentro de la red del cliente sin depender de que abran el firewall a la API de Claude. El modelo nunca decide qué es visible ni toca la base de datos, solo redacta sobre datos ya filtrados.
+- ✅ Reuniones: `app/routers/reuniones.py` + `app/models/reunion.py` (`Reunion`, `ReunionParticipante`). Cualquier participante del proyecto puede agendar una; visibilidad y edición con sus propias funciones en `permissions.py` (`query_reuniones_visibles`, `puede_ver_reunion`, `puede_editar_reunion` — N1/N2 o el organizador pueden editar/eliminar). Frontend: `ModalReunion.jsx`, usado desde `TableroProyecto.jsx` y `CalendarioGlobal.jsx`.
+- ✅ Minutas y acuerdos: `app/routers/minutas.py` + `app/models/minuta.py` (`Minuta` 1:1 con `Reunion`, `AcuerdoMinuta` con `responsable_id`/`entregable_id`/`convertido`). Hereda permisos de la reunión (reutiliza `puede_ver_reunion`/`puede_editar_reunion`, sin reglas nuevas). `POST /acuerdos/{id}/convertir-a-entregable` convierte un acuerdo en un Entregable real llamando al mismo `crear_entregable_servicio` de siempre — mismas reglas de quién puede asignar a quién. Esto es la parte de minutas **sin IA/transcripción**; esa sigue siendo fase futura no aprobada. Frontend: `ModalMinuta.jsx` desde `TableroProyecto.jsx`.
+- ✅ Dashboard ejecutivo: `GET /dashboard/resumen` (`app/routers/dashboard.py`) agrega avance/vencidos/próximos/cumplidos de todos los proyectos visibles + reuniones de los próximos 7 días + notificaciones no leídas, reutilizando `query_entregables_visibles`/`query_reuniones_visibles`. Página `Dashboard.jsx` (ruta `/`, antes era `Proyectos.jsx`), con `PanelResumenProyecto.jsx` como panel expandible por proyecto — ahí mismo los entregables se muestran **agrupados por persona** (no en listas separadas de equipo/entregables).
+- ✅ "Mi equipo" (plantilla reutilizable): `app/routers/equipos.py` + `app/models/equipo_miembro.py`. Cada usuario guarda su propia lista de personas+rol (`GET/POST /mi-equipo`, `DELETE /mi-equipo/{usuario_id}`) y la aplica de un clic a un proyecto con `POST /proyectos/{id}/aplicar-mi-equipo` (solo N1/N2), que hace upsert directo sobre `usuario_proyecto_rol` sin reglas nuevas. Página `Equipo.jsx` (ruta `/equipo`) — no confundir con `ModalEquipo.jsx`, que administra los roles reales de un proyecto específico.
+- ✅ Supervisor opcional al asignar N3/N4 (`asignar_rol_en_proyecto` en `proyectos.py`): si no se manda `supervisor_id`, queda automáticamente como supervisor quien hace la asignación (sea N1 o N2) — antes era obligatorio elegir un N2 ya existente, lo cual bloqueaba a alguien que acababa de crear un proyecto (y por tanto es N1 ahí) para agregar a su primer colaborador.
+- ✅ Notificaciones ampliadas: además de `recordatorio_proximo/vencido` y `entregable_asignado`, ahora existe `avance_actualizado` — cada vez que alguien actualiza el % de avance de un entregable (no solo al llegar a 100%), se notifica al supervisor de esa persona en el proyecto, no solo a quien creó el entregable.
+- ✅ App móvil — Milestone A (PWA instalable + responsive) completo el 2026-08-08: `vite-plugin-pwa` configurado en `vite.config.js` (manifest + service worker), íconos en `agenda-frontend/public/`, nav lateral colapsa a drawer con hamburguesa en pantallas ≤768px, tablas/calendario con scroll horizontal contenido. Se instala desde el navegador (Android/iOS) con "Agregar a pantalla de inicio", sin pasar por Play Store/App Store. Verificado el 2026-08-09 con Playwright en viewport móvil (375px) contra la app real: se encontró y arregló un bug de overflow horizontal en `TableroProyecto.jsx` — el encabezado (título + botones Tabla/Calendario/Administrar equipo/Nuevo entregable/Nueva reunión) no tenía `flex-wrap`, así que en pantallas angostas esa fila era más ancha que el viewport y arrastraba **toda la página** en scroll horizontal (no solo la tabla). Arreglado agregando `flex-wrap: wrap` a `.topbar` (`app.css`) y a los dos `div` de botones inline en `TableroProyecto.jsx`. El resto de las páginas (Dashboard, Proyectos, Mi equipo, Mis pendientes, Calendario global, Chatbot, el drawer, el modal del asistente de voz) ya se veían bien en móvil sin cambios.
+- ✅ Milestone B (asistente de voz) — catálogo de acciones completo el 2026-08-08: `app/services/asistente/tools.py` ahora tiene las 6 acciones del plan original (`crear_entregable`, `actualizar_avance_entregable`, `crear_proyecto`, `agendar_reunion`, `asignar_rol`, `registrar_acuerdo`), todas reutilizando los mismos servicios/reglas de permisos de siempre, sin lógica nueva. `asignar_rol` solo permite cambiar el rol de alguien que YA participa en el proyecto (no agrega gente nueva por voz — resolver un nombre a un usuario_id sin exponer `GET /usuarios` global rompería la visibilidad N2/N3/N4). Se agregó `resolver_fecha_hora` en `resolucion.py`, con un extractor de hora por regex propio (`_extraer_hora`) en vez de confiar en el parseo combinado fecha+hora de `dateparser` en español, que en pruebas fallaba silenciosamente con frases como "de la mañana/tarde" o llegaba a interpretar mal el día. Frontend (`ModalAsistenteVoz.jsx`) no necesitó cambios: es genérico sobre cualquier tool del catálogo.
+- ✅ Resumen de equipo multi-proyecto (2026-08-10): pestaña nueva "Resumen de mi equipo" en `/equipo` (queda por default; "Plantilla (Mi equipo)" es la pestaña existente, sin cambios). Para un N1/N2, agrega en un solo lugar — cruzando TODOS sus proyectos, agrupado por persona — equipo + entregables + reuniones, con acciones rápidas de cambiar rol/quitar inline y un botón "Administrar equipo de [proyecto]" que abre el `ModalEquipo` de siempre. Backend: `GET /equipo/resumen` (`app/routers/equipo_resumen.py` + `app/services/equipo_resumen.py`), reutiliza tal cual `listar_proyectos_visibles`/`listar_equipo_visible`/`query_entregables_visibles`/`query_reuniones_visibles` — **no se tocó `permissions.py`**, ninguna regla de visibilidad nueva. Importante: las reuniones que se muestran son exactamente las que ya eran visibles (para N2, solo donde él es organizador/invitado — no todas las de su equipo, verificado explícitamente con una prueba real antes de dar por terminada la tarea). Los controles de administrar (cambiar rol/quitar) se muestran según el rol del que ESTÁ VIENDO la pantalla en ese proyecto (`usuario.roles_por_proyecto`, mismo patrón que `TableroProyecto.jsx`), no según el rol de la persona mostrada.
+- ✅ Skill de identidad visual personal (`.claude/skills/ui-ux-design/SKILL.md`, alcance solo este proyecto): paleta navy/teal y tipografía Sora/Inter ya definidas en `tokens.css` coinciden con el default del skill — no cambió nada visual existente, solo formaliza la convención y fija un piso de accesibilidad (contraste, foco de teclado visible, hover/focus/active distinguibles, `prefers-reduced-motion`) para código nuevo.
+- ✅ Sidebar colapsable en desktop + acordeón en "Resumen de mi equipo" (2026-08-10): botón nuevo en `.app-topbar` (`topbar-collapse-btn`, mismo glifo "☰" que el hamburger móvil pero estado/CSS completamente separados) oculta/muestra el sidebar en pantallas ≥769px, con preferencia persistida en `localStorage` (`sidebar_colapsado`). Aplicando el piso de accesibilidad del skill de arriba: se agregó `prefers-reduced-motion` a la transición del sidebar (cubre también el drawer móvil existente) y un `:hover`/`:focus-visible` a `.btn--ghost` que no existía. En `ResumenEquipo.jsx`, cada persona ahora es un acordeón (un solo abierto a la vez, header con preview de "N proyectos · N vencidos" + ▲/▼) — mismo patrón visual que "Avance por proyecto" en `Dashboard.jsx`, pero implementado como `<button>` real (no `<div onClick>`) para que sea operable por teclado, corrigiendo en código nuevo un hueco de accesibilidad que sí tiene el patrón original de `Dashboard.jsx` (ese no se tocó, fuera de alcance). Verificado con Playwright: colapso persiste tras reload, el drawer móvil sigue funcionando sin regresión, el acordeón cierra la fila anterior al abrir otra, y Tab+Enter operan ambos controles nuevos.
+- ✅ Fix + mejora sobre lo anterior (2026-08-10): el botón de colapsar sidebar quedaba centrado en el topbar (causa: `.app-topbar` usa `justify-content: space-between` pensado para 2 hijos; el tercer botón agregado rompía esa suposición) — se arregló agrupando ambos botones de "toggle" (`topbar-menu-btn`/`topbar-collapse-btn`) en un `<div>` envoltorio, y de paso se cambió su ocultamiento de `visibility` a `display: none` (más correcto para accesibilidad — saca el botón oculto del tab order). Además, "Resumen de mi equipo" ahora tiene un **segundo nivel de acordeón**: al expandir una persona, sus proyectos se ven de inmediato (nombre, rol, preview de entregables/vencidos, controles de administrar) pero los entregables/reuniones de cada proyecto quedan detrás de su propia flecha ▲/▼ (`proyectoExpandidoId`, mismo patrón de un-solo-abierto-a-la-vez, se resetea al cambiar de persona para que dos personas en el mismo proyecto no "hereden" el estado expandido entre sí). Nueva clase `.boton-desplegar` en `app.css` (distinta de `.list-inline--boton`: este botón es de ancho automático, comparte fila con los controles de administrar — no puede envolver toda la fila porque ya tiene un `<select>`/botones anidados, HTML inválido si fuera un solo `<button>` grande).
+- ✅ Limpieza visual de "Resumen de mi equipo" (2026-08-10): cada fila de proyecto tenía select de rol + "Quitar" + "Administrar equipo de [proyecto]" siempre visibles — con varios proyectos por persona se veía como una pared de controles repetidos. Se quitaron el select y "Quitar" de la fila (quedan solo dentro de `ModalEquipo`, que ya los tenía) y se dejó un único botón "Administrar" por proyecto. Se eliminó el código ahora sin uso en `ResumenEquipo.jsx` (`handleCambiarRol`, `handleQuitar`, `ROLES`) — cero funcionalidad perdida, todo sigue disponible desde el modal.
+- ⬜ **Pendiente (2026-08-10, sin fecha):** hoy toda `Reunion` requiere `proyecto_id` (obligatorio en el modelo) — no existe el concepto de reunión "general"/sin proyecto ni multi-proyecto. Si alguien quiere agendar algo tipo "ver avances generales con mi equipo" (no ligado a un solo proyecto), hoy no se puede — ni desde la UI normal ni desde el asistente de voz, que por eso siempre pregunta a qué proyecto pertenece. Workaround actual: agendarla dentro de cualquier proyecto existente, o crear un proyecto ligero tipo "Seguimiento general" solo para agrupar esas reuniones. Si se decide construir esto de verdad, implica cambiar `proyecto_id` a opcional y sobre todo **redefinir la regla de visibilidad de reuniones** (¿quién ve una reunión sin proyecto?) — es justo el tipo de cambio de permisos que hay que acordar con Yue/cliente antes de tocar, no un ajuste chico. Confirmado explícitamente con Yue: se deja como pendiente, no se construye por ahora.
+- ⬜ Fase 4: carga real de datos de prueba (ya existe `seed.py`, y `seed_usuarios_reales.py`/`reset_passwords_reales.py` para dar de alta a los 7 usuarios reales del cliente sin crear proyectos/roles) + demo formal al cliente. Sigue siendo lo único pendiente del roadmap original. Nota: `seed.py` tiene un typo pre-existente (línea de `usuarios_data`, "Lider Proyecto A" apunta a `n1@demo.com` en vez de `n2a@demo.com`) que hace que el script falle — no se tocó porque no es parte de esta tarea, pero hay que arreglarlo antes de usarlo.
+
+Antes de avanzar a algo fuera de esta lista, confirma con Yue.

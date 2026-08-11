@@ -1,0 +1,55 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: agenda_inteligente
+    ports:
+      - "5442:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  whisper:
+    image: onerahmet/openai-whisper-asr-webservice:latest
+    restart: unless-stopped
+    environment:
+      ASR_MODEL: small
+      ASR_ENGINE: faster_whisper
+    volumes:
+      - whisper_models:/root/.cache/whisper
+    ports:
+      - "8012:9000"
+
+  api:
+    build: ./agenda-backend
+    restart: unless-stopped
+    depends_on:
+      - db
+      - whisper
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/agenda_inteligente
+      SECRET_KEY: dev-secret-key-cambiar-en-produccion
+      WHISPER_URL: http://whisper:9000
+    ports:
+      - "8010:8000"
+    volumes:
+      - ./agenda-backend:/code
+
+  web:
+    build:
+      context: ./agenda-frontend
+      args:
+        VITE_API_URL: https://5xtz0906-8010.usw3.devtunnels.ms
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "5183:5173"
+
+volumes:
+  db_data:
+  whisper_models:

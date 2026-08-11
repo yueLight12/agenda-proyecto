@@ -1,0 +1,57 @@
+:root {
+  /* Paleta: navy profundo + teal de acento + neutros cálidos para no verse "template" */
+  --color-bg: #f7f8fa;
+  --color-surface: #ffffff;
+  --color-navy-900: #0f2438;
+  --color-navy-700: #1c3a52;
+  --color-teal-500: #1f8a8c;
+  --color-teal-600: #146d6f;
+  --color-border: #e2e6ea;
+  --color-text: #1a2530;
+  --color-text-muted: #5b6b78;
+
+  --color-success: #1f8a5c;
+  --color-success-bg: #e5f5ee;
+  --color-warning: #b5790a;
+  --color-warning-bg: #fbf1de;
+  --color-danger: #c0392b;
+  --color-danger-bg: #fbeae8;
+  --color-pending-bg: #eef0f2;
+
+  --font-display: "Sora", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Inter", "Segoe UI", system-ui, sans-serif;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --space-5: 32px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  color: var(--color-navy-900);
+  margin: 0;
+}
+
+a {
+  color: var(--color-teal-600);
+}
+
+button {
+  font-family: var(--font-body);
+  cursor: pointer;
+}

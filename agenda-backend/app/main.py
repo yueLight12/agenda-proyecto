@@ -1,0 +1,98 @@
+"""
+Punto de entrada de la Agenda Inteligente de Proyectos (API).
+
+Para correr en desarrollo:
+    uvicorn app.main:app --reload
+"""
+from apscheduler.schedulers.background import BackgroundScheduler
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.core.config import settings
+from app.database import Base, SessionLocal, engine
+from app.routers import (
+    admin,
+    asistente,
+    auth,
+    chatbot,
+    dashboard,
+    entregables,
+    equipo_resumen,
+    equipos,
+    minutas,
+    notificaciones,
+    proyectos,
+    resumen,
+    reuniones,
+    usuarios,
+)
+from app.services.recordatorios import generar_recordatorios
+
+# Crea las tablas si no existen (para desarrollo rápido).
+# En un entorno con más de un desarrollador o ya en AWS, esto se reemplaza
+# por migraciones de Alembic (ver carpeta alembic/ una vez inicializada).
+Base.metadata.create_all(bind=engine)
+
+app = FastAPI(
+    title="Agenda Inteligente de Proyectos",
+    description="API del MVP: entregables, roles por proyecto, avance e histórico, notificaciones.",
+    version="0.1.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Ajustar a dominios específicos antes de producción
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(auth.router)
+app.include_router(usuarios.router)
+app.include_router(proyectos.router)
+app.include_router(entregables.router)
+app.include_router(notificaciones.router)
+app.include_router(resumen.router)
+app.include_router(dashboard.router)
+app.include_router(reuniones.router)
+app.include_router(equipos.router)
+app.include_router(equipo_resumen.router)
+app.include_router(minutas.router)
+app.include_router(admin.router)
+app.include_router(chatbot.router)
+app.include_router(asistente.router)
+
+
+def _ejecutar_barrido_recordatorios():
+    """Corre generar_recordatorios con su propia sesión de BD (para el scheduler)."""
+    db = SessionLocal()
+    try:
+        generar_recordatorios(db)
+    finally:
+        db.close()
+
+
+scheduler = BackgroundScheduler()
+scheduler.add_job(
+    _ejecutar_barrido_recordatorios,
+    "interval",
+    hours=settings.horas_entre_barridos_recordatorios,
+    id="barrido_recordatorios",
+)
+
+
+@app.on_event("startup")
+def iniciar_scheduler():
+    # Corre un barrido inicial al arrancar y luego cada N horas (ver settings.horas_entre_barridos_recordatorios).
+    _ejecutar_barrido_recordatorios()
+    scheduler.start()
+
+
+@app.on_event("shutdown")
+def detener_scheduler():
+    scheduler.shutdown()
+
+
+@app.get("/", tags=["Salud"])
+def raiz():
+    return {"status": "ok", "servicio": "agenda-inteligente-api"}
