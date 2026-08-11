@@ -72,31 +72,43 @@ páginas mostraban "No se pudo cargar...", porque el navegador del cliente
 no puede completar el login interactivo que exige un túnel sin acceso
 anónimo, y eso se ve como un error de CORS aunque no lo sea).
 
-En su lugar usamos un túnel persistente creado con la CLI `devtunnel`
-(requiere tenerla instalada — ya está en esta máquina), con acceso anónimo
-configurado **a nivel de túnel**, así que no hay nada que marcar como Public
-cada vez ni URLs que cambien entre sesiones:
+En su lugar usamos un túnel persistente creado con la CLI `devtunnel`, con
+acceso anónimo configurado **a nivel de túnel**, así que no hay nada que
+marcar como Public cada vez ni URLs que cambien entre sesiones.
 
-1. Antes de cada sesión de trabajo o demo, dejá corriendo en una terminal
-   aparte:
-   ```bash
-   devtunnel host agenda-demo.usw3
-   ```
-2. Confirmá que está activo (`Host connections: 1`):
+**Desde el 2026-08-10, quien sirve el túnel es la Raspberry Pi** (ver
+sección "Correr este mismo proyecto en una Raspberry Pi" más abajo), no la
+laptop — corre ahí como servicio systemd (`devtunnel-agenda-demo.service`),
+así que se levanta solo si la Pi se reinicia o el proceso se cae, sin que
+haga falta dejar una terminal abierta. Si la Pi está encendida con Docker
+arriba, el túnel ya está sirviendo — no hay ningún paso manual del día a
+día.
+
+1. Confirmá que está activo (`Host connections: 1`) desde cualquier máquina
+   con `devtunnel` instalado (no hace falta estar en la Pi):
    ```bash
    devtunnel show agenda-demo.usw3
    ```
-3. Las URLs son fijas mientras el túnel exista:
+2. Las URLs son fijas mientras el túnel exista:
    - Frontend: `https://5xtz0906-5183.usw3.devtunnels.ms`
    - API: `https://5xtz0906-8010.usw3.devtunnels.ms`
 
-   `VITE_API_URL` en `docker-compose.yml` ya apunta a la URL de la API de
-   arriba — no hace falta tocarlo en el uso normal.
-4. Antes de compartir el link con el cliente, verificá que todo responde
-   bien de punta a punta:
+   `VITE_API_URL` se lee de un `.env` de raíz (no versionado, ver
+   `.env.example`) — en la Pi ya apunta a la URL de la API de arriba.
+3. Antes de compartir el link con el cliente, verificá que todo responde
+   bien de punta a punta (funciona desde cualquier máquina, no hace falta
+   estar en la Pi):
    ```bash
    ./verificar-tunel.sh
    ```
+
+Si por algo hay que operar el túnel directamente en la Pi (ver logs,
+reiniciarlo a mano, etc.):
+```bash
+ssh raspberrypi-yue                                    # o tu forma de entrar
+sudo systemctl status devtunnel-agenda-demo.service    # ver estado/logs
+sudo systemctl restart devtunnel-agenda-demo.service   # reiniciarlo
+```
 
 ### Si el túnel `agenda-demo` expira o hay que recrearlo
 
@@ -110,11 +122,11 @@ devtunnel port create agenda-demo -p 5183
 devtunnel port create agenda-demo -p 8010
 ```
 
-Como el prefijo nuevo va a ser distinto, hay que actualizar
-`docker-compose.yml` (`web.build.args.VITE_API_URL`) con la URL nueva del
-puerto 8010 y reconstruir: `docker compose up -d --build web`. Sin este
-paso, el frontend sigue llamando a la URL vieja y todo vuelve a fallar en
-silencio.
+Como el prefijo nuevo va a ser distinto, hay que actualizar `VITE_API_URL`
+en el `.env` de raíz (**en la Pi**, que es quien construye el frontend que
+de verdad sirve el túnel) con la URL nueva del puerto 8010 y reconstruir:
+`docker compose up -d --build web`. Sin este paso, el frontend sigue
+llamando a la URL vieja y todo vuelve a fallar en silencio.
 
 Para cargar los datos de prueba (7 usuarios, 4 proyectos) la primera vez:
 
