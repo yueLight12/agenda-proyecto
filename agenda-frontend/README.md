@@ -59,12 +59,13 @@ src/
 │   ├── ModalReunion.jsx         # Modal para crear/editar una reunión
 │   ├── ModalMinuta.jsx          # Modal de minuta (notas + acuerdos + convertir a entregable)
 │   ├── PanelResumenProyecto.jsx # Panel expandible: equipo con entregables por persona + reuniones
-│   └── CalendarioEntregables.jsx # Calendario reutilizable (react-big-calendar) con drag-and-drop
+│   ├── CalendarioEntregables.jsx # Calendario reutilizable (react-big-calendar) con drag-and-drop
+│   └── KanbanEntregables.jsx    # Tablero Kanban (pendiente/en_progreso/cumplido) con drag-and-drop nativo
 ├── pages/
 │   ├── Login.jsx
 │   ├── Dashboard.jsx         # Resumen ejecutivo multi-proyecto (ruta "/")
 │   ├── Proyectos.jsx         # Lista de proyectos del usuario
-│   ├── TableroProyecto.jsx   # Vista principal: semáforo + resumen + tabla/calendario
+│   ├── TableroProyecto.jsx   # Vista principal: semáforo + resumen + tabla/calendario/kanban
 │   ├── Equipo.jsx            # Plantilla personal reutilizable "mi equipo"
 │   ├── MisPendientes.jsx     # Entregables propios pendientes, de todos los proyectos
 │   ├── CalendarioGlobal.jsx  # Calendario con entregables y reuniones de todos los proyectos
@@ -138,6 +139,15 @@ configurado en `vite.config.js` (manifest + service worker), con los
     `ModalHistorial.jsx`).
   - No requirió cambios en el backend: reutiliza `PATCH /entregables/{id}`,
     que ya validaba que solo N1/N2 puedan cambiar la fecha de entrega.
+- Vista Kanban en el tablero de proyecto (`KanbanEntregables.jsx`): tercer
+  toggle "Kanban" junto a "Tabla"/"Calendario", con 3 columnas = los 3
+  estados reales de un entregable (pendiente/en_progreso/cumplido).
+  Arrastrar una tarjeta entre columnas reutiliza `PATCH
+  /entregables/{id}/avance` (mapeando columna → % de avance objetivo:
+  0/50/100), así que lo puede hacer el propio responsable, no solo N1/N2, y
+  `estatus`/`porcentaje_avance` quedan siempre sincronizados. Drag-and-drop
+  con HTML5 nativo, sin librerías nuevas. Clic en una tarjeta abre su
+  histórico (reutiliza `ModalHistorial.jsx`).
 
 - Instalable como PWA (Android/iOS, "Agregar a pantalla de inicio") y
   responsive: el sidebar colapsa a un drawer con botón hamburguesa en

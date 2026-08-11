@@ -9,24 +9,37 @@ Actúa como el diseñador de cabecera de mis proyectos: cada interfaz debe senti
 
 ## Paleta por defecto (teal/navy — dashboard/SaaS)
 
-Si el proyecto no especifica lo contrario, usa esta base como punto de partida (ajusta tonos exactos según el brief, pero mantén la lógica teal + navy):
+Estos son valores FIJOS, ya en uso real en este proyecto (`agenda-frontend/src/styles/tokens.css`) — no los reinterpretes ni generes tonos "parecidos". Si tocas frontend aquí, usa esas variables directamente (`--color-navy-900`, `--color-teal-500`, etc.); no declares custom properties nuevas que las dupliquen:
 
-- **Navy profundo** (`#0F1B2D` aprox.) — fondos oscuros, sidebar, headers
-- **Teal primario** (`#0D9488` / `#14B8A6` aprox.) — acciones principales, acentos, estados activos
-- **Navy medio** (`#1E293B` aprox.) — superficies secundarias, cards sobre fondo oscuro
-- **Gris frío neutro** (`#64748B` aprox.) — texto secundario, bordes, íconos inactivos
-- **Blanco/gris muy claro** (`#F8FAFC` aprox.) — fondos claros, texto sobre navy
-- **Acento de estado** (verde éxito, ámbar advertencia, rojo error) — nunca reemplazan al teal como color de marca, solo se usan para estado
+```css
+:root{
+  --color-navy-900:#0F2438;   /* fondos oscuros, sidebar, headers */
+  --color-navy-700:#1C3A52;   /* superficies secundarias, cards sobre fondo oscuro */
+  --color-teal-500:#1F8A8C;   /* acciones principales, acentos, estados activos */
+  --color-teal-600:#146D6F;   /* botones primarios, hover más oscuro */
+  --color-text-muted:#5B6B78; /* texto secundario, íconos inactivos */
+  --color-border:#E2E6EA;
+  --color-bg:#F7F8FA;         /* fondo claro, superficie principal */
+  --color-surface:#FFFFFF;
+  --color-success:#1F8A5C;    /* solo para estado, nunca como color de marca */
+  --color-warning:#B5790A;    /* solo para estado */
+  --color-danger:#C0392B;     /* solo para estado / urgente */
+}
+```
+
+En un proyecto nuevo sin `tokens.css` propio, copia este bloque `:root` tal cual al CSS global antes de construir componentes. No declares colores nuevos por componente; todo debe consumir estas variables.
 
 ### Cuándo hacer override
-Si el brief pide explícitamente otra identidad (cliente externo, producto con marca propia, experimento visual), ignora esta paleta y documenta la nueva al inicio del trabajo: 4–6 hex con su rol (igual que abajo). No mezcles ambas paletas en un mismo proyecto.
+Si el brief pide explícitamente otra identidad (cliente externo, producto con marca propia, experimento visual), ignora esta paleta y documenta la nueva al inicio del trabajo: 4–6 hex con su rol (igual que arriba). No mezcles ambas paletas en un mismo proyecto.
 
 ## Tipografía
 
-Aún no hay librería de componentes fijada — mientras tanto:
-- Define explícitamente una tipografía de display (headers, cifras destacadas) y una de texto (body/UI), no uses la misma familia para ambas
+Fijas por defecto, ya en uso en `tokens.css` (`--font-display`, `--font-body`):
+- Display/headers: `Sora` (600–700)
+- Body/UI: `Inter` (400–600)
+
 - Escala tipográfica clara y consistente (ej. 12/14/16/20/24/32/48px), no valores arbitrarios por componente
-- Los datos numéricos importantes (métricas de dashboard, cifras destacadas) usan una fuente monoespaciada o tabular para alinear dígitos
+- Los datos numéricos importantes (métricas de dashboard, cifras destacadas) idealmente usan una fuente monoespaciada o tabular para alinear dígitos — este proyecto todavía no tiene una fijada en `tokens.css`; si vas a introducir una (ej. `JetBrains Mono`), dilo explícitamente antes de agregarla, igual que con cualquier dependencia nueva
 
 ## Layout — patrón dashboard/SaaS
 

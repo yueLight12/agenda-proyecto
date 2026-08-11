@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { entregablesApi, proyectosApi, reunionesApi } from "../api/endpoints";
 import EstatusBadge from "../components/EstatusBadge";
 import CalendarioEntregables from "../components/CalendarioEntregables";
+import KanbanEntregables from "../components/KanbanEntregables";
 import FormularioEntregable from "../components/FormularioEntregable";
 import ModalEquipo from "../components/ModalEquipo";
 import ModalHistorial from "../components/ModalHistorial";
@@ -28,7 +29,7 @@ export default function TableroProyecto() {
   const [entregableHistorial, setEntregableHistorial] = useState(null);
   const [error, setError] = useState("");
   const [errorAvance, setErrorAvance] = useState("");
-  const [vista, setVista] = useState("tabla"); // "tabla" | "calendario"
+  const [vista, setVista] = useState("tabla"); // "tabla" | "calendario" | "kanban"
 
   const rolEnProyecto = usuario?.es_super_admin
     ? "N1"
@@ -75,6 +76,16 @@ export default function TableroProyecto() {
     await cargarTodo();
   };
 
+  const moverEstatusKanban = async (entregable, porcentajeObjetivo) => {
+    setErrorAvance("");
+    try {
+      await entregablesApi.actualizarAvance(entregable.id, porcentajeObjetivo);
+      await cargarTodo();
+    } catch {
+      setErrorAvance("No se pudo mover el entregable. Intenta de nuevo.");
+    }
+  };
+
   if (cargando) return <p>Cargando proyecto...</p>;
   if (error) return <p className="error-text">{error}</p>;
 
@@ -95,6 +106,12 @@ export default function TableroProyecto() {
               onClick={() => setVista("calendario")}
             >
               Calendario
+            </button>
+            <button
+              className={vista === "kanban" ? "btn btn--primary" : "btn btn--ghost"}
+              onClick={() => setVista("kanban")}
+            >
+              Kanban
             </button>
           </div>
           {puedeAdministrar && (
@@ -272,6 +289,18 @@ export default function TableroProyecto() {
         </table>
         </div>
       </div>
+      )}
+
+      {vista === "kanban" && (
+        <div className="card">
+          <KanbanEntregables
+            entregables={entregables}
+            equipo={equipo}
+            onMoverEstatus={moverEstatusKanban}
+            onEntregableClick={(e) => setEntregableHistorial(e)}
+            error={errorAvance}
+          />
+        </div>
       )}
 
       {modalEntregable && (
