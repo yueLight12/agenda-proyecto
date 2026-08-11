@@ -18,7 +18,12 @@ from app.models.notificacion import Notificacion
 from app.models.proyecto import Proyecto
 from app.models.usuario import Usuario
 from app.models.usuario_proyecto_rol import UsuarioProyectoRol
-from app.schemas.dashboard import DashboardOut, ResumenPorProyectoOut, ReunionProximaOut
+from app.schemas.dashboard import (
+    DashboardOut,
+    EntregableAtencionOut,
+    ResumenPorProyectoOut,
+    ReunionProximaOut,
+)
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard ejecutivo"])
 
@@ -43,6 +48,7 @@ def resumen_dashboard(
     limite_alerta = hoy + timedelta(days=settings.dias_alerta_entregable)
 
     resumen_proyectos: list[ResumenPorProyectoOut] = []
+    entregables_atencion: list[EntregableAtencionOut] = []
     total_entregables = 0
     total_vencidos = 0
     total_proximos = 0
@@ -65,6 +71,30 @@ def resumen_dashboard(
         )
         cumplidos = sum(1 for e in entregables if e.estatus == EstatusEntregable.cumplido)
         avance = sum(e.porcentaje_avance for e in entregables) / total if total > 0 else 0.0
+
+        for e in entregables:
+            if e.estatus == EstatusEntregable.cumplido:
+                continue
+            if e.fecha_entrega < hoy:
+                urgencia = "vencido"
+            elif e.fecha_entrega <= limite_alerta:
+                urgencia = "proximo"
+            else:
+                continue
+            entregables_atencion.append(
+                EntregableAtencionOut(
+                    id=e.id,
+                    proyecto_id=proyecto.id,
+                    proyecto_nombre=proyecto.nombre,
+                    nombre=e.nombre,
+                    responsable_id=e.responsable_id,
+                    responsable_nombre=e.responsable.nombre,
+                    fecha_entrega=e.fecha_entrega,
+                    porcentaje_avance=e.porcentaje_avance,
+                    estatus=e.estatus,
+                    urgencia=urgencia,
+                )
+            )
 
         resumen_proyectos.append(
             ResumenPorProyectoOut(
@@ -105,6 +135,9 @@ def resumen_dashboard(
                 )
     reuniones_proximas.sort(key=lambda r: r.fecha_inicio)
 
+    # Vencidos primero (más vencido primero), luego próximos a vencer.
+    entregables_atencion.sort(key=lambda e: (e.urgencia != "vencido", e.fecha_entrega))
+
     notificaciones_no_leidas = (
         db.query(Notificacion)
         .filter(Notificacion.usuario_id == usuario.id, Notificacion.leida.is_(False))
@@ -121,4 +154,5 @@ def resumen_dashboard(
         notificaciones_no_leidas=notificaciones_no_leidas,
         proyectos=resumen_proyectos,
         reuniones_proximas=reuniones_proximas,
+        entregables_atencion=entregables_atencion,
     )
