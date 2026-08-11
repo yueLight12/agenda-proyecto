@@ -14,6 +14,7 @@ export default function CalendarioGlobal() {
   const [error, setError] = useState("");
   const [entregableHistorial, setEntregableHistorial] = useState(null);
   const [modalReunion, setModalReunion] = useState(null);
+  const [modo, setModo] = useState("general"); // "personal" | "general"
 
   const cargarTodo = async () => {
     const proyectos = await proyectosApi.listar();
@@ -62,21 +63,50 @@ export default function CalendarioGlobal() {
     await cargarTodo();
   };
 
+  const entregablesMostrados =
+    modo === "personal" ? entregables.filter((e) => e.responsable_id === usuario?.id) : entregables;
+  const reunionesMostradas =
+    modo === "personal"
+      ? reuniones.filter(
+          (r) =>
+            r.organizador_id === usuario?.id ||
+            r.participantes?.some((p) => p.usuario_id === usuario?.id)
+        )
+      : reuniones;
+
   if (cargando) return <p>Cargando calendario...</p>;
   if (error) return <p className="error-text">{error}</p>;
 
   return (
     <div className="stack">
-      <h1>Calendario</h1>
-      {entregables.length === 0 && reuniones.length === 0 && (
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+        <h1>Calendario</h1>
+        <div style={{ display: "flex", gap: 4 }}>
+          <button
+            className={modo === "personal" ? "btn btn--primary" : "btn btn--ghost"}
+            onClick={() => setModo("personal")}
+          >
+            Personal
+          </button>
+          <button
+            className={modo === "general" ? "btn btn--primary" : "btn btn--ghost"}
+            onClick={() => setModo("general")}
+          >
+            General
+          </button>
+        </div>
+      </div>
+      {entregablesMostrados.length === 0 && reunionesMostradas.length === 0 && (
         <p style={{ color: "var(--color-text-muted)" }}>
-          No hay entregables ni reuniones visibles para ti todavía.
+          {modo === "personal"
+            ? "No tienes entregables ni reuniones propias todavía."
+            : "No hay entregables ni reuniones visibles para ti todavía."}
         </p>
       )}
       <div className="card">
         <CalendarioEntregables
-          entregables={entregables}
-          reuniones={reuniones}
+          entregables={entregablesMostrados}
+          reuniones={reunionesMostradas}
           editable
           puedeEditar={puedeEditar}
           onReprogramar={reprogramarEntregable}
