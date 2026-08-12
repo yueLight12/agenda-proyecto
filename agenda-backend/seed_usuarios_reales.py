@@ -9,11 +9,12 @@ Uso:
     python seed_usuarios_reales.py
 
 Nota: es idempotente (si el email ya existe, no lo vuelve a crear ni le
-cambia la contraseña) — seguro de correr más de una vez.
+cambia la contraseña) — seguro de correr más de una vez. Cada usuario nuevo
+queda con la contraseña por defecto PASSWORD_DEFECTO (misma que las cuentas
+demo) — se espera que cada quien la cambie desde "Cambiar contraseña" en la
+app. Antes se generaba una contraseña aleatoria por persona, pero se perdía
+fácil al no tener un lugar fijo donde consultarla (ver reset_passwords_reales.py).
 """
-import secrets
-import string
-
 from app.core.security import hash_password
 from app.database import Base, SessionLocal, engine
 from app.models.usuario import Usuario
@@ -22,11 +23,7 @@ Base.metadata.create_all(bind=engine)
 
 db = SessionLocal()
 
-
-def generar_password_temporal() -> str:
-    alfabeto = string.ascii_letters + string.digits
-    return "".join(secrets.choice(alfabeto) for _ in range(10)) + "!"
-
+PASSWORD_DEFECTO = "Demo1234!"
 
 usuarios_data = [
     ("Bernardo Perez Suarez", "Director Administración de Administración Presidencia", "bernardo.perez@presidencia.gob.mx"),
@@ -44,19 +41,18 @@ for nombre, puesto, email in usuarios_data:
     if existente:
         resultados.append((nombre, email, "(ya existía, no se modificó)"))
         continue
-    password_temporal = generar_password_temporal()
     nuevo = Usuario(
         nombre=nombre,
         puesto=puesto,
         email=email,
-        password_hash=hash_password(password_temporal),
+        password_hash=hash_password(PASSWORD_DEFECTO),
     )
     db.add(nuevo)
-    resultados.append((nombre, email, password_temporal))
+    resultados.append((nombre, email, PASSWORD_DEFECTO))
 
 db.commit()
 db.close()
 
 print("Usuarios reales listos:\n")
 for nombre, email, password in resultados:
-    print(f"  {nombre}\n    email: {email}\n    password temporal: {password}\n")
+    print(f"  {nombre}\n    email: {email}\n    password: {password}\n")
