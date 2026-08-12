@@ -6,6 +6,11 @@ agenda-backend/.env
 agenda-backend/*.sqlite3
 agenda-backend/credenciales_reseteo.txt
 
+# Archivos de carga con datos personales reales (cumpleaños/eventos de
+# empresa, ver cargar_eventos_empresa.py) — no se suben a git.
+*.xlsx
+*.csv
+
 # Frontend
 agenda-frontend/node_modules/
 agenda-frontend/dist/
