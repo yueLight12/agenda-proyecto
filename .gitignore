@@ -11,6 +11,11 @@ agenda-backend/credenciales_reseteo.txt
 *.xlsx
 *.csv
 
+# Respaldos de base de datos (pg_dump) — contienen hashes de contraseña y
+# datos personales reales de usuarios.
+/backups/
+*.sql
+
 # Frontend
 agenda-frontend/node_modules/
 agenda-frontend/dist/

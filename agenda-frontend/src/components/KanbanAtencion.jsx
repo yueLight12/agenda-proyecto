@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { fechaLocal, textoDiasRelativos } from "../utils/fechas";
 
 // Tablero Kanban (solo lectura, sin drag-and-drop) para "Requiere tu
 // atención" en el Resumen general — alternativa visual a la lista
@@ -8,25 +9,6 @@ import { Link } from "react-router-dom";
 // no hay una acción natural de "arrastrar para cambiar estatus" porque las
 // columnas mezclan entregables, reuniones y cumpleaños, así que las
 // tarjetas son de solo lectura.
-
-// `fecha_entrega` llega como "YYYY-MM-DD" — se arma con componentes locales
-// (no `new Date(fecha)` directo) para no perder un día por el corrimiento a
-// UTC, mismo criterio que ya usa el cálculo de cumpleaños próximos.
-function fechaLocal(fechaIso) {
-  const [anio, mes, dia] = fechaIso.split("-").map(Number);
-  return new Date(anio, mes - 1, dia);
-}
-
-function textoDiasRelativos(fechaIso) {
-  const hoy = new Date();
-  hoy.setHours(0, 0, 0, 0);
-  const diffDias = Math.round((fechaLocal(fechaIso) - hoy) / (1000 * 60 * 60 * 24));
-  if (diffDias === 0) return "hoy";
-  if (diffDias > 0) return `en ${diffDias} día${diffDias === 1 ? "" : "s"}`;
-  const dias = -diffDias;
-  return `hace ${dias} día${dias === 1 ? "" : "s"}`;
-}
-
 function TarjetaEntregable({ entregable, prefijoVencido }) {
   return (
     <Link

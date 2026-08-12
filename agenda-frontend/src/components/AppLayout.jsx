@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet, useMatch } from "react-router-dom";
 import { notificacionesApi } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
+import { useRequiereAtencion } from "../hooks/useRequiereAtencion";
 import FabAsistenteVoz from "./FabAsistenteVoz";
 import ModalCambiarPassword from "./ModalCambiarPassword";
 import ModalNotificaciones from "./ModalNotificaciones";
@@ -9,6 +10,7 @@ import ModalNotificaciones from "./ModalNotificaciones";
 export default function AppLayout() {
   const { usuario, logout } = useAuth();
   const [notificaciones, setNotificaciones] = useState([]);
+  const atencion = useRequiereAtencion();
   const [mostrarNotificaciones, setMostrarNotificaciones] = useState(false);
   const [mostrarCambiarPassword, setMostrarCambiarPassword] = useState(false);
   const [menuAbierto, setMenuAbierto] = useState(false);
@@ -23,11 +25,15 @@ export default function AppLayout() {
 
   useEffect(() => {
     cargarNotificaciones();
-    const intervalo = setInterval(cargarNotificaciones, 60000);
+    const intervalo = setInterval(() => {
+      cargarNotificaciones();
+      atencion.recargar();
+    }, 60000);
     return () => clearInterval(intervalo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const noLeidas = notificaciones.filter((n) => !n.leida).length;
+  const noLeidas = notificaciones.filter((n) => !n.leida).length + atencion.total;
 
   const cerrarMenu = () => setMenuAbierto(false);
 
@@ -125,6 +131,10 @@ export default function AppLayout() {
           notificaciones={notificaciones}
           onCambio={cargarNotificaciones}
           onCerrar={() => setMostrarNotificaciones(false)}
+          vencidos={atencion.vencidos}
+          proximos={atencion.proximos}
+          reunionesHoy={atencion.reunionesHoy}
+          cumpleanosProximos={atencion.cumpleanosProximos}
         />
       )}
 
