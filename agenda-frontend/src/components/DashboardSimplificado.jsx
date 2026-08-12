@@ -2,11 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { equipoResumenApi, eventosEmpresaApi } from "../api/endpoints";
 import DashboardCompleto from "./DashboardCompleto";
+import KanbanAtencion from "./KanbanAtencion";
 
-// Vista simplificada del dashboard para usuarios que son N1 (dirección) en
-// TODOS sus proyectos ("Cards de atención", ver CLAUDE.md). No oculta
-// información: el detalle completo sigue disponible en el expansor "Ver
-// todos los proyectos", que reutiliza DashboardCompleto tal cual.
+// Vista del Resumen general para TODOS los roles ("Cards de atención", ver
+// CLAUDE.md) — antes era exclusiva de usuarios N1 puros, unificada para
+// todos el 2026-08-12 para que "Requiere tu atención" también la vean
+// N2/N3/N4. No oculta información: el detalle completo sigue disponible en
+// el expansor "Ver todos los proyectos", que reutiliza DashboardCompleto
+// tal cual.
 export default function DashboardSimplificado({ resumen }) {
   const [verTodo, setVerTodo] = useState(false);
   const [atencionAbierta, setAtencionAbierta] = useState(true);
@@ -116,79 +119,12 @@ export default function DashboardSimplificado({ resumen }) {
         </button>
 
         {atencionAbierta && (
-        <>
-        {vencidos.length === 0 &&
-          proximos.length === 0 &&
-          reunionesHoy.length === 0 &&
-          cumpleanosProximos.length === 0 && (
-          <p style={{ color: "var(--color-text-muted)" }}>
-            Nada urgente por ahora — todo al día.
-          </p>
-        )}
-
-        {vencidos.map((e) => (
-          <Link
-            key={`entregable-${e.id}`}
-            to={`/proyectos/${e.proyecto_id}`}
-            className="list-inline"
-            style={{ textDecoration: "none", color: "inherit" }}
-          >
-            <div>
-              🔴 <strong>{e.nombre}</strong>{" "}
-              <span style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
-                {e.proyecto_nombre} — {e.responsable_nombre}
-              </span>
-            </div>
-            <span style={{ fontSize: "0.85rem", color: "var(--color-text-muted)" }}>
-              vencido el {new Date(e.fecha_entrega).toLocaleDateString("es-MX", { dateStyle: "medium" })}
-            </span>
-          </Link>
-        ))}
-
-        {reunionesHoy.map((r) => (
-          <div key={`reunion-${r.id}`} className="list-inline">
-            <div>
-              🟡 <strong>{r.titulo}</strong>{" "}
-              <span style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
-                {r.proyecto_nombre} — organiza {r.organizador_nombre}
-              </span>
-            </div>
-            <span style={{ fontSize: "0.85rem", color: "var(--color-text-muted)" }}>
-              {new Date(r.fecha_inicio).toLocaleTimeString("es-MX", { timeStyle: "short" })}
-            </span>
-          </div>
-        ))}
-
-        {proximos.map((e) => (
-          <Link
-            key={`entregable-${e.id}`}
-            to={`/proyectos/${e.proyecto_id}`}
-            className="list-inline"
-            style={{ textDecoration: "none", color: "inherit" }}
-          >
-            <div>
-              🟡 <strong>{e.nombre}</strong>{" "}
-              <span style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
-                {e.proyecto_nombre} — {e.responsable_nombre}
-              </span>
-            </div>
-            <span style={{ fontSize: "0.85rem", color: "var(--color-text-muted)" }}>
-              vence el {new Date(e.fecha_entrega).toLocaleDateString("es-MX", { dateStyle: "medium" })}
-            </span>
-          </Link>
-        ))}
-
-        {cumpleanosProximos.map((c) => (
-          <div key={`cumpleanos-${c.id}`} className="list-inline">
-            <div>
-              🎂 <strong>{c.nombre}</strong>
-            </div>
-            <span style={{ fontSize: "0.85rem", color: "var(--color-text-muted)" }}>
-              {new Date(c.fecha + "T00:00:00").toLocaleDateString("es-MX", { dateStyle: "medium" })}
-            </span>
-          </div>
-        ))}
-        </>
+          <KanbanAtencion
+            vencidos={vencidos}
+            proximos={proximos}
+            reunionesHoy={reunionesHoy}
+            cumpleanosProximos={cumpleanosProximos}
+          />
         )}
       </div>
 
