@@ -28,7 +28,7 @@ from app.routers import (
     reuniones,
     usuarios,
 )
-from app.services.recordatorios import generar_recordatorios
+from app.services.recordatorios import generar_recordatorios, generar_recordatorios_cumpleanos
 
 # Crea las tablas si no existen (para desarrollo rápido).
 # En un entorno con más de un desarrollador o ya en AWS, esto se reemplaza
@@ -68,10 +68,11 @@ app.include_router(asistente.router)
 
 
 def _ejecutar_barrido_recordatorios():
-    """Corre generar_recordatorios con su propia sesión de BD (para el scheduler)."""
+    """Corre generar_recordatorios y generar_recordatorios_cumpleanos con su propia sesión de BD (para el scheduler)."""
     db = SessionLocal()
     try:
         generar_recordatorios(db)
+        generar_recordatorios_cumpleanos(db)
     finally:
         db.close()
 

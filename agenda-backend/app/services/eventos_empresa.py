@@ -19,7 +19,9 @@ def _fecha_en_anio(mes: int, dia: int, anio: int) -> date:
         return date(anio, 3, 1)
 
 
-def _proxima_ocurrencia(fecha_original: date, hoy: date) -> date:
+def proxima_ocurrencia(fecha_original: date, hoy: date) -> date:
+    """Pública porque también la usa app/services/recordatorios.py para el
+    barrido de notificaciones de cumpleaños próximos."""
     candidata = _fecha_en_anio(fecha_original.month, fecha_original.day, hoy.year)
     if candidata < hoy:
         candidata = _fecha_en_anio(fecha_original.month, fecha_original.day, hoy.year + 1)
@@ -33,7 +35,7 @@ def listar_eventos_empresa(db: Session, hoy: date | None = None) -> list[EventoE
     resultado = []
     for e in eventos:
         if e.tipo in (TipoEventoEmpresa.cumpleanos, TipoEventoEmpresa.festivo):
-            fecha_mostrada = _proxima_ocurrencia(e.fecha, hoy)
+            fecha_mostrada = proxima_ocurrencia(e.fecha, hoy)
         else:
             fecha_mostrada = e.fecha
         resultado.append(

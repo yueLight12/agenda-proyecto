@@ -12,6 +12,7 @@ from app.models.notificacion import TipoNotificacion
 class NotificacionOut(BaseModel):
     id: int
     entregable_id: Optional[int] = None
+    evento_empresa_id: Optional[int] = None
     tipo: TipoNotificacion
     mensaje: str
     leida: bool

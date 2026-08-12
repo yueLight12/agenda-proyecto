@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { equipoResumenApi } from "../api/endpoints";
+import { equipoResumenApi, eventosEmpresaApi } from "../api/endpoints";
 import DashboardCompleto from "./DashboardCompleto";
 
 // Vista simplificada del dashboard para usuarios que son N1 (dirección) en
@@ -57,6 +57,29 @@ export default function DashboardSimplificado({ resumen }) {
   const vencidos = resumen.entregables_atencion.filter((e) => e.urgencia === "vencido");
   const proximos = resumen.entregables_atencion.filter((e) => e.urgencia === "proximo");
 
+  // Cumpleaños que caen hoy, mañana o en 2 días — mismo horizonte que las
+  // notificaciones automáticas (ver generar_recordatorios_cumpleanos).
+  const [cumpleanosProximos, setCumpleanosProximos] = useState([]);
+  useEffect(() => {
+    eventosEmpresaApi
+      .listar()
+      .then((eventos) => {
+        const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+        const limite = new Date(hoy);
+        limite.setDate(limite.getDate() + 2);
+        setCumpleanosProximos(
+          eventos.filter((e) => {
+            if (e.tipo !== "cumpleanos") return false;
+            const [anio, mes, dia] = e.fecha.split("-").map(Number);
+            const fecha = new Date(anio, mes - 1, dia);
+            return fecha >= hoy && fecha <= limite;
+          })
+        );
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <div className="stack">
       <div className="grid-summary">
@@ -87,14 +110,17 @@ export default function DashboardSimplificado({ resumen }) {
         >
           <h3 style={{ fontSize: "0.95rem", margin: 0 }}>Requiere tu atención</h3>
           <span style={{ fontSize: "0.85rem", color: "var(--color-text-muted)" }}>
-            {vencidos.length + reunionesHoy.length + proximos.length} {" "}
+            {vencidos.length + reunionesHoy.length + proximos.length + cumpleanosProximos.length} {" "}
             {atencionAbierta ? "▲" : "▼"}
           </span>
         </button>
 
         {atencionAbierta && (
         <>
-        {vencidos.length === 0 && proximos.length === 0 && reunionesHoy.length === 0 && (
+        {vencidos.length === 0 &&
+          proximos.length === 0 &&
+          reunionesHoy.length === 0 &&
+          cumpleanosProximos.length === 0 && (
           <p style={{ color: "var(--color-text-muted)" }}>
             Nada urgente por ahora — todo al día.
           </p>
@@ -150,6 +176,17 @@ export default function DashboardSimplificado({ resumen }) {
               vence el {new Date(e.fecha_entrega).toLocaleDateString("es-MX", { dateStyle: "medium" })}
             </span>
           </Link>
+        ))}
+
+        {cumpleanosProximos.map((c) => (
+          <div key={`cumpleanos-${c.id}`} className="list-inline">
+            <div>
+              🎂 <strong>{c.nombre}</strong>
+            </div>
+            <span style={{ fontSize: "0.85rem", color: "var(--color-text-muted)" }}>
+              {new Date(c.fecha + "T00:00:00").toLocaleDateString("es-MX", { dateStyle: "medium" })}
+            </span>
+          </div>
         ))}
         </>
         )}
