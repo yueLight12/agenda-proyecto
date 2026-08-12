@@ -53,9 +53,16 @@ function isoDesdeFechaLocal(fecha) {
  * por entregable, si puede arrastrarse para reprogramar (respeta permisos
  * N1/N2 ya resueltos por quien use este componente).
  */
+const ICONO_TIPO_EVENTO_EMPRESA = {
+  cumpleanos: "🎂",
+  festivo: "📌",
+  evento: "🎉",
+};
+
 export default function CalendarioEntregables({
   entregables,
   reuniones = [],
+  eventosEmpresa = [],
   editable = false,
   puedeEditar = () => true,
   onReprogramar,
@@ -89,13 +96,35 @@ export default function CalendarioEntregables({
     };
   });
 
-  const eventos = [...eventosEntregables, ...eventosReuniones];
+  const eventosDeEmpresa = eventosEmpresa.map((e) => {
+    const fecha = fechaLocalDesdeISO(e.fecha);
+    const icono = ICONO_TIPO_EVENTO_EMPRESA[e.tipo] || "🎉";
+    return {
+      id: `evento-empresa-${e.id}`,
+      title: `${icono} ${e.nombre}`,
+      start: fecha,
+      end: fecha,
+      allDay: true,
+      resource: { tipo: "evento_empresa", datos: e },
+    };
+  });
+
+  const eventos = [...eventosEntregables, ...eventosReuniones, ...eventosDeEmpresa];
 
   const eventPropGetter = (evento) => {
     if (evento.resource.tipo === "reunion") {
       return {
         style: {
           backgroundColor: "var(--color-navy-700, #2f4a5c)",
+          borderRadius: 4,
+          border: "none",
+        },
+      };
+    }
+    if (evento.resource.tipo === "evento_empresa") {
+      return {
+        style: {
+          backgroundColor: "var(--color-teal-500)",
           borderRadius: 4,
           border: "none",
         },
@@ -139,11 +168,11 @@ export default function CalendarioEntregables({
           }
           resizable={false}
           onEventDrop={handleEventDrop}
-          onSelectEvent={(evento) =>
-            evento.resource.tipo === "reunion"
-              ? onReunionClick?.(evento.resource.datos)
-              : onEntregableClick?.(evento.resource.datos)
-          }
+          onSelectEvent={(evento) => {
+            if (evento.resource.tipo === "reunion") onReunionClick?.(evento.resource.datos);
+            else if (evento.resource.tipo === "entregable") onEntregableClick?.(evento.resource.datos);
+            // los eventos de empresa no tienen acción al hacer clic
+          }}
         />
       </div>
     </div>

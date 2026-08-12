@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import CalendarioEntregables from "../components/CalendarioEntregables";
 import ModalHistorial from "../components/ModalHistorial";
 import ModalReunion from "../components/ModalReunion";
-import { entregablesApi, proyectosApi, reunionesApi } from "../api/endpoints";
+import { entregablesApi, eventosEmpresaApi, proyectosApi, reunionesApi } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
 
 export default function CalendarioGlobal() {
@@ -14,7 +14,8 @@ export default function CalendarioGlobal() {
   const [error, setError] = useState("");
   const [entregableHistorial, setEntregableHistorial] = useState(null);
   const [modalReunion, setModalReunion] = useState(null);
-  const [modo, setModo] = useState("general"); // "personal" | "general"
+  const [modo, setModo] = useState("general"); // "personal" | "general" | "empresa"
+  const [eventosEmpresa, setEventosEmpresa] = useState([]);
 
   const cargarTodo = async () => {
     const proyectos = await proyectosApi.listar();
@@ -37,9 +38,11 @@ export default function CalendarioGlobal() {
     proyectos.forEach((p, i) => {
       mapaEquipos[p.id] = equipos[i];
     });
+    const eventos = await eventosEmpresaApi.listar();
     setEntregables(listasEntregables.flat());
     setReuniones(listasReuniones.flat());
     setEquiposPorProyecto(mapaEquipos);
+    setEventosEmpresa(eventos);
   };
 
   useEffect(() => {
@@ -64,15 +67,22 @@ export default function CalendarioGlobal() {
   };
 
   const entregablesMostrados =
-    modo === "personal" ? entregables.filter((e) => e.responsable_id === usuario?.id) : entregables;
+    modo === "empresa"
+      ? []
+      : modo === "personal"
+      ? entregables.filter((e) => e.responsable_id === usuario?.id)
+      : entregables;
   const reunionesMostradas =
-    modo === "personal"
+    modo === "empresa"
+      ? []
+      : modo === "personal"
       ? reuniones.filter(
           (r) =>
             r.organizador_id === usuario?.id ||
             r.participantes?.some((p) => p.usuario_id === usuario?.id)
         )
       : reuniones;
+  const eventosEmpresaMostrados = modo === "empresa" ? eventosEmpresa : [];
 
   if (cargando) return <p>Cargando calendario...</p>;
   if (error) return <p className="error-text">{error}</p>;
@@ -94,19 +104,31 @@ export default function CalendarioGlobal() {
           >
             General
           </button>
+          <button
+            className={modo === "empresa" ? "btn btn--primary" : "btn btn--ghost"}
+            onClick={() => setModo("empresa")}
+          >
+            Empresa
+          </button>
         </div>
       </div>
-      {entregablesMostrados.length === 0 && reunionesMostradas.length === 0 && (
+      {modo !== "empresa" && entregablesMostrados.length === 0 && reunionesMostradas.length === 0 && (
         <p style={{ color: "var(--color-text-muted)" }}>
           {modo === "personal"
             ? "No tienes entregables ni reuniones propias todavía."
             : "No hay entregables ni reuniones visibles para ti todavía."}
         </p>
       )}
+      {modo === "empresa" && eventosEmpresaMostrados.length === 0 && (
+        <p style={{ color: "var(--color-text-muted)" }}>
+          Todavía no hay cumpleaños ni eventos de empresa cargados.
+        </p>
+      )}
       <div className="card">
         <CalendarioEntregables
           entregables={entregablesMostrados}
           reuniones={reunionesMostradas}
+          eventosEmpresa={eventosEmpresaMostrados}
           editable
           puedeEditar={puedeEditar}
           onReprogramar={reprogramarEntregable}

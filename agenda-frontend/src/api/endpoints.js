@@ -91,6 +91,10 @@ export const minutasApi = {
     (await api.post(`/acuerdos/${acuerdoId}/convertir-a-entregable`, datos)).data,
 };
 
+export const eventosEmpresaApi = {
+  listar: async () => (await api.get("/eventos-empresa")).data,
+};
+
 export const notasApi = {
   // params: { entregable_id } | { reunion_id } | { minuta_id } (uno solo)
   listar: async (params) => (await api.get("/notas", { params })).data,

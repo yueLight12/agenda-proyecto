@@ -19,6 +19,7 @@ from app.routers import (
     entregables,
     equipo_resumen,
     equipos,
+    eventos_empresa,
     minutas,
     notas,
     notificaciones,
@@ -60,6 +61,7 @@ app.include_router(equipos.router)
 app.include_router(equipo_resumen.router)
 app.include_router(minutas.router)
 app.include_router(notas.router)
+app.include_router(eventos_empresa.router)
 app.include_router(admin.router)
 app.include_router(chatbot.router)
 app.include_router(asistente.router)
