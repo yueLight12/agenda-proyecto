@@ -68,6 +68,7 @@ export default function CalendarioEntregables({
   onReprogramar,
   onEntregableClick,
   onReunionClick,
+  onEventoEmpresaClick,
 }) {
   const [error, setError] = useState("");
 
@@ -171,7 +172,7 @@ export default function CalendarioEntregables({
           onSelectEvent={(evento) => {
             if (evento.resource.tipo === "reunion") onReunionClick?.(evento.resource.datos);
             else if (evento.resource.tipo === "entregable") onEntregableClick?.(evento.resource.datos);
-            // los eventos de empresa no tienen acción al hacer clic
+            else if (evento.resource.tipo === "evento_empresa") onEventoEmpresaClick?.(evento.resource.datos);
           }}
         />
       </div>

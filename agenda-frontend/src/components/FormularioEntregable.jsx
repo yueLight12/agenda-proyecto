@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { entregablesApi } from "../api/endpoints";
+import HistorialAvance from "./HistorialAvance";
 import Modal from "./Modal";
 import SeccionNotas from "./SeccionNotas";
 
@@ -22,6 +23,7 @@ export default function FormularioEntregable({
   const [sensible, setSensible] = useState(entregable?.sensible || false);
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
+  const [historialAbierto, setHistorialAbierto] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -123,6 +125,24 @@ export default function FormularioEntregable({
           {guardando ? "Guardando..." : esEdicion ? "Guardar cambios" : "Crear entregable"}
         </button>
       </form>
+
+      {esEdicion && (
+        <div style={{ marginTop: 16, borderTop: "1px solid var(--color-border)", paddingTop: 16 }}>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={() => setHistorialAbierto((v) => !v)}
+            aria-expanded={historialAbierto}
+          >
+            {historialAbierto ? "Ocultar histórico de avance ▲" : "Ver histórico de avance ▼"}
+          </button>
+          {historialAbierto && (
+            <div style={{ marginTop: 12 }}>
+              <HistorialAvance entregableId={entregable.id} miembros={miembros} />
+            </div>
+          )}
+        </div>
+      )}
 
       {esEdicion && (
         <div style={{ marginTop: 16, borderTop: "1px solid var(--color-border)", paddingTop: 16 }}>

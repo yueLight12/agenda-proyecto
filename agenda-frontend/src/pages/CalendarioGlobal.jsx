@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import CalendarioEntregables from "../components/CalendarioEntregables";
-import ModalHistorial from "../components/ModalHistorial";
+import FormularioEntregable from "../components/FormularioEntregable";
+import ModalEventoEmpresa from "../components/ModalEventoEmpresa";
 import ModalReunion from "../components/ModalReunion";
 import { entregablesApi, eventosEmpresaApi, proyectosApi, reunionesApi } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
@@ -12,8 +13,9 @@ export default function CalendarioGlobal() {
   const [equiposPorProyecto, setEquiposPorProyecto] = useState({});
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
-  const [entregableHistorial, setEntregableHistorial] = useState(null);
+  const [modalEntregable, setModalEntregable] = useState(null);
   const [modalReunion, setModalReunion] = useState(null);
+  const [modalEventoEmpresa, setModalEventoEmpresa] = useState(null);
   const [modo, setModo] = useState("general"); // "personal" | "general" | "empresa"
   const [eventosEmpresa, setEventosEmpresa] = useState([]);
 
@@ -132,17 +134,29 @@ export default function CalendarioGlobal() {
           editable
           puedeEditar={puedeEditar}
           onReprogramar={reprogramarEntregable}
-          onEntregableClick={(e) => setEntregableHistorial(e)}
+          onEntregableClick={(e) => setModalEntregable(e)}
           onReunionClick={(r) => setModalReunion(r)}
+          onEventoEmpresaClick={(ev) => setModalEventoEmpresa(ev)}
         />
       </div>
 
-      {entregableHistorial && (
-        <ModalHistorial
-          entregable={entregableHistorial}
-          miembros={[]}
-          onCerrar={() => setEntregableHistorial(null)}
+      {modalEntregable && (
+        <FormularioEntregable
+          proyectoId={modalEntregable.proyecto_id}
+          entregable={modalEntregable}
+          miembros={equiposPorProyecto[modalEntregable.proyecto_id] || []}
+          puedeAsignarAOtros={puedeEditar(modalEntregable)}
+          usuarioActualId={usuario?.id}
+          onGuardado={async () => {
+            setModalEntregable(null);
+            await cargarTodo();
+          }}
+          onCerrar={() => setModalEntregable(null)}
         />
+      )}
+
+      {modalEventoEmpresa && (
+        <ModalEventoEmpresa evento={modalEventoEmpresa} onCerrar={() => setModalEventoEmpresa(null)} />
       )}
 
       {modalReunion && (

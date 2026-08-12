@@ -193,7 +193,7 @@ export default function TableroProyecto() {
             reuniones={reuniones}
             editable={puedeAdministrar}
             onReprogramar={reprogramarEntregable}
-            onEntregableClick={(e) => setEntregableHistorial(e)}
+            onEntregableClick={(e) => setModalEntregable(e)}
             onReunionClick={(r) => setModalReunion(r)}
           />
         </div>
@@ -297,7 +297,7 @@ export default function TableroProyecto() {
             entregables={entregables}
             equipo={equipo}
             onMoverEstatus={moverEstatusKanban}
-            onEntregableClick={(e) => setEntregableHistorial(e)}
+            onEntregableClick={(e) => setModalEntregable(e)}
             error={errorAvance}
           />
         </div>
