@@ -26,12 +26,12 @@ db = SessionLocal()
 PASSWORD_DEFECTO = "Demo1234!"
 
 usuarios_data = [
-    ("Bernardo Perez Suarez", "Director Administración de Administración Presidencia", "bernardo.perez@presidencia.gob.mx"),
-    ("David Mancilla Walles", "Gerente de Información Ejecutiva e Innovación Digital", "david.mancilla@presidencia.gob.mx"),
-    ("Diana Elizabeth Chalini Robles", "Gerente de Administración Casas", "diana.chalini@presidencia.gob.mx"),
-    ("Jose Francisco Jimenez Jasso", "Director Administración y Finanzas de Administración Presidencia", "josefrancisco.jimenez@presidencia.gob.mx"),
-    ("Ivan Mora Garcia", "Consultor de Sistemas", "ivan.mora@presidencia.gob.mx"),
-    ("Juan Jose Flores Sedano", "Consultor Sistemas", "juanjose.flores@presidencia.gob.mx"),
+    ("Bernardo Perez Suarez", "Director Administración de Administración Presidencia", "bperezs@gruposalinas.com"),
+    ("David Mancilla Walles", "Gerente de Información Ejecutiva e Innovación Digital", "david.mancilla@gen24.mx"),
+    ("Diana Elizabeth Chalini Robles", "Gerente de Administración Casas", "dchalini@gen24.mx"),
+    ("Jose Francisco Jimenez Jasso", "Director Administración y Finanzas de Administración Presidencia", "jose.jimenez@gen24.mx"),
+    ("Ivan Mora Garcia", "Consultor de Sistemas", "Ivan.mora@dialogus.com.mx"),
+    ("Juan Jose Flores Sedano", "Consultor Sistemas", "juan.flores@elektra.com.mx"),
     ("Ana Guadalupe Garcia Avila", "Consultora Información Ejecutiva Presidencia", "ana.garcia@presidencia.gob.mx"),
 ]
 

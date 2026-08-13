@@ -22,12 +22,12 @@ db = SessionLocal()
 PASSWORD_DEFECTO = "Demo1234!"
 
 emails = [
-    "bernardo.perez@presidencia.gob.mx",
-    "david.mancilla@presidencia.gob.mx",
-    "diana.chalini@presidencia.gob.mx",
-    "josefrancisco.jimenez@presidencia.gob.mx",
-    "ivan.mora@presidencia.gob.mx",
-    "juanjose.flores@presidencia.gob.mx",
+    "bperezs@gruposalinas.com",
+    "david.mancilla@gen24.mx",
+    "dchalini@gen24.mx",
+    "jose.jimenez@gen24.mx",
+    "Ivan.mora@dialogus.com.mx",
+    "juan.flores@elektra.com.mx",
     "ana.garcia@presidencia.gob.mx",
 ]
 
