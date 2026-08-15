@@ -50,6 +50,7 @@ from app.services.asistente.resolucion import (
 )
 from app.services.chatbot import responder_pregunta
 from app.services.entregables import actualizar_avance, actualizar_entregable, crear_entregable
+from app.services.equipos import rol_default_para_nuevo_proyecto
 from app.services.minutas import agregar_acuerdo, crear_o_actualizar_minuta
 from app.services.notas import crear_nota
 from app.services.proyectos import actualizar_proyecto, asignar_rol_en_proyecto, crear_proyecto
@@ -224,7 +225,14 @@ def _resolver_crear_proyecto(
         )
 
     parametros = {"nombre": nombre, "descripcion": parametros_llm.get("descripcion") or None}
-    resumen = f'Voy a crear el proyecto "{nombre}". Quedarás como dirección. ¿Confirmas?'
+    rol, _ = rol_default_para_nuevo_proyecto(db, usuario)
+    if rol == RolEnum.N1:
+        resumen = f'Voy a crear el proyecto "{nombre}". Quedarás como dirección. ¿Confirmas?'
+    else:
+        resumen = (
+            f'Voy a crear el proyecto "{nombre}". Quedarás como {rol.value} '
+            "(según tu equipo guardado). ¿Confirmas?"
+        )
     return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen)
 
 

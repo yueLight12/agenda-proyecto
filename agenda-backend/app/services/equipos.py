@@ -3,6 +3,8 @@ Servicio de "mi equipo": aplicar la plantilla personal de un usuario a un
 proyecto. Usado por el router REST (app/routers/equipos.py) y por el
 asistente de voz (app/services/asistente/).
 """
+from typing import Optional
+
 from sqlalchemy.orm import Session
 
 from app.core.permissions import requerir_participacion_en_proyecto, requerir_rol_minimo
@@ -10,6 +12,26 @@ from app.models.equipo_miembro import EquipoMiembro
 from app.models.usuario import RolEnum, Usuario
 from app.models.usuario_proyecto_rol import UsuarioProyectoRol
 from app.schemas.equipo import EquipoMiembroOut
+
+
+def rol_default_para_nuevo_proyecto(db: Session, usuario: Usuario) -> tuple[RolEnum, Optional[int]]:
+    """N1 por default, salvo que alguien más ya tenga guardado a `usuario` en
+    su plantilla de "mi equipo" (EquipoMiembro.usuario_id) -- en ese caso
+    hereda ese rol y a esa persona como supervisor, igual que si el dueño de
+    la plantilla la hubiera aplicado a mano (ver aplicar_mi_equipo). Usado
+    tanto al crear el proyecto de verdad (app/services/proyectos.py) como
+    para armar el resumen de confirmación del asistente de voz (tools.py)
+    antes de que se ejecute."""
+    heredado = (
+        db.query(EquipoMiembro)
+        .filter(EquipoMiembro.usuario_id == usuario.id)
+        .order_by(EquipoMiembro.id)
+        .first()
+    )
+    if not heredado:
+        return RolEnum.N1, None
+    supervisor_id = heredado.propietario_id if heredado.rol in (RolEnum.N3, RolEnum.N4) else None
+    return heredado.rol, supervisor_id
 
 
 def equipo_miembro_a_out(registro: EquipoMiembro) -> EquipoMiembroOut:

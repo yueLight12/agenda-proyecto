@@ -21,6 +21,7 @@ from app.models.reunion import Reunion
 from app.models.usuario import RolEnum, Usuario
 from app.models.usuario_proyecto_rol import UsuarioProyectoRol
 from app.schemas.proyecto import MiembroEquipoOut
+from app.services.equipos import rol_default_para_nuevo_proyecto
 
 
 def obtener_proyecto_o_404(db: Session, proyecto_id: int) -> Proyecto:
@@ -45,12 +46,20 @@ def listar_proyectos_visibles(db: Session, usuario: Usuario) -> list[Proyecto]:
 
 
 def crear_proyecto(db: Session, usuario: Usuario, nombre: str, descripcion: str | None) -> Proyecto:
-    """Cualquier usuario autenticado puede crear un proyecto; queda como N1 de él."""
+    """Cualquier usuario autenticado puede crear un proyecto. Por default
+    queda como N1 (dirección) de él -- salvo que alguien más ya lo tenga
+    guardado en su plantilla de "mi equipo", en cuyo caso hereda ese rol y
+    ese supervisor (ver rol_default_para_nuevo_proyecto)."""
     nuevo = Proyecto(nombre=nombre, descripcion=descripcion)
     db.add(nuevo)
     db.flush()
 
-    db.add(UsuarioProyectoRol(usuario_id=usuario.id, proyecto_id=nuevo.id, rol=RolEnum.N1))
+    rol, supervisor_id = rol_default_para_nuevo_proyecto(db, usuario)
+    db.add(
+        UsuarioProyectoRol(
+            usuario_id=usuario.id, proyecto_id=nuevo.id, rol=rol, supervisor_id=supervisor_id
+        )
+    )
     return nuevo
 
 
