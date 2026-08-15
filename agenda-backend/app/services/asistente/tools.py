@@ -30,7 +30,7 @@ from typing import Any, Callable, Optional
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.permissions import requerir_participacion_en_proyecto
+from app.core.permissions import requerir_participacion_en_proyecto, requerir_rol_minimo
 from app.models.minuta import Minuta
 from app.models.reunion import Reunion
 from app.models.usuario import RolEnum, Usuario
@@ -42,6 +42,7 @@ from app.services.asistente.resolucion import (
     resolver_fecha,
     resolver_fecha_hora,
     resolver_persona_en_equipo,
+    resolver_persona_organizacion,
     resolver_personas_en_equipo,
     resolver_proyecto,
     resolver_reunion,
@@ -372,6 +373,79 @@ def _ejecutar_asignar_rol(db: Session, usuario: Usuario, parametros: dict) -> di
     db.commit()
     return {
         "mensaje": f"{resultado.nombre} quedó asignado como {resultado.rol.value} en el proyecto.",
+        "resultado": {"usuario_id": resultado.usuario_id, "rol": resultado.rol.value},
+    }
+
+
+# --- agregar_miembro ---------------------------------------------------------
+
+def _resolver_agregar_miembro(
+    db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
+) -> ResultadoInterpretacion:
+    proyecto_res = resolver_campo(
+        "proyecto_id", aclaraciones, parametros_llm.get("proyecto"),
+        lambda t: resolver_proyecto(db, usuario, t, proyecto_id_contexto),
+    )
+    if not proyecto_res.resuelto:
+        return _pendiente("proyecto_id", proyecto_res)
+    proyecto_id = proyecto_res.valor
+
+    # Buscar en TODA la organización (no solo en el equipo del proyecto)
+    # requiere ser N1/N2 de este proyecto — mismo permiso que ya exige
+    # asignar_rol_en_proyecto al ejecutar, chequeado aquí antes para no
+    # exponer el directorio completo a quien no tiene permisos aquí.
+    rol_actual = requerir_participacion_en_proyecto(db, usuario, proyecto_id)
+    requerir_rol_minimo(rol_actual, [RolEnum.N1, RolEnum.N2])
+
+    persona_res = resolver_campo(
+        "usuario_id", aclaraciones, parametros_llm.get("persona"),
+        lambda t: resolver_persona_organizacion(db, t),
+    )
+    if not persona_res.resuelto:
+        return _pendiente("usuario_id", persona_res)
+
+    rol_res = resolver_campo("rol", aclaraciones, parametros_llm.get("rol"), resolver_rol)
+    if not rol_res.resuelto:
+        return _pendiente("rol", rol_res)
+
+    supervisor_id = None
+    if rol_res.valor in (RolEnum.N3, RolEnum.N4):
+        aclaracion_supervisor = aclaraciones.get("supervisor_id")
+        if isinstance(aclaracion_supervisor, int):
+            supervisor_id = aclaracion_supervisor
+        else:
+            texto_supervisor = aclaracion_supervisor if isinstance(aclaracion_supervisor, str) else parametros_llm.get("supervisor")
+            if texto_supervisor:
+                supervisor_res = resolver_persona_en_equipo(db, usuario, proyecto_id, texto_supervisor)
+                if not supervisor_res.resuelto:
+                    return _pendiente("supervisor_id", supervisor_res)
+                supervisor_id = supervisor_res.valor
+
+    persona = db.query(Usuario).filter(Usuario.id == persona_res.valor).first()
+    nombre_persona = persona.nombre if persona else "esa persona"
+
+    parametros = {
+        "proyecto_id": proyecto_id,
+        "usuario_id": persona_res.valor,
+        "rol": rol_res.valor.value,
+        "supervisor_id": supervisor_id,
+    }
+    resumen = f'Voy a agregar a {nombre_persona} al proyecto como {rol_res.valor.value}. ¿Confirmas?'
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen)
+
+
+def _ejecutar_agregar_miembro(db: Session, usuario: Usuario, parametros: dict) -> dict:
+    resultado = asignar_rol_en_proyecto(
+        db,
+        usuario,
+        parametros["proyecto_id"],
+        parametros["usuario_id"],
+        RolEnum(parametros["rol"]),
+        parametros.get("supervisor_id"),
+    )
+    db.commit()
+    return {
+        "mensaje": f"{resultado.nombre} se agregó al proyecto como {resultado.rol.value}.",
         "resultado": {"usuario_id": resultado.usuario_id, "rol": resultado.rol.value},
     }
 
@@ -891,7 +965,7 @@ TOOLS: dict[str, ToolSpec] = {
     ),
     "asignar_rol": ToolSpec(
         nombre="asignar_rol",
-        descripcion="Cambiar el rol (dirección/líder/colaborador interno/externo) de alguien que YA participa en el proyecto. No sirve para agregar a alguien nuevo al proyecto.",
+        descripcion="Cambiar el rol (dirección/líder/colaborador interno/externo) de alguien que YA participa en el proyecto. Si la persona todavía no participa en el proyecto, usa agregar_miembro en vez de esta.",
         parametros_llm={
             "persona": "nombre de la persona tal como se mencionó",
             "rol": "rol tal como se dijo (dirección, líder, colaborador interno, colaborador externo, N1-N4)",
@@ -910,6 +984,28 @@ TOOLS: dict[str, ToolSpec] = {
         ],
         resolver=_resolver_asignar_rol,
         ejecutar=_ejecutar_asignar_rol,
+    ),
+    "agregar_miembro": ToolSpec(
+        nombre="agregar_miembro",
+        descripcion="Agregar a alguien que TODAVÍA NO participa en el proyecto, con un rol (dirección/líder/colaborador interno/externo). Si la persona ya participa en el proyecto y solo se le quiere cambiar el rol, usa asignar_rol en vez de esta. Requiere ser dirección o líder del proyecto.",
+        parametros_llm={
+            "persona": "nombre de la persona a agregar tal como se mencionó",
+            "rol": "rol tal como se dijo (dirección, líder, colaborador interno, colaborador externo, N1-N4)",
+            "supervisor": "nombre de quien lo supervisa, solo si se dijo y el rol es colaborador interno/externo; si no, vacío",
+            "proyecto": "nombre del proyecto si se mencionó, si no dejar vacío",
+        },
+        ejemplos=[
+            (
+                "agrega a Jasso como líder del proyecto",
+                {"persona": "Jasso", "rol": "líder", "supervisor": "", "proyecto": ""},
+            ),
+            (
+                "mete a David al proyecto como colaborador externo, que lo supervise Bernardo",
+                {"persona": "David", "rol": "colaborador externo", "supervisor": "Bernardo", "proyecto": ""},
+            ),
+        ],
+        resolver=_resolver_agregar_miembro,
+        ejecutar=_ejecutar_agregar_miembro,
     ),
     "registrar_acuerdo": ToolSpec(
         nombre="registrar_acuerdo",

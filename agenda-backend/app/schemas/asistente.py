@@ -8,12 +8,21 @@ class TranscribirResponse(BaseModel):
     texto: str
 
 
+class AccionPendienteOut(BaseModel):
+    tool: str
+    parametros_llm: dict
+
+
 class InterpretarRequest(BaseModel):
     texto: str
     proyecto_id_contexto: Optional[int] = None
     tool: Optional[str] = None
     parametros_llm: Optional[dict] = None
     aclaraciones: dict = {}
+    # Cola de acciones restantes de una instrucción compuesta que ya venía
+    # resolviéndose (ver InterpretarResponse.acciones_pendientes) — vacía si
+    # es una instrucción nueva.
+    acciones_pendientes: list[AccionPendienteOut] = []
 
 
 class OpcionAclaracionOut(BaseModel):
@@ -32,6 +41,10 @@ class InterpretarResponse(BaseModel):
     opciones: list[OpcionAclaracionOut] = []
     parametros_llm: Optional[dict] = None
     mensaje: Optional[str] = None
+    # Resto de acciones de la misma instrucción compuesta, todavía sin
+    # resolver (ver app/routers/asistente.py) — el cliente las va mandando de
+    # vuelta una a la vez conforme confirma cada paso.
+    acciones_pendientes: list[AccionPendienteOut] = []
 
 
 class ConfirmarRequest(BaseModel):

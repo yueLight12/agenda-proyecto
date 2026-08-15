@@ -11,6 +11,8 @@ parámetros de vuelta y re-valida permisos al ejecutar (igual que si se
 llamara a la API REST a mano) — no hace falta guardar una "propuesta
 pendiente" en el servidor entre medio.
 """
+from typing import Optional
+
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
@@ -18,6 +20,7 @@ from app.database import get_db
 from app.dependencies import obtener_usuario_actual
 from app.models.usuario import Usuario
 from app.schemas.asistente import (
+    AccionPendienteOut,
     CancelarRequest,
     ConfirmarRequest,
     ConfirmarResponse,
@@ -43,22 +46,18 @@ async def transcribir(
     return TranscribirResponse(texto=texto)
 
 
-@router.post("/interpretar", response_model=InterpretarResponse)
-def interpretar(
-    datos: InterpretarRequest,
-    db: Session = Depends(get_db),
-    usuario: Usuario = Depends(obtener_usuario_actual),
-):
-    if datos.tool:
-        # Segunda vuelta (o más) tras una aclaración: no se vuelve a llamar
-        # al LLM, solo se reintenta resolver con la aclaración incorporada.
-        tool_nombre = datos.tool
-        parametros_llm = datos.parametros_llm or {}
-    else:
-        interpretado = interpretar_instruccion(db, usuario, datos.texto)
-        tool_nombre = interpretado["tool"]
-        parametros_llm = interpretado["parametros"]
-
+def _resolver_y_responder(
+    db: Session,
+    usuario: Usuario,
+    proyecto_id_contexto: Optional[int],
+    tool_nombre: str,
+    parametros_llm: dict,
+    aclaraciones: dict,
+    acciones_pendientes: list[AccionPendienteOut],
+) -> InterpretarResponse:
+    """Resuelve UNA acción (tool + parametros_llm) y arma la respuesta,
+    cargando siempre la cola de acciones que todavía faltan de la misma
+    instrucción compuesta (ver InterpretarResponse.acciones_pendientes)."""
     if tool_nombre == SIN_ACCION or tool_nombre not in TOOLS:
         return InterpretarResponse(
             tipo="error",
@@ -67,7 +66,7 @@ def interpretar(
 
     spec = TOOLS[tool_nombre]
     try:
-        resultado = spec.resolver(db, usuario, datos.proyecto_id_contexto, parametros_llm, datos.aclaraciones)
+        resultado = spec.resolver(db, usuario, proyecto_id_contexto, parametros_llm, aclaraciones)
     except HTTPException as exc:
         return InterpretarResponse(tipo="error", mensaje=str(exc.detail))
 
@@ -80,18 +79,49 @@ def interpretar(
             pregunta=resultado.pregunta,
             tipo_entrada=resultado.tipo_entrada,
             opciones=[OpcionAclaracionOut(valor=o.valor, etiqueta=o.etiqueta) for o in resultado.opciones],
+            acciones_pendientes=acciones_pendientes,
         )
 
     if not spec.requiere_confirmacion:
         # Tools de solo lectura (ej. consultar_agenda): ya se resolvió/ejecutó
         # dentro del resolver, no hay nada que confirmar.
-        return InterpretarResponse(tipo="respuesta", tool=tool_nombre, mensaje=resultado.resumen)
+        return InterpretarResponse(
+            tipo="respuesta", tool=tool_nombre, mensaje=resultado.resumen, acciones_pendientes=acciones_pendientes
+        )
 
     return InterpretarResponse(
         tipo="propuesta",
         tool=tool_nombre,
         parametros=resultado.parametros,
         resumen=resultado.resumen,
+        acciones_pendientes=acciones_pendientes,
+    )
+
+
+@router.post("/interpretar", response_model=InterpretarResponse)
+def interpretar(
+    datos: InterpretarRequest,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    if datos.tool:
+        # Retomar tras una aclaración, o continuar con la siguiente acción de
+        # una instrucción compuesta: no se vuelve a llamar al LLM.
+        return _resolver_y_responder(
+            db, usuario, datos.proyecto_id_contexto,
+            datos.tool, datos.parametros_llm or {}, datos.aclaraciones, datos.acciones_pendientes,
+        )
+
+    interpretado = interpretar_instruccion(db, usuario, datos.texto)
+    acciones = interpretado["acciones"]
+    primera = acciones[0]
+    resto = [
+        AccionPendienteOut(tool=a["tool"], parametros_llm=a["parametros"])
+        for a in acciones[1:]
+    ]
+    return _resolver_y_responder(
+        db, usuario, datos.proyecto_id_contexto,
+        primera["tool"], primera["parametros"], datos.aclaraciones, resto,
     )
 
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { asistenteApi } from "../api/endpoints";
 import useGrabadorAudio from "../hooks/useGrabadorAudio";
 import Modal from "./Modal";
@@ -29,6 +29,21 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
   const [respuestaTexto, setRespuestaTexto] = useState("");
   const [tipoResultado, setTipoResultado] = useState("accion"); // "accion" | "respuesta"
 
+  // Instrucciones compuestas: cola de acciones de la misma instrucción que
+  // todavía no se resuelven ({ tool, parametros_llm }), y el id de proyecto
+  // "activo" para el resto de la cola — si la primera acción fue
+  // crear_proyecto, las siguientes (ej. agregar líderes) deben aplicar sobre
+  // ESE proyecto recién creado, no sobre el que estaba abierto en la app.
+  const [accionesPendientes, setAccionesPendientes] = useState([]);
+  const [proyectoIdContextoActivo, setProyectoIdContextoActivo] = useState(proyectoIdContexto || null);
+  const [mensajesAcumulados, setMensajesAcumulados] = useState([]);
+  // Acumulador mutable en paralelo al estado: cuando varias acciones de la
+  // misma instrucción se encadenan automáticamente (sin que el usuario
+  // interactúe entre medio, ej. varias tipo "respuesta" seguidas), el
+  // closure de la función encadenada puede quedar con el `mensajesAcumulados`
+  // de un render anterior — el ref siempre tiene el valor real y actual.
+  const mensajesRef = useRef([]);
+
   const reiniciar = () => {
     setFase(FASES.INICIO);
     setTextoManual("");
@@ -40,12 +55,17 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
     setPropuesta(null);
     setRespuestaTexto("");
     setTipoResultado("accion");
+    setAccionesPendientes([]);
+    setProyectoIdContextoActivo(proyectoIdContexto || null);
+    setMensajesAcumulados([]);
+    mensajesRef.current = [];
   };
 
   const manejarInterpretar = async (payload) => {
     setFase(FASES.PROCESANDO);
     try {
       const resp = await asistenteApi.interpretar(payload);
+      setAccionesPendientes(resp.acciones_pendientes || []);
       if (resp.tipo === "propuesta") {
         setTool(resp.tool);
         setPropuesta({ tool: resp.tool, parametros: resp.parametros, resumen: resp.resumen });
@@ -61,9 +81,7 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
         });
         setFase(FASES.ACLARANDO);
       } else if (resp.tipo === "respuesta") {
-        setRespuestaTexto(resp.mensaje);
-        setTipoResultado("respuesta");
-        setFase(FASES.RESULTADO);
+        await avanzarOTerminar(resp.mensaje, resp.acciones_pendientes || []);
       } else {
         setMensaje(resp.mensaje || "No entendí bien esa instrucción.");
         setFase(FASES.ERROR);
@@ -74,9 +92,39 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
     }
   };
 
+  // Tras ejecutar/leer una acción, si quedan más acciones de la misma
+  // instrucción compuesta, sigue automáticamente con la próxima en vez de
+  // terminar aquí. `idProyectoNuevo` es el id devuelto por crear_proyecto,
+  // si esta acción era esa.
+  const avanzarOTerminar = async (mensajeAccion, colaRestante, idProyectoNuevo) => {
+    mensajesRef.current = [...mensajesRef.current, mensajeAccion];
+    setMensajesAcumulados(mensajesRef.current);
+
+    const contextoParaSiguiente = idProyectoNuevo ?? proyectoIdContextoActivo;
+    if (idProyectoNuevo) setProyectoIdContextoActivo(idProyectoNuevo);
+
+    if (colaRestante.length > 0) {
+      const [siguiente, ...resto] = colaRestante;
+      setAccionesPendientes(resto);
+      await manejarInterpretar({
+        texto: "",
+        proyecto_id_contexto: contextoParaSiguiente || null,
+        tool: siguiente.tool,
+        parametros_llm: siguiente.parametros_llm,
+        aclaraciones: {},
+        acciones_pendientes: resto,
+      });
+      return;
+    }
+
+    setRespuestaTexto(mensajesRef.current.join(" "));
+    setTipoResultado("accion");
+    setFase(FASES.RESULTADO);
+  };
+
   const enviarTexto = async (texto) => {
     if (!texto.trim()) return;
-    await manejarInterpretar({ texto, proyecto_id_contexto: proyectoIdContexto || null });
+    await manejarInterpretar({ texto, proyecto_id_contexto: proyectoIdContextoActivo || null });
   };
 
   // `alTranscribir` recibe el texto ya transcrito: enviarTexto() para la
@@ -111,10 +159,11 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
     setAclaraciones(nuevasAclaraciones);
     await manejarInterpretar({
       texto: "",
-      proyecto_id_contexto: proyectoIdContexto || null,
+      proyecto_id_contexto: proyectoIdContextoActivo || null,
       tool,
       parametros_llm: parametrosLlm,
       aclaraciones: nuevasAclaraciones,
+      acciones_pendientes: accionesPendientes,
     });
   };
 
@@ -122,9 +171,8 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
     setFase(FASES.EJECUTANDO);
     try {
       const resp = await asistenteApi.confirmar({ tool: propuesta.tool, parametros: propuesta.parametros });
-      setRespuestaTexto(resp.mensaje);
-      setTipoResultado("accion");
-      setFase(FASES.RESULTADO);
+      const idProyectoNuevo = propuesta.tool === "crear_proyecto" ? resp.resultado?.id : undefined;
+      await avanzarOTerminar(resp.mensaje, accionesPendientes, idProyectoNuevo);
     } catch (err) {
       setMensaje(err.response?.data?.detail || "No se pudo completar la acción.");
       setFase(FASES.ERROR);
@@ -219,6 +267,11 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
         {fase === FASES.CONFIRMANDO && propuesta && (
           <div className="stack">
             <p>{propuesta.resumen}</p>
+            {accionesPendientes.length > 0 && (
+              <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
+                + {accionesPendientes.length} acción{accionesPendientes.length === 1 ? "" : "es"} más después de esta
+              </p>
+            )}
             <div style={{ display: "flex", gap: 8 }}>
               <button className="btn btn--primary" type="button" onClick={confirmar}>
                 Confirmar
@@ -234,7 +287,15 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
 
         {fase === FASES.RESULTADO && (
           <div className="stack">
-            <p>{tipoResultado === "respuesta" ? "💬" : "✅"} {respuestaTexto}</p>
+            {mensajesAcumulados.length > 1 ? (
+              <ul style={{ margin: 0, paddingLeft: "1.2rem" }}>
+                {mensajesAcumulados.map((m, i) => (
+                  <li key={i}>{m}</li>
+                ))}
+              </ul>
+            ) : (
+              <p>{tipoResultado === "respuesta" ? "💬" : "✅"} {respuestaTexto}</p>
+            )}
             <button className="btn btn--ghost" type="button" onClick={reiniciar}>
               Hacer otra cosa
             </button>

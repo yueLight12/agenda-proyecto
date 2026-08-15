@@ -124,6 +124,40 @@ def resolver_persona_en_equipo(
     )
 
 
+def resolver_persona_organizacion(db: Session, nombre_hablado: Optional[str]) -> ResolucionResultado:
+    """Como resolver_persona_en_equipo, pero busca en TODOS los usuarios de la
+    organización, no solo en el equipo de un proyecto — es lo que hace falta
+    para agregar a alguien que todavía no participa en el proyecto (ver
+    agregar_miembro en tools.py). El caller es responsable de verificar que
+    quien pide la acción tiene permiso (N1/N2 del proyecto) antes de llamar
+    esto, para no exponer el directorio completo a cualquiera."""
+    if not nombre_hablado:
+        return ResolucionResultado(resuelto=False, pregunta="¿A quién quieres agregar?", tipo_entrada="texto")
+
+    usuarios = db.query(Usuario).all()
+    normalizado = _normalizar(nombre_hablado)
+    candidatos = [
+        u for u in usuarios
+        if any(palabra.startswith(normalizado) for palabra in _normalizar(u.nombre).split())
+    ]
+
+    if len(candidatos) == 1:
+        return ResolucionResultado(resuelto=True, valor=candidatos[0].id)
+    if not candidatos:
+        return ResolucionResultado(
+            resuelto=False,
+            pregunta=f'No encontré a nadie llamado "{nombre_hablado}" en el sistema. '
+            "¿Puedes decir el nombre completo?",
+            tipo_entrada="texto",
+        )
+    return ResolucionResultado(
+        resuelto=False,
+        pregunta=f'Encontré varias personas parecidas a "{nombre_hablado}", ¿cuál es?',
+        tipo_entrada="opciones",
+        opciones=[OpcionResolucion(u.id, u.nombre) for u in candidatos],
+    )
+
+
 def resolver_entregable(
     db: Session, usuario: Usuario, proyecto_id: int, nombre_hablado: Optional[str]
 ) -> ResolucionResultado:
