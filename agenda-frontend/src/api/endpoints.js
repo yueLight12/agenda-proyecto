@@ -47,6 +47,7 @@ export const entregablesApi = {
     (await api.patch(`/entregables/${entregableId}/avance`, { porcentaje_avance })).data,
   historial: async (entregableId) =>
     (await api.get(`/entregables/${entregableId}/historial`)).data,
+  eliminar: async (entregableId) => api.delete(`/entregables/${entregableId}`),
 };
 
 export const dashboardApi = {

@@ -546,8 +546,8 @@
 }
 
 .badge--sensible {
-  background: #efe3f5;
-  color: #6a3d99;
+  background: var(--color-sensible-bg);
+  color: var(--color-sensible);
 }
 
 .progress-bar {

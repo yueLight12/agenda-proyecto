@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { miEquipoApi, usuariosApi } from "../api/endpoints";
+import ConfirmDialog from "../components/ConfirmDialog";
 import ResumenEquipo from "../components/ResumenEquipo";
 import { ROL_LABELS, etiquetaRol } from "../utils/rolLabels";
 
@@ -46,6 +47,9 @@ function PlantillaEquipo() {
   const [rol, setRol] = useState("N3");
   const [guardando, setGuardando] = useState(false);
   const [errorAgregar, setErrorAgregar] = useState("");
+  const [confirmandoQuitar, setConfirmandoQuitar] = useState(null);
+  const [quitando, setQuitando] = useState(false);
+  const [errorQuitar, setErrorQuitar] = useState("");
 
   const cargar = () =>
     Promise.all([
@@ -82,10 +86,23 @@ function PlantillaEquipo() {
     }
   };
 
-  const handleQuitar = async (usuarioIdAQuitar) => {
-    if (!window.confirm("¿Quitar a esta persona de tu equipo guardado?")) return;
-    await miEquipoApi.quitar(usuarioIdAQuitar);
-    await cargar();
+  const handleQuitar = (usuarioIdAQuitar) => {
+    setErrorQuitar("");
+    setConfirmandoQuitar(usuarioIdAQuitar);
+  };
+
+  const confirmarQuitar = async () => {
+    setQuitando(true);
+    setErrorQuitar("");
+    try {
+      await miEquipoApi.quitar(confirmandoQuitar);
+      setConfirmandoQuitar(null);
+      await cargar();
+    } catch {
+      setErrorQuitar("No se pudo quitar a esta persona de tu equipo.");
+    } finally {
+      setQuitando(false);
+    }
   };
 
   if (cargando) return <p>Cargando tu equipo...</p>;
@@ -100,10 +117,13 @@ function PlantillaEquipo() {
         "Aplicar mi equipo".
       </p>
 
+      {errorQuitar && <p className="error-text">{errorQuitar}</p>}
+
       <div className="card">
         {miEquipo.length === 0 && (
           <p style={{ color: "var(--color-text-muted)" }}>
-            Todavía no has guardado a nadie en tu equipo.
+            Todavía no has guardado a nadie — agrega a la primera persona con el formulario de
+            abajo.
           </p>
         )}
         {miEquipo.map((m) => (
@@ -164,6 +184,16 @@ function PlantillaEquipo() {
           {guardando ? "Guardando..." : "Agregar a mi equipo"}
         </button>
       </form>
+
+      {confirmandoQuitar !== null && (
+        <ConfirmDialog
+          titulo="Quitar de mi equipo"
+          mensaje="¿Quitar a esta persona de tu equipo guardado?"
+          textoConfirmar={quitando ? "Quitando..." : "Quitar"}
+          onConfirmar={confirmarQuitar}
+          onCancelar={() => setConfirmandoQuitar(null)}
+        />
+      )}
     </div>
   );
 }

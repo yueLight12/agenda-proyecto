@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { notasApi } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
+import ConfirmDialog from "./ConfirmDialog";
 
 /**
  * Sección reutilizable de notas/avisos/pendientes, para colgar de un
@@ -19,6 +20,8 @@ export default function SeccionNotas({ entregableId, reunionId, minutaId, puedeA
   const [error, setError] = useState("");
   const [contenido, setContenido] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const [confirmandoEliminar, setConfirmandoEliminar] = useState(null);
+  const [eliminando, setEliminando] = useState(false);
 
   const params = entregableId
     ? { entregable_id: entregableId }
@@ -54,13 +57,21 @@ export default function SeccionNotas({ entregableId, reunionId, minutaId, puedeA
     }
   };
 
-  const handleEliminar = async (notaId) => {
-    if (!window.confirm("¿Eliminar esta nota?")) return;
+  const handleEliminar = (notaId) => {
+    setError("");
+    setConfirmandoEliminar(notaId);
+  };
+
+  const confirmarEliminar = async () => {
+    setEliminando(true);
     try {
-      await notasApi.eliminar(notaId);
+      await notasApi.eliminar(confirmandoEliminar);
+      setConfirmandoEliminar(null);
       await cargar();
     } catch {
       setError("No se pudo eliminar la nota.");
+    } finally {
+      setEliminando(false);
     }
   };
 
@@ -76,7 +87,7 @@ export default function SeccionNotas({ entregableId, reunionId, minutaId, puedeA
         <>
           {notas.length === 0 && (
             <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
-              Todavía no hay notas.
+              Aún no hay notas — escribe la primera abajo.
             </p>
           )}
           {notas.map((n) => (
@@ -118,6 +129,16 @@ export default function SeccionNotas({ entregableId, reunionId, minutaId, puedeA
           {enviando ? "Agregando..." : "Agregar nota"}
         </button>
       </form>
+
+      {confirmandoEliminar !== null && (
+        <ConfirmDialog
+          titulo="Eliminar nota"
+          mensaje="¿Eliminar esta nota?"
+          textoConfirmar={eliminando ? "Eliminando..." : "Eliminar"}
+          onConfirmar={confirmarEliminar}
+          onCancelar={() => setConfirmandoEliminar(null)}
+        />
+      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { entregablesApi } from "../api/endpoints";
 import { etiquetaRol } from "../utils/rolLabels";
+import ConfirmDialog from "./ConfirmDialog";
 import HistorialAvance from "./HistorialAvance";
 import Modal from "./Modal";
 import SeccionNotas from "./SeccionNotas";
@@ -25,6 +26,20 @@ export default function FormularioEntregable({
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [historialAbierto, setHistorialAbierto] = useState(false);
+  const [eliminando, setEliminando] = useState(false);
+  const [confirmandoEliminar, setConfirmandoEliminar] = useState(false);
+
+  const handleEliminar = async () => {
+    setConfirmandoEliminar(false);
+    setEliminando(true);
+    try {
+      await entregablesApi.eliminar(entregable.id);
+      onGuardado();
+    } catch (err) {
+      setError(err.response?.data?.detail || "No se pudo eliminar el entregable.");
+      setEliminando(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -122,10 +137,34 @@ export default function FormularioEntregable({
 
         {error && <p className="error-text">{error}</p>}
 
-        <button className="btn btn--primary" type="submit" disabled={guardando}>
-          {guardando ? "Guardando..." : esEdicion ? "Guardar cambios" : "Crear entregable"}
-        </button>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+          {esEdicion && puedeAsignarAOtros ? (
+            <button
+              type="button"
+              className="btn btn--ghost"
+              onClick={() => setConfirmandoEliminar(true)}
+              disabled={eliminando}
+              style={{ color: "var(--color-danger)" }}
+            >
+              {eliminando ? "Eliminando..." : "Eliminar"}
+            </button>
+          ) : (
+            <span />
+          )}
+          <button className="btn btn--primary" type="submit" disabled={guardando}>
+            {guardando ? "Guardando..." : esEdicion ? "Guardar cambios" : "Crear entregable"}
+          </button>
+        </div>
       </form>
+
+      {confirmandoEliminar && (
+        <ConfirmDialog
+          titulo="Eliminar entregable"
+          mensaje={`¿Eliminar "${nombre}"? Esta acción no se puede deshacer.`}
+          onConfirmar={handleEliminar}
+          onCancelar={() => setConfirmandoEliminar(false)}
+        />
+      )}
 
       {esEdicion && (
         <div style={{ marginTop: 16, borderTop: "1px solid var(--color-border)", paddingTop: 16 }}>

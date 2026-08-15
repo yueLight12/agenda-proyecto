@@ -25,6 +25,8 @@
   --color-danger: #c0392b;
   --color-danger-bg: #fbeae8;
   --color-pending-bg: #eef0f2;
+  --color-sensible: #6a3d99;
+  --color-sensible-bg: #efe3f5;
 
   /* Color de encabezados: separado de --color-navy-900 porque esa variable
      también se usa como fondo oscuro de chrome (sidebar/login), y en tema
@@ -69,6 +71,8 @@
   --color-danger: #d6685e;
   --color-danger-bg: #3a1f1c;
   --color-pending-bg: #22323d;
+  --color-sensible: #c9a6e8;
+  --color-sensible-bg: #322046;
 }
 
 * {

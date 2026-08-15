@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { reunionesApi } from "../api/endpoints";
 import { etiquetaRol } from "../utils/rolLabels";
+import ConfirmDialog from "./ConfirmDialog";
 import Modal from "./Modal";
 import SeccionNotas from "./SeccionNotas";
 
@@ -42,6 +43,7 @@ export default function ModalReunion({
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [eliminando, setEliminando] = useState(false);
+  const [confirmandoEliminar, setConfirmandoEliminar] = useState(false);
 
   const puedeEliminar = esEdicion; // ambos, N1/N2/organizador, validado por el backend
 
@@ -77,7 +79,7 @@ export default function ModalReunion({
   };
 
   const handleEliminar = async () => {
-    if (!window.confirm("¿Eliminar esta reunión?")) return;
+    setConfirmandoEliminar(false);
     setEliminando(true);
     try {
       await reunionesApi.eliminar(reunion.id);
@@ -171,7 +173,7 @@ export default function ModalReunion({
             <button
               type="button"
               className="btn btn--ghost"
-              onClick={handleEliminar}
+              onClick={() => setConfirmandoEliminar(true)}
               disabled={eliminando}
               style={{ color: "var(--color-danger)" }}
             >
@@ -190,6 +192,15 @@ export default function ModalReunion({
         <div style={{ marginTop: 16, borderTop: "1px solid var(--color-border)", paddingTop: 16 }}>
           <SeccionNotas reunionId={reunion.id} puedeAdministrar={puedeAdministrar} />
         </div>
+      )}
+
+      {confirmandoEliminar && (
+        <ConfirmDialog
+          titulo="Eliminar reunión"
+          mensaje="¿Eliminar esta reunión?"
+          onConfirmar={handleEliminar}
+          onCancelar={() => setConfirmandoEliminar(false)}
+        />
       )}
     </Modal>
   );

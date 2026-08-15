@@ -15,6 +15,7 @@ from app.core.permissions import (
 )
 from app.models.entregable import Entregable, EstatusEntregable
 from app.models.historial_avance import HistorialAvance
+from app.models.minuta import AcuerdoMinuta
 from app.models.notificacion import Notificacion, TipoNotificacion
 from app.models.usuario import RolEnum, Usuario
 from app.models.usuario_proyecto_rol import UsuarioProyectoRol
@@ -97,6 +98,35 @@ def actualizar_entregable(
         setattr(entregable, campo, valor)
 
     return entregable
+
+
+def eliminar_entregable(db: Session, usuario: Usuario, entregable_id: int) -> None:
+    """
+    Elimina un entregable. Requiere N1/N2, mismo gate que actualizar_entregable
+    (no el propio responsable, para no perder trazabilidad de alguien
+    borrando su propio pendiente).
+
+    Historial de avance y notas cascadean solos (relaciones ORM en
+    Entregable). Notificacion.entregable_id y AcuerdoMinuta.entregable_id son
+    nullable y no cascadean por ORM — se limpian a mano: las notificaciones
+    se borran (ya no tiene sentido notificar sobre algo que ya no existe),
+    pero un acuerdo de minuta ya convertido en este entregable NO se borra,
+    solo se desvincula (entregable_id = NULL) — el acuerdo en sí sigue siendo
+    un registro válido de lo que se discutió en la reunión.
+    """
+    entregable = obtener_entregable_o_404(db, entregable_id)
+
+    rol = requerir_participacion_en_proyecto(db, usuario, entregable.proyecto_id)
+    requerir_rol_minimo(rol, [RolEnum.N1, RolEnum.N2])
+
+    db.query(Notificacion).filter(Notificacion.entregable_id == entregable_id).delete(
+        synchronize_session=False
+    )
+    db.query(AcuerdoMinuta).filter(AcuerdoMinuta.entregable_id == entregable_id).update(
+        {AcuerdoMinuta.entregable_id: None}, synchronize_session=False
+    )
+
+    db.delete(entregable)
 
 
 def actualizar_avance(

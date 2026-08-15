@@ -1,4 +1,32 @@
+import { useEffect, useRef } from "react";
+
+// Pila de módulo con los modales abiertos ahora mismo (puede haber más de
+// uno, ej. un ConfirmDialog sobre un formulario) — Escape solo cierra el de
+// hasta arriba, no todos a la vez.
+const pilaModales = [];
+
 export default function Modal({ titulo, onCerrar, children }) {
+  const idRef = useRef({});
+
+  useEffect(() => {
+    const id = idRef.current;
+    pilaModales.push(id);
+    return () => {
+      const i = pilaModales.indexOf(id);
+      if (i !== -1) pilaModales.splice(i, 1);
+    };
+  }, []);
+
+  useEffect(() => {
+    const alPresionarTecla = (e) => {
+      if (e.key === "Escape" && pilaModales[pilaModales.length - 1] === idRef.current) {
+        onCerrar();
+      }
+    };
+    document.addEventListener("keydown", alPresionarTecla);
+    return () => document.removeEventListener("keydown", alPresionarTecla);
+  }, [onCerrar]);
+
   return (
     <div className="modal-overlay" onClick={onCerrar}>
       <div className="modal-card card" onClick={(e) => e.stopPropagation()}>

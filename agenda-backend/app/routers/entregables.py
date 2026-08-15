@@ -25,6 +25,7 @@ from app.schemas.entregable import (
 from app.services.entregables import actualizar_avance as actualizar_avance_servicio
 from app.services.entregables import actualizar_entregable as actualizar_entregable_servicio
 from app.services.entregables import crear_entregable as crear_entregable_servicio
+from app.services.entregables import eliminar_entregable as eliminar_entregable_servicio
 
 router = APIRouter(tags=["Entregables"])
 
@@ -100,6 +101,17 @@ def actualizar_entregable(
     db.commit()
     db.refresh(entregable)
     return entregable
+
+
+@router.delete("/entregables/{entregable_id}", status_code=status.HTTP_204_NO_CONTENT)
+def eliminar_entregable(
+    entregable_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Elimina un entregable. Requiere N1/N2."""
+    eliminar_entregable_servicio(db, usuario, entregable_id)
+    db.commit()
 
 
 @router.patch("/entregables/{entregable_id}/avance", response_model=EntregableOut)

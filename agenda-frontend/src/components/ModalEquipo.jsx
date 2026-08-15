@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { miEquipoApi, proyectosApi, usuariosApi } from "../api/endpoints";
 import { ROL_LABELS } from "../utils/rolLabels";
+import ConfirmDialog from "./ConfirmDialog";
 import KanbanEquipoProyecto from "./KanbanEquipoProyecto";
 import Modal from "./Modal";
 
@@ -16,6 +17,9 @@ export default function ModalEquipo({ proyectoId, miembros, entregables = [], re
   const [guardando, setGuardando] = useState(false);
   const [aplicandoPlantilla, setAplicandoPlantilla] = useState(false);
   const [errorPlantilla, setErrorPlantilla] = useState("");
+  const [confirmandoQuitar, setConfirmandoQuitar] = useState(null); // usuario_id a quitar, o null
+  const [quitando, setQuitando] = useState(false);
+  const [errorQuitar, setErrorQuitar] = useState("");
 
   const supervisoresPosibles = miembros.filter((m) => m.rol === "N2");
 
@@ -52,10 +56,23 @@ export default function ModalEquipo({ proyectoId, miembros, entregables = [], re
     }
   };
 
-  const handleQuitar = async (usuarioIdAQuitar) => {
-    if (!window.confirm("¿Quitar a este usuario del proyecto?")) return;
-    await proyectosApi.quitarMiembro(proyectoId, usuarioIdAQuitar);
-    await onCambio();
+  const handleQuitar = (usuarioIdAQuitar) => {
+    setErrorQuitar("");
+    setConfirmandoQuitar(usuarioIdAQuitar);
+  };
+
+  const confirmarQuitar = async () => {
+    setQuitando(true);
+    setErrorQuitar("");
+    try {
+      await proyectosApi.quitarMiembro(proyectoId, confirmandoQuitar);
+      setConfirmandoQuitar(null);
+      await onCambio();
+    } catch (err) {
+      setErrorQuitar(err.response?.data?.detail || "No se pudo quitar al usuario.");
+    } finally {
+      setQuitando(false);
+    }
   };
 
   const handleAplicarPlantilla = async () => {
@@ -88,6 +105,7 @@ export default function ModalEquipo({ proyectoId, miembros, entregables = [], re
           </button>
         </div>
         {errorPlantilla && <p className="error-text">{errorPlantilla}</p>}
+        {errorQuitar && <p className="error-text">{errorQuitar}</p>}
 
         <KanbanEquipoProyecto
           miembros={miembros}
@@ -161,6 +179,16 @@ export default function ModalEquipo({ proyectoId, miembros, entregables = [], re
           </button>
         </form>
       </div>
+
+      {confirmandoQuitar !== null && (
+        <ConfirmDialog
+          titulo="Quitar del proyecto"
+          mensaje="¿Quitar a este usuario del proyecto?"
+          textoConfirmar={quitando ? "Quitando..." : "Quitar"}
+          onConfirmar={confirmarQuitar}
+          onCancelar={() => setConfirmandoQuitar(null)}
+        />
+      )}
     </Modal>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { minutasApi } from "../api/endpoints";
 import { etiquetaRol } from "../utils/rolLabels";
+import ConfirmDialog from "./ConfirmDialog";
 import Modal from "./Modal";
 import SeccionNotas from "./SeccionNotas";
 
@@ -23,6 +24,9 @@ export default function ModalMinuta({ reunion, miembros, puedeAdministrar = fals
 
   const [fechaConversion, setFechaConversion] = useState({});
   const [convirtiendo, setConvirtiendo] = useState(null);
+
+  const [confirmandoEliminarAcuerdo, setConfirmandoEliminarAcuerdo] = useState(null);
+  const [eliminandoAcuerdo, setEliminandoAcuerdo] = useState(false);
 
   const cargar = () =>
     minutasApi
@@ -82,10 +86,22 @@ export default function ModalMinuta({ reunion, miembros, puedeAdministrar = fals
     }
   };
 
-  const handleEliminarAcuerdo = async (acuerdoId) => {
-    if (!window.confirm("¿Eliminar este acuerdo?")) return;
-    await minutasApi.eliminarAcuerdo(acuerdoId);
-    await cargar();
+  const handleEliminarAcuerdo = (acuerdoId) => {
+    setError("");
+    setConfirmandoEliminarAcuerdo(acuerdoId);
+  };
+
+  const confirmarEliminarAcuerdo = async () => {
+    setEliminandoAcuerdo(true);
+    try {
+      await minutasApi.eliminarAcuerdo(confirmandoEliminarAcuerdo);
+      setConfirmandoEliminarAcuerdo(null);
+      await cargar();
+    } catch {
+      setError("No se pudo eliminar el acuerdo.");
+    } finally {
+      setEliminandoAcuerdo(false);
+    }
   };
 
   const handleConvertir = async (acuerdo) => {
@@ -135,7 +151,7 @@ export default function ModalMinuta({ reunion, miembros, puedeAdministrar = fals
 
               {minuta.acuerdos.length === 0 && (
                 <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
-                  Todavía no hay acuerdos registrados.
+                  Aún no hay acuerdos — agrega el primero abajo.
                 </p>
               )}
 
@@ -222,6 +238,16 @@ export default function ModalMinuta({ reunion, miembros, puedeAdministrar = fals
             </div>
           )}
         </div>
+      )}
+
+      {confirmandoEliminarAcuerdo !== null && (
+        <ConfirmDialog
+          titulo="Eliminar acuerdo"
+          mensaje="¿Eliminar este acuerdo?"
+          textoConfirmar={eliminandoAcuerdo ? "Eliminando..." : "Eliminar"}
+          onConfirmar={confirmarEliminarAcuerdo}
+          onCancelar={() => setConfirmandoEliminarAcuerdo(null)}
+        />
       )}
     </Modal>
   );

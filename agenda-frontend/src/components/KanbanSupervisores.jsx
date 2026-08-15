@@ -55,7 +55,7 @@ function EntregablesYReuniones({ proyectos, onAdministrar, puedeAdministrar }) {
               <div key={`entregable-${e.id}`} style={{ padding: "3px 0" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: "0.8rem" }}>
                   <Link
-                    to={`/proyectos/${p.proyecto_id}`}
+                    to={`/proyectos/${p.proyecto_id}?entregable=${e.id}`}
                     style={{ color: "inherit", textDecoration: "none", flex: 1 }}
                   >
                     {vencido && "🔴 "}
@@ -81,8 +81,9 @@ function EntregablesYReuniones({ proyectos, onAdministrar, puedeAdministrar }) {
             );
           })}
           {p.reuniones.map((r) => (
-            <div
+            <Link
               key={`reunion-${r.id}`}
+              to={`/proyectos/${p.proyecto_id}?reunion=${r.id}`}
               style={{
                 display: "flex",
                 justifyContent: "space-between",
@@ -90,13 +91,14 @@ function EntregablesYReuniones({ proyectos, onAdministrar, puedeAdministrar }) {
                 fontSize: "0.8rem",
                 padding: "2px 0",
                 color: "var(--color-text-muted)",
+                textDecoration: "none",
               }}
             >
               <span>🗓️ {r.titulo}</span>
               <span style={{ whiteSpace: "nowrap" }}>
                 {new Date(r.fecha_inicio).toLocaleDateString("es-MX", { dateStyle: "short" })}
               </span>
-            </div>
+            </Link>
           ))}
         </div>
       ))}

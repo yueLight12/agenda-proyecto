@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { entregablesApi, proyectosApi, reunionesApi } from "../api/endpoints";
 import EstatusBadge from "../components/EstatusBadge";
 import CalendarioEntregables from "../components/CalendarioEntregables";
@@ -14,6 +14,7 @@ import { useAuth } from "../context/AuthContext";
 export default function TableroProyecto() {
   const { proyectoId } = useParams();
   const { usuario } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [proyecto, setProyecto] = useState(null);
   const [resumen, setResumen] = useState(null);
   const [entregables, setEntregables] = useState([]);
@@ -49,12 +50,30 @@ export default function TableroProyecto() {
     setEntregables(e);
     setEquipo(eq);
     setReuniones(reu);
+    return { entregables: e, reuniones: reu };
   };
 
   useEffect(() => {
     setCargando(true);
     setError("");
     cargarTodo()
+      .then(({ entregables: e, reuniones: reu }) => {
+        // Deep-link desde "Tu equipo"/Dashboard: ?entregable=ID o ?reunion=ID
+        // abre directo el modal del ítem en vez de dejar al usuario en la
+        // vista Tabla por defecto teniendo que rebuscarlo.
+        const entregableId = searchParams.get("entregable");
+        const reunionId = searchParams.get("reunion");
+        if (entregableId) {
+          const encontrado = e.find((x) => x.id === Number(entregableId));
+          if (encontrado) setModalEntregable(encontrado);
+        } else if (reunionId) {
+          const encontrada = reu.find((x) => x.id === Number(reunionId));
+          if (encontrada) setModalReunion(encontrada);
+        }
+        if (entregableId || reunionId) {
+          setSearchParams({}, { replace: true });
+        }
+      })
       .catch(() => setError("No se pudo cargar el proyecto. Intenta de nuevo más tarde."))
       .finally(() => setCargando(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps

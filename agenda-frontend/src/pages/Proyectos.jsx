@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { proyectosApi } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
+import ConfirmDialog from "../components/ConfirmDialog";
 import KanbanMisProyectos from "../components/KanbanMisProyectos";
 import ModalEditarProyecto from "../components/ModalEditarProyecto";
 
@@ -10,13 +11,9 @@ export default function Proyectos() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
 
-  const [mostrarFormulario, setMostrarFormulario] = useState(false);
-  const [nombre, setNombre] = useState("");
-  const [descripcion, setDescripcion] = useState("");
-  const [errorCrear, setErrorCrear] = useState("");
-  const [guardando, setGuardando] = useState(false);
-
-  const [proyectoAEditar, setProyectoAEditar] = useState(null);
+  const [modalProyecto, setModalProyecto] = useState(null); // null | "nuevo" | proyecto a editar
+  const [confirmandoEliminar, setConfirmandoEliminar] = useState(null); // proyecto a eliminar, o null
+  const [eliminando, setEliminando] = useState(false);
   const [errorEliminar, setErrorEliminar] = useState("");
 
   const cargarProyectos = () =>
@@ -42,37 +39,17 @@ export default function Proyectos() {
       ? "N1"
       : usuario?.roles_por_proyecto.find((r) => r.proyecto_id === proyectoId)?.rol;
 
-  const handleCrear = async (e) => {
-    e.preventDefault();
-    setErrorCrear("");
-    setGuardando(true);
-    try {
-      await proyectosApi.crear({ nombre, descripcion: descripcion || null });
-      setNombre("");
-      setDescripcion("");
-      setMostrarFormulario(false);
-      await cargarProyectos();
-    } catch (err) {
-      setErrorCrear(err.response?.data?.detail || "No se pudo crear el proyecto.");
-    } finally {
-      setGuardando(false);
-    }
-  };
-
-  const handleEliminar = async (proyecto) => {
+  const confirmarEliminar = async () => {
+    setEliminando(true);
     setErrorEliminar("");
-    if (
-      !window.confirm(
-        `¿Eliminar el proyecto "${proyecto.nombre}"? Esto borra también su equipo, entregables y reuniones. Esta acción no se puede deshacer.`
-      )
-    ) {
-      return;
-    }
     try {
-      await proyectosApi.eliminar(proyecto.id);
+      await proyectosApi.eliminar(confirmandoEliminar.id);
+      setConfirmandoEliminar(null);
       await cargarProyectos();
     } catch (err) {
       setErrorEliminar(err.response?.data?.detail || "No se pudo eliminar el proyecto.");
+    } finally {
+      setEliminando(false);
     }
   };
 
@@ -83,64 +60,44 @@ export default function Proyectos() {
     <div className="stack">
       <div className="list-inline">
         <h1>Tus proyectos</h1>
-        <button className="btn btn--primary" onClick={() => setMostrarFormulario((v) => !v)}>
-          {mostrarFormulario ? "Cancelar" : "Crear proyecto"}
+        <button className="btn btn--primary" onClick={() => setModalProyecto("nuevo")}>
+          Crear proyecto
         </button>
       </div>
-
-      {mostrarFormulario && (
-        <form className="stack card" onSubmit={handleCrear} style={{ maxWidth: 420 }}>
-          <label className="stack" style={{ gap: 4 }}>
-            <span style={{ fontSize: "0.85rem" }}>Nombre del proyecto</span>
-            <input
-              className="input"
-              value={nombre}
-              onChange={(e) => setNombre(e.target.value)}
-              required
-            />
-          </label>
-          <label className="stack" style={{ gap: 4 }}>
-            <span style={{ fontSize: "0.85rem" }}>Descripción (opcional)</span>
-            <input
-              className="input"
-              value={descripcion}
-              onChange={(e) => setDescripcion(e.target.value)}
-            />
-          </label>
-          {errorCrear && <p className="error-text">{errorCrear}</p>}
-          <button className="btn btn--primary" type="submit" disabled={guardando}>
-            {guardando ? "Creando..." : "Crear"}
-          </button>
-          <p style={{ color: "var(--color-text-muted)", fontSize: "0.8rem" }}>
-            Quedarás como Dirección de este proyecto y podrás agregar al resto del equipo
-            desde "Administrar equipo".
-          </p>
-        </form>
-      )}
 
       {errorEliminar && <p className="error-text">{errorEliminar}</p>}
 
       {proyectos.length === 0 && (
         <p style={{ color: "var(--color-text-muted)" }}>
-          No tienes proyectos asignados todavía.
+          Todavía no tienes proyectos — usa "Crear proyecto" arriba para empezar.
         </p>
       )}
       <KanbanMisProyectos
         proyectos={proyectos}
         rolDeProyecto={rolDelViewer}
         esN1DelProyecto={esN1DelProyecto}
-        onEditar={setProyectoAEditar}
-        onEliminar={handleEliminar}
+        onEditar={setModalProyecto}
+        onEliminar={setConfirmandoEliminar}
       />
 
-      {proyectoAEditar && (
+      {modalProyecto && (
         <ModalEditarProyecto
-          proyecto={proyectoAEditar}
+          proyecto={modalProyecto === "nuevo" ? null : modalProyecto}
           onGuardado={async () => {
-            setProyectoAEditar(null);
+            setModalProyecto(null);
             await cargarProyectos();
           }}
-          onCerrar={() => setProyectoAEditar(null)}
+          onCerrar={() => setModalProyecto(null)}
+        />
+      )}
+
+      {confirmandoEliminar && (
+        <ConfirmDialog
+          titulo="Eliminar proyecto"
+          mensaje={`¿Eliminar el proyecto "${confirmandoEliminar.nombre}"? Esto borra también su equipo, entregables y reuniones. Esta acción no se puede deshacer.`}
+          textoConfirmar={eliminando ? "Eliminando..." : "Eliminar"}
+          onConfirmar={confirmarEliminar}
+          onCancelar={() => setConfirmandoEliminar(null)}
         />
       )}
     </div>
