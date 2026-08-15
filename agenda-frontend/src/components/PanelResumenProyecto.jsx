@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { entregablesApi, proyectosApi, reunionesApi } from "../api/endpoints";
+import { etiquetaRol } from "../utils/rolLabels";
 import EstatusBadge from "./EstatusBadge";
 
 /**
@@ -54,7 +55,7 @@ export default function PanelResumenProyecto({ proyectoId }) {
               <div className="list-inline" style={{ padding: 0 }}>
                 <span>
                   <strong>{m.nombre}</strong>{" "}
-                  <span style={{ color: "var(--color-text-muted)" }}>({m.rol})</span>
+                  <span style={{ color: "var(--color-text-muted)" }}>({etiquetaRol(m.rol)})</span>
                 </span>
                 <span style={{ fontSize: "0.8rem", color: "var(--color-text-muted)" }}>
                   {entregablesDe.length} entregable{entregablesDe.length === 1 ? "" : "s"}

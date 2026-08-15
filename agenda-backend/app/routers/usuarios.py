@@ -36,7 +36,7 @@ def _requerir_n1(db: Session, usuario: Usuario):
     if not _es_n1_en_algun_proyecto(db, usuario):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Solo un usuario con rol N1 puede realizar esta acción",
+            detail="Solo un usuario con rol de dirección puede realizar esta acción",
         )
 
 

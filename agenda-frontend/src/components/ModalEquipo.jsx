@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { miEquipoApi, proyectosApi, usuariosApi } from "../api/endpoints";
+import { ROL_LABELS } from "../utils/rolLabels";
+import KanbanEquipoProyecto from "./KanbanEquipoProyecto";
 import Modal from "./Modal";
 
 const ROLES = ["N1", "N2", "N3", "N4"];
 
-export default function ModalEquipo({ proyectoId, miembros, onCambio, onCerrar }) {
+export default function ModalEquipo({ proyectoId, miembros, entregables = [], reuniones = [], onCambio, onCerrar }) {
   const [usuariosDisponibles, setUsuariosDisponibles] = useState([]);
   const [errorListaUsuarios, setErrorListaUsuarios] = useState("");
   const [usuarioId, setUsuarioId] = useState("");
@@ -23,7 +25,7 @@ export default function ModalEquipo({ proyectoId, miembros, onCambio, onCerrar }
       .then(setUsuariosDisponibles)
       .catch(() =>
         setErrorListaUsuarios(
-          "No tienes permiso para ver el listado completo de usuarios (requiere N1). Puedes reasignar el rol de miembros que ya están en el equipo."
+          "No se pudo cargar el listado de usuarios. Puedes reasignar el rol de miembros que ya están en el equipo."
         )
       );
   }, []);
@@ -87,36 +89,12 @@ export default function ModalEquipo({ proyectoId, miembros, onCambio, onCerrar }
         </div>
         {errorPlantilla && <p className="error-text">{errorPlantilla}</p>}
 
-        <div>
-          {miembros.map((m) => (
-            <div className="list-inline" key={m.usuario_id}>
-              <div>
-                <strong>{m.nombre}</strong>{" "}
-                {m.puesto && (
-                  <span style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
-                    ({m.puesto})
-                  </span>
-                )}{" "}
-                <span style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
-                  {m.email} — {m.rol}
-                  {m.supervisor_id ? ` (supervisor: ${
-                    miembros.find((s) => s.usuario_id === m.supervisor_id)?.nombre || m.supervisor_id
-                  })` : ""}
-                </span>
-              </div>
-              <button
-                className="btn btn--ghost"
-                type="button"
-                onClick={() => handleQuitar(m.usuario_id)}
-              >
-                Quitar
-              </button>
-            </div>
-          ))}
-          {miembros.length === 0 && (
-            <p style={{ color: "var(--color-text-muted)" }}>Aún no hay miembros visibles para ti en este proyecto.</p>
-          )}
-        </div>
+        <KanbanEquipoProyecto
+          miembros={miembros}
+          entregables={entregables}
+          reuniones={reuniones}
+          onQuitar={handleQuitar}
+        />
 
         <form className="stack" onSubmit={handleAgregar}>
           <h3 style={{ fontSize: "0.95rem", margin: 0 }}>Agregar o reasignar miembro</h3>
@@ -149,7 +127,7 @@ export default function ModalEquipo({ proyectoId, miembros, onCambio, onCerrar }
             <select className="input" value={rol} onChange={(e) => setRol(e.target.value)}>
               {ROLES.map((r) => (
                 <option key={r} value={r}>
-                  {r}
+                  {ROL_LABELS[r]}
                 </option>
               ))}
             </select>

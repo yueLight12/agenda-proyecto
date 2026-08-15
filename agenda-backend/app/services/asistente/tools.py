@@ -15,16 +15,26 @@ Cada tool tiene:
 Fase 1 (validar el mecanismo): `crear_entregable` y
 `actualizar_avance_entregable`. Fase 2: se agregaron `crear_proyecto`,
 `agendar_reunion`, `asignar_rol` y `registrar_acuerdo`, siguiendo este mismo
-patrón — ver el plan del Milestone B.
+patrón — ver el plan del Milestone B. Milestone C (2026-08-13): se agregaron
+`agregar_nota`, `editar_reunion`, `editar_entregable`, `editar_proyecto`
+(mismo patrón, envolviendo servicios que ya existían y ya tenían permisos) y
+`consultar_agenda` — esta última es la única de solo lectura
+(`requiere_confirmacion=False`): enruta al chatbot existente
+(`services/chatbot.py`) en vez de reinventar consultas propias, y
+`/interpretar` devuelve la respuesta directa (tipo="respuesta") sin pasar
+por el paso de confirmar.
 """
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.permissions import requerir_participacion_en_proyecto
 from app.models.minuta import Minuta
+from app.models.reunion import Reunion
 from app.models.usuario import RolEnum, Usuario
+from app.schemas.nota import NotaCrear
 from app.services.asistente.resolucion import (
     OpcionResolucion,
     resolver_campo,
@@ -37,10 +47,12 @@ from app.services.asistente.resolucion import (
     resolver_reunion,
     resolver_rol,
 )
-from app.services.entregables import actualizar_avance, crear_entregable
+from app.services.chatbot import responder_pregunta
+from app.services.entregables import actualizar_avance, actualizar_entregable, crear_entregable
 from app.services.minutas import agregar_acuerdo, crear_o_actualizar_minuta
-from app.services.proyectos import asignar_rol_en_proyecto, crear_proyecto
-from app.services.reuniones import crear_reunion
+from app.services.notas import crear_nota
+from app.services.proyectos import actualizar_proyecto, asignar_rol_en_proyecto, crear_proyecto
+from app.services.reuniones import actualizar_reunion, crear_reunion
 
 
 @dataclass
@@ -72,6 +84,10 @@ class ToolSpec:
     ejemplos: list[tuple[str, dict]]
     resolver: Callable[[Session, Usuario, Optional[int], dict, dict], ResultadoInterpretacion]
     ejecutar: Callable[[Session, Usuario, dict], dict]
+    # False solo para tools de solo lectura (ej. consultar_agenda): /interpretar
+    # devuelve la respuesta directa (tipo="respuesta") sin pasar por el paso
+    # de confirmar/ejecutar, porque no hay ninguna acción que confirmar.
+    requiere_confirmacion: bool = True
 
 
 # --- crear_entregable ---------------------------------------------------
@@ -207,7 +223,7 @@ def _resolver_crear_proyecto(
         )
 
     parametros = {"nombre": nombre, "descripcion": parametros_llm.get("descripcion") or None}
-    resumen = f'Voy a crear el proyecto "{nombre}". Quedarás como dirección (N1). ¿Confirmas?'
+    resumen = f'Voy a crear el proyecto "{nombre}". Quedarás como dirección. ¿Confirmas?'
     return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen)
 
 
@@ -430,6 +446,338 @@ def _ejecutar_registrar_acuerdo(db: Session, usuario: Usuario, parametros: dict)
     }
 
 
+# --- agregar_nota -----------------------------------------------------------
+
+def _resolver_agregar_nota(
+    db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
+) -> ResultadoInterpretacion:
+    proyecto_res = resolver_campo(
+        "proyecto_id", aclaraciones, parametros_llm.get("proyecto"),
+        lambda t: resolver_proyecto(db, usuario, t, proyecto_id_contexto),
+    )
+    if not proyecto_res.resuelto:
+        return _pendiente("proyecto_id", proyecto_res)
+    proyecto_id = proyecto_res.valor
+
+    entregable_id = None
+    reunion_id = None
+
+    # Alcance de esta fase: nota sobre una reunión o un entregable
+    # directamente (no sobre una minuta específica). Si el texto no dice
+    # cuál de los dos, se pregunta y por default se intenta como reunión
+    # primero (las notas de reunión son el caso más común pedido por Yue).
+    if "entregable_id" in aclaraciones:
+        entregable_res = resolver_campo(
+            "entregable_id", aclaraciones, None, lambda t: resolver_entregable(db, usuario, proyecto_id, t),
+        )
+        if not entregable_res.resuelto:
+            return _pendiente("entregable_id", entregable_res)
+        entregable_id = entregable_res.valor
+    elif "reunion_id" in aclaraciones:
+        reunion_res = resolver_campo(
+            "reunion_id", aclaraciones, None, lambda t: resolver_reunion(db, usuario, proyecto_id, t),
+        )
+        if not reunion_res.resuelto:
+            return _pendiente("reunion_id", reunion_res)
+        reunion_id = reunion_res.valor
+    elif parametros_llm.get("entregable"):
+        entregable_res = resolver_entregable(db, usuario, proyecto_id, parametros_llm["entregable"])
+        if not entregable_res.resuelto:
+            return _pendiente("entregable_id", entregable_res)
+        entregable_id = entregable_res.valor
+    elif parametros_llm.get("reunion"):
+        reunion_res = resolver_reunion(db, usuario, proyecto_id, parametros_llm["reunion"])
+        if not reunion_res.resuelto:
+            return _pendiente("reunion_id", reunion_res)
+        reunion_id = reunion_res.valor
+    else:
+        return ResultadoInterpretacion(
+            listo=False, campo="reunion_id",
+            pregunta="¿La nota es sobre qué reunión o entregable? Dime el nombre.",
+            tipo_entrada="texto",
+        )
+
+    contenido = (
+        aclaraciones.get("contenido") if isinstance(aclaraciones.get("contenido"), str) else parametros_llm.get("contenido")
+    )
+    contenido = (contenido or "").strip()
+    if not contenido:
+        return ResultadoInterpretacion(
+            listo=False, campo="contenido", pregunta="¿Qué dice la nota?", tipo_entrada="texto"
+        )
+
+    parametros = {"entregable_id": entregable_id, "reunion_id": reunion_id, "contenido": contenido}
+    destino = "el entregable" if entregable_id else "la reunión"
+    resumen = f'Voy a agregar esta nota a {destino}: "{contenido}". ¿Confirmas?'
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen)
+
+
+def _ejecutar_agregar_nota(db: Session, usuario: Usuario, parametros: dict) -> dict:
+    nota = crear_nota(
+        db,
+        usuario,
+        NotaCrear(
+            contenido=parametros["contenido"],
+            entregable_id=parametros.get("entregable_id"),
+            reunion_id=parametros.get("reunion_id"),
+            minuta_id=None,
+        ),
+    )
+    db.commit()
+    db.refresh(nota)
+    return {"mensaje": "Nota agregada correctamente.", "resultado": {"id": nota.id}}
+
+
+# --- editar_reunion -----------------------------------------------------------
+
+def _resolver_editar_reunion(
+    db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
+) -> ResultadoInterpretacion:
+    proyecto_res = resolver_campo(
+        "proyecto_id", aclaraciones, parametros_llm.get("proyecto"),
+        lambda t: resolver_proyecto(db, usuario, t, proyecto_id_contexto),
+    )
+    if not proyecto_res.resuelto:
+        return _pendiente("proyecto_id", proyecto_res)
+    proyecto_id = proyecto_res.valor
+
+    reunion_res = resolver_campo(
+        "reunion_id", aclaraciones, parametros_llm.get("reunion"),
+        lambda t: resolver_reunion(db, usuario, proyecto_id, t),
+    )
+    if not reunion_res.resuelto:
+        return _pendiente("reunion_id", reunion_res)
+    reunion_id = reunion_res.valor
+
+    campos: dict = {}
+    resumen_partes: list[str] = []
+
+    titulo_nuevo = (parametros_llm.get("titulo_nuevo") or "").strip()
+    if titulo_nuevo:
+        campos["titulo"] = titulo_nuevo
+        resumen_partes.append(f'título a "{titulo_nuevo}"')
+
+    if parametros_llm.get("fecha_inicio") or "fecha_inicio" in aclaraciones:
+        fecha_res = resolver_campo(
+            "fecha_inicio", aclaraciones, parametros_llm.get("fecha_inicio"), resolver_fecha_hora,
+        )
+        if not fecha_res.resuelto:
+            return _pendiente("fecha_inicio", fecha_res)
+        campos["fecha_inicio"] = fecha_res.valor.isoformat()
+        resumen_partes.append(f'fecha al {fecha_res.valor.strftime("%d/%m/%Y a las %H:%M")}')
+
+    duracion_bruta = parametros_llm.get("duracion_minutos")
+    if duracion_bruta:
+        try:
+            campos["duracion_minutos"] = int(duracion_bruta)
+            resumen_partes.append(f"duración a {campos['duracion_minutos']} minutos")
+        except (TypeError, ValueError):
+            pass
+
+    if parametros_llm.get("participantes") or "participantes_ids" in aclaraciones:
+        participantes_res = resolver_campo(
+            "participantes_ids", aclaraciones, parametros_llm.get("participantes"),
+            lambda t: resolver_personas_en_equipo(db, usuario, proyecto_id, t),
+        )
+        if not participantes_res.resuelto:
+            return _pendiente("participantes_ids", participantes_res)
+        # Se AGREGAN a los que ya estaban invitados, nunca se reemplaza la
+        # lista completa a ciegas — decir "agrega a Lucía" no debe borrar al
+        # resto de invitados que el usuario no volvió a mencionar.
+        reunion_actual = db.query(Reunion).filter(Reunion.id == reunion_id).first()
+        ids_actuales = {p.usuario_id for p in reunion_actual.participantes} if reunion_actual else set()
+        ids_nuevos = set(participantes_res.valor) - ids_actuales
+        if ids_nuevos:
+            campos["participantes_ids"] = list(ids_actuales | ids_nuevos)
+            nombres_nuevos = [u.nombre for u in db.query(Usuario).filter(Usuario.id.in_(ids_nuevos)).all()]
+            resumen_partes.append(f"agregar a {', '.join(nombres_nuevos)} como participante(s)")
+        else:
+            # El texto mencionaba a alguien pero no resultó en ningún
+            # participante nuevo (ya estaba invitado, o no se identificó a
+            # nadie) — mejor preguntar que confirmar a ciegas un cambio que
+            # en realidad no hace nada.
+            return ResultadoInterpretacion(
+                listo=False, campo="participantes_ids",
+                pregunta=f'No encontré a nadie nuevo que agregar a partir de "{parametros_llm.get("participantes")}" '
+                "(puede que ya esté invitado, o que no lo haya identificado bien). ¿Puedes decir el nombre completo?",
+                tipo_entrada="texto",
+            )
+
+    if not campos:
+        return ResultadoInterpretacion(
+            listo=False, campo="titulo_nuevo",
+            pregunta="¿Qué quieres cambiar de la reunión? (fecha/hora, título, participantes)",
+            tipo_entrada="texto",
+        )
+
+    parametros = {"reunion_id": reunion_id, "campos": campos}
+    resumen = f"Voy a actualizar {', '.join(resumen_partes)} de la reunión. ¿Confirmas?"
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen)
+
+
+def _ejecutar_editar_reunion(db: Session, usuario: Usuario, parametros: dict) -> dict:
+    from datetime import datetime
+
+    campos = dict(parametros["campos"])
+    if "fecha_inicio" in campos:
+        campos["fecha_inicio"] = datetime.fromisoformat(campos["fecha_inicio"])
+
+    reunion = actualizar_reunion(db, usuario, parametros["reunion_id"], campos)
+    db.commit()
+    db.refresh(reunion)
+    return {"mensaje": f'Reunión "{reunion.titulo}" actualizada correctamente.', "resultado": {"id": reunion.id}}
+
+
+# --- editar_entregable -----------------------------------------------------------
+
+def _resolver_editar_entregable(
+    db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
+) -> ResultadoInterpretacion:
+    proyecto_res = resolver_campo(
+        "proyecto_id", aclaraciones, parametros_llm.get("proyecto"),
+        lambda t: resolver_proyecto(db, usuario, t, proyecto_id_contexto),
+    )
+    if not proyecto_res.resuelto:
+        return _pendiente("proyecto_id", proyecto_res)
+    proyecto_id = proyecto_res.valor
+
+    entregable_res = resolver_campo(
+        "entregable_id", aclaraciones, parametros_llm.get("entregable"),
+        lambda t: resolver_entregable(db, usuario, proyecto_id, t),
+    )
+    if not entregable_res.resuelto:
+        return _pendiente("entregable_id", entregable_res)
+    entregable_id = entregable_res.valor
+
+    campos: dict = {}
+    resumen_partes: list[str] = []
+
+    nombre_nuevo = (parametros_llm.get("nombre_nuevo") or "").strip()
+    if nombre_nuevo:
+        campos["nombre"] = nombre_nuevo
+        resumen_partes.append(f'nombre a "{nombre_nuevo}"')
+
+    descripcion_nueva = parametros_llm.get("descripcion_nueva")
+    if descripcion_nueva:
+        campos["descripcion"] = descripcion_nueva
+        resumen_partes.append("la descripción")
+
+    if parametros_llm.get("fecha_entrega") or "fecha_entrega" in aclaraciones:
+        fecha_res = resolver_campo(
+            "fecha_entrega", aclaraciones, parametros_llm.get("fecha_entrega"), resolver_fecha,
+        )
+        if not fecha_res.resuelto:
+            return _pendiente("fecha_entrega", fecha_res)
+        campos["fecha_entrega"] = fecha_res.valor.isoformat()
+        resumen_partes.append(f"fecha límite al {fecha_res.valor.isoformat()}")
+
+    if parametros_llm.get("responsable_nuevo") or "responsable_id" in aclaraciones:
+        responsable_res = resolver_campo(
+            "responsable_id", aclaraciones, parametros_llm.get("responsable_nuevo"),
+            lambda t: resolver_persona_en_equipo(db, usuario, proyecto_id, t),
+        )
+        if not responsable_res.resuelto:
+            return _pendiente("responsable_id", responsable_res)
+        campos["responsable_id"] = responsable_res.valor
+        resumen_partes.append("el responsable")
+
+    if not campos:
+        return ResultadoInterpretacion(
+            listo=False, campo="nombre_nuevo",
+            pregunta="¿Qué quieres cambiar del entregable? (nombre, descripción, fecha límite, responsable)",
+            tipo_entrada="texto",
+        )
+
+    parametros = {"entregable_id": entregable_id, "campos": campos}
+    resumen = f"Voy a actualizar {', '.join(resumen_partes)} del entregable. ¿Confirmas?"
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen)
+
+
+def _ejecutar_editar_entregable(db: Session, usuario: Usuario, parametros: dict) -> dict:
+    from datetime import date
+
+    campos = dict(parametros["campos"])
+    if "fecha_entrega" in campos:
+        campos["fecha_entrega"] = date.fromisoformat(campos["fecha_entrega"])
+
+    entregable = actualizar_entregable(db, usuario, parametros["entregable_id"], campos)
+    db.commit()
+    db.refresh(entregable)
+    return {
+        "mensaje": f'Entregable "{entregable.nombre}" actualizado correctamente.',
+        "resultado": {"id": entregable.id},
+    }
+
+
+# --- editar_proyecto -----------------------------------------------------------
+
+def _resolver_editar_proyecto(
+    db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
+) -> ResultadoInterpretacion:
+    proyecto_res = resolver_campo(
+        "proyecto_id", aclaraciones, parametros_llm.get("proyecto"),
+        lambda t: resolver_proyecto(db, usuario, t, proyecto_id_contexto),
+    )
+    if not proyecto_res.resuelto:
+        return _pendiente("proyecto_id", proyecto_res)
+    proyecto_id = proyecto_res.valor
+
+    campos: dict = {}
+    resumen_partes: list[str] = []
+
+    nombre_nuevo = (parametros_llm.get("nombre_nuevo") or "").strip()
+    if nombre_nuevo:
+        campos["nombre"] = nombre_nuevo
+        resumen_partes.append(f'nombre a "{nombre_nuevo}"')
+
+    descripcion_nueva = parametros_llm.get("descripcion_nueva")
+    if descripcion_nueva:
+        campos["descripcion"] = descripcion_nueva
+        resumen_partes.append("la descripción")
+
+    if not campos:
+        return ResultadoInterpretacion(
+            listo=False, campo="nombre_nuevo",
+            pregunta="¿Qué quieres cambiar del proyecto: el nombre o la descripción?",
+            tipo_entrada="texto",
+        )
+
+    parametros = {"proyecto_id": proyecto_id, "campos": campos}
+    resumen = f"Voy a actualizar {', '.join(resumen_partes)} del proyecto. ¿Confirmas?"
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen)
+
+
+def _ejecutar_editar_proyecto(db: Session, usuario: Usuario, parametros: dict) -> dict:
+    proyecto = actualizar_proyecto(db, usuario, parametros["proyecto_id"], parametros["campos"])
+    db.commit()
+    db.refresh(proyecto)
+    return {"mensaje": f'Proyecto "{proyecto.nombre}" actualizado correctamente.', "resultado": {"id": proyecto.id}}
+
+
+# --- consultar_agenda (solo lectura, sin confirmación) -----------------------
+
+def _resolver_consultar_agenda(
+    db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
+) -> ResultadoInterpretacion:
+    pregunta = (parametros_llm.get("pregunta") or "").strip()
+    if not pregunta:
+        return ResultadoInterpretacion(
+            listo=False, campo="pregunta", pregunta="¿Qué quieres saber?", tipo_entrada="texto"
+        )
+    try:
+        respuesta = responder_pregunta(db, usuario, pregunta)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return ResultadoInterpretacion(listo=True, parametros={}, resumen=respuesta)
+
+
+def _ejecutar_consultar_agenda(db: Session, usuario: Usuario, parametros: dict) -> dict:
+    # No debería llamarse nunca: requiere_confirmacion=False hace que
+    # /interpretar ya devuelva tipo="respuesta" con la contestación directa,
+    # sin pasar por /confirmar.
+    return {"mensaje": "", "resultado": None}
+
+
 TOOLS: dict[str, ToolSpec] = {
     "crear_entregable": ToolSpec(
         nombre="crear_entregable",
@@ -444,11 +792,11 @@ TOOLS: dict[str, ToolSpec] = {
         },
         ejemplos=[
             (
-                "crea un entregable para David, el informe de ventas, para el viernes",
+                "crea un entregable para Carlos, el informe de ventas, para el viernes",
                 {
                     "nombre": "informe de ventas",
                     "descripcion": None,
-                    "responsable": "David",
+                    "responsable": "Carlos",
                     "fecha_entrega": "el viernes",
                     "proyecto": "",
                     "sensible": False,
@@ -518,12 +866,12 @@ TOOLS: dict[str, ToolSpec] = {
         },
         ejemplos=[
             (
-                "agenda una reunión con David el jueves a las 3pm",
+                "agenda una reunión con Carlos el jueves a las 3pm",
                 {
-                    "titulo": "reunión con David",
+                    "titulo": "reunión con Carlos",
                     "fecha_inicio": "el jueves a las 3pm",
                     "duracion_minutos": None,
-                    "participantes": "David",
+                    "participantes": "Carlos",
                     "proyecto": "",
                 },
             ),
@@ -552,12 +900,12 @@ TOOLS: dict[str, ToolSpec] = {
         },
         ejemplos=[
             (
-                "pon a Bernardo como líder de este proyecto",
-                {"persona": "Bernardo", "rol": "líder", "supervisor": "", "proyecto": ""},
+                "pon a Roberto como líder de este proyecto",
+                {"persona": "Roberto", "rol": "líder", "supervisor": "", "proyecto": ""},
             ),
             (
-                "agrega a Ana como colaboradora externa, que la supervise Bernardo",
-                {"persona": "Ana", "rol": "colaboradora externa", "supervisor": "Bernardo", "proyecto": ""},
+                "agrega a Sofía como colaboradora externa, que la supervise Roberto",
+                {"persona": "Sofía", "rol": "colaboradora externa", "supervisor": "Roberto", "proyecto": ""},
             ),
         ],
         resolver=_resolver_asignar_rol,
@@ -574,16 +922,127 @@ TOOLS: dict[str, ToolSpec] = {
         },
         ejemplos=[
             (
-                "agrega un acuerdo a la minuta de la reunión de revisión de presupuesto: enviar el reporte final, responsable Ana",
+                "agrega un acuerdo a la minuta de la reunión de revisión de presupuesto: enviar el reporte final, responsable Sofía",
                 {
                     "reunion": "revisión de presupuesto",
                     "descripcion": "enviar el reporte final",
-                    "responsable": "Ana",
+                    "responsable": "Sofía",
                     "proyecto": "",
                 },
             ),
         ],
         resolver=_resolver_registrar_acuerdo,
         ejecutar=_ejecutar_registrar_acuerdo,
+    ),
+    "agregar_nota": ToolSpec(
+        nombre="agregar_nota",
+        descripcion="Agregar una nota/comentario a una reunión o a un entregable que ya existen.",
+        parametros_llm={
+            "reunion": "título de la reunión, si la nota es sobre una reunión; vacío si no",
+            "entregable": "nombre del entregable, si la nota es sobre un entregable; vacío si no",
+            "contenido": "el texto de la nota",
+            "proyecto": "nombre del proyecto si se mencionó, si no dejar vacío",
+        },
+        ejemplos=[
+            (
+                "agrega una nota a la reunión de revisión de presupuesto: se pospone al viernes",
+                {"reunion": "revisión de presupuesto", "entregable": "", "contenido": "se pospone al viernes", "proyecto": ""},
+            ),
+            (
+                "pon una nota en el entregable maqueta: falta la aprobación de Carlos",
+                {"reunion": "", "entregable": "maqueta", "contenido": "falta la aprobación de Carlos", "proyecto": ""},
+            ),
+        ],
+        resolver=_resolver_agregar_nota,
+        ejecutar=_ejecutar_agregar_nota,
+    ),
+    "editar_reunion": ToolSpec(
+        nombre="editar_reunion",
+        descripcion="Cambiar la fecha/hora, título o participantes de una reunión que ya existe (reprogramar).",
+        parametros_llm={
+            "reunion": "título de la reunión a editar, tal como se mencionó",
+            "titulo_nuevo": "nuevo título, si se pidió cambiarlo; vacío si no",
+            "fecha_inicio": "nueva fecha y hora tal como se dijo, si se pidió reprogramar (ej. 'el viernes a las 4pm'); vacío si no",
+            "duracion_minutos": "nueva duración en minutos, si se dijo; null si no",
+            "participantes": "nombres de invitados a AGREGAR, separados por 'y', si se pidió; vacío si no",
+            "proyecto": "nombre del proyecto si se mencionó, si no dejar vacío",
+        },
+        ejemplos=[
+            (
+                "cambia la reunión de revisión de avances al jueves a las 5pm",
+                {"reunion": "revisión de avances", "titulo_nuevo": "", "fecha_inicio": "el jueves a las 5pm", "duracion_minutos": None, "participantes": "", "proyecto": ""},
+            ),
+            (
+                "agrega a Lucía a la reunión con Carlos",
+                {"reunion": "con Carlos", "titulo_nuevo": "", "fecha_inicio": "", "duracion_minutos": None, "participantes": "Lucía", "proyecto": ""},
+            ),
+        ],
+        resolver=_resolver_editar_reunion,
+        ejecutar=_ejecutar_editar_reunion,
+    ),
+    "editar_entregable": ToolSpec(
+        nombre="editar_entregable",
+        descripcion="Cambiar el nombre, descripción, fecha límite o responsable de un entregable que ya existe (no el avance — para eso usa actualizar_avance_entregable). Requiere ser dirección o líder del proyecto.",
+        parametros_llm={
+            "entregable": "nombre del entregable a editar, tal como se mencionó",
+            "nombre_nuevo": "nuevo nombre, si se pidió cambiarlo; vacío si no",
+            "descripcion_nueva": "nueva descripción, si se pidió cambiarla; vacío si no",
+            "fecha_entrega": "nueva fecha límite tal como se dijo, si se pidió cambiarla; vacío si no",
+            "responsable_nuevo": "nombre de la nueva persona responsable, si se pidió reasignar; vacío si no",
+            "proyecto": "nombre del proyecto si se mencionó, si no dejar vacío",
+        },
+        ejemplos=[
+            (
+                "cambia la fecha límite del informe de ventas al 30 de agosto",
+                {"entregable": "informe de ventas", "nombre_nuevo": "", "descripcion_nueva": "", "fecha_entrega": "el 30 de agosto", "responsable_nuevo": "", "proyecto": ""},
+            ),
+            (
+                "reasigna la maqueta a Sofía",
+                {"entregable": "maqueta", "nombre_nuevo": "", "descripcion_nueva": "", "fecha_entrega": "", "responsable_nuevo": "Sofía", "proyecto": ""},
+            ),
+        ],
+        resolver=_resolver_editar_entregable,
+        ejecutar=_ejecutar_editar_entregable,
+    ),
+    "editar_proyecto": ToolSpec(
+        nombre="editar_proyecto",
+        descripcion="Cambiar el nombre o la descripción de un proyecto que ya existe. Requiere ser dirección o líder del proyecto.",
+        parametros_llm={
+            "proyecto": "nombre del proyecto a editar, tal como se mencionó",
+            "nombre_nuevo": "nuevo nombre, si se pidió cambiarlo; vacío si no",
+            "descripcion_nueva": "nueva descripción, si se pidió cambiarla; vacío si no",
+        },
+        ejemplos=[
+            (
+                "cambia el nombre del proyecto Cubo a Cubo 2.0",
+                {"proyecto": "Cubo", "nombre_nuevo": "Cubo 2.0", "descripcion_nueva": ""},
+            ),
+        ],
+        resolver=_resolver_editar_proyecto,
+        ejecutar=_ejecutar_editar_proyecto,
+    ),
+    "consultar_agenda": ToolSpec(
+        nombre="consultar_agenda",
+        descripcion=(
+            "Responder preguntas sobre el estado de proyectos, entregables, avances, pendientes o "
+            "vencidos — consulta de SOLO LECTURA, no ejecuta ninguna acción ni cambia nada. Úsala "
+            "para cualquier pregunta que empiece con qué/cuál/cuántos/cómo va/dime, no para órdenes."
+        ),
+        parametros_llm={
+            "pregunta": "la pregunta tal como la dijo el usuario, completa",
+        },
+        ejemplos=[
+            (
+                "¿cuáles son mis pendientes de esta semana?",
+                {"pregunta": "¿cuáles son mis pendientes de esta semana?"},
+            ),
+            (
+                "cómo va el avance del proyecto Cubo",
+                {"pregunta": "cómo va el avance del proyecto Cubo"},
+            ),
+        ],
+        resolver=_resolver_consultar_agenda,
+        ejecutar=_ejecutar_consultar_agenda,
+        requiere_confirmacion=False,
     ),
 }

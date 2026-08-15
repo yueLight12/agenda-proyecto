@@ -29,7 +29,8 @@
 }
 
 .topbar-collapse-btn:focus-visible,
-.topbar-menu-btn:focus-visible {
+.topbar-menu-btn:focus-visible,
+.topbar-tema-btn:focus-visible {
   outline: 2px solid var(--color-teal-600);
   outline-offset: 2px;
 }
@@ -71,10 +72,6 @@
 
   .main-content {
     padding: var(--space-3);
-  }
-
-  .kanban-board {
-    min-width: 600px;
   }
 
   .kanban-column {
@@ -191,6 +188,212 @@
   min-width: 600px;
 }
 
+/* Vista "Agenda" (lista, sin cuadrícula de días) — no necesita el ancho
+   mínimo de las vistas Mes/Semana, así que no debe forzar scroll
+   horizontal en pantallas de celular. */
+.calendar-responsive--agenda > * {
+  min-width: 0;
+}
+
+/* Restyle del toolbar nativo de react-big-calendar (Hoy/Ant./Sig. y
+   Mes/Semana/Día/Agenda en las vistas de cuadrícula) para que use el mismo
+   lenguaje visual que el resto de la app (.btn/.btn--primary/.btn--ghost)
+   en vez del estilo "segmentado" por defecto de la librería — así no hay
+   un salto de estilo al cambiar a la vista Agenda, que sí usa .btn. */
+.rbc-toolbar-label {
+  color: var(--color-heading);
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+
+.rbc-btn-group {
+  display: inline-flex;
+  gap: var(--space-2);
+}
+
+.rbc-toolbar button {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  box-shadow: none;
+}
+
+.rbc-btn-group > button:first-child:not(:last-child),
+.rbc-btn-group > button:last-child:not(:first-child),
+.rbc-btn-group > button:not(:first-child):not(:last-child) {
+  border-radius: var(--radius-sm) !important;
+}
+
+.rbc-btn-group button + button {
+  margin-left: var(--space-2) !important;
+}
+
+.rbc-btn-group + .rbc-btn-group,
+.rbc-btn-group + button {
+  margin-left: var(--space-3);
+}
+
+.rbc-toolbar button:hover {
+  background: var(--color-pending-bg);
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+
+.rbc-toolbar button:focus {
+  background: transparent;
+  color: var(--color-text);
+  border-color: var(--color-border);
+  box-shadow: none;
+}
+
+.rbc-toolbar button:focus-visible {
+  outline: 2px solid var(--color-teal-600);
+  outline-offset: 2px;
+}
+
+.rbc-toolbar button:active,
+.rbc-toolbar button.rbc-active,
+.rbc-toolbar button.rbc-active:hover,
+.rbc-toolbar button.rbc-active:focus {
+  background: var(--color-teal-600);
+  color: #fff;
+  border-color: var(--color-teal-600);
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rbc-toolbar button {
+    transition: none;
+  }
+}
+
+/* Celdas de días fuera del mes actual (relleno de la primera/última fila
+   del grid mensual) — sin esto, react-big-calendar usa su gris claro fijo
+   (#e6e6e6) que no reacciona a data-theme="oscuro". */
+.rbc-off-range-bg {
+  background: var(--color-pending-bg);
+}
+
+.rbc-off-range {
+  color: var(--color-text-muted);
+}
+
+.agenda-semanal__header {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+}
+
+.agenda-semanal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.mes-banner {
+  background: var(--color-navy-700);
+  color: #fff;
+  font-size: 1.3rem;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  margin-top: var(--space-3);
+}
+
+.mes-banner:first-child {
+  margin-top: 0;
+}
+
+.agenda-semana-vacia {
+  padding: var(--space-2) var(--space-1);
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.agenda-dia {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-1);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.agenda-dia__fecha {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 44px;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  text-transform: capitalize;
+}
+
+.agenda-dia__numero {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  color: var(--color-heading);
+}
+
+.agenda-dia__circulo-hoy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--color-teal-500);
+  color: #fff;
+  font-weight: 700;
+}
+
+.agenda-dia__eventos {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.agenda-evento-pill {
+  align-self: flex-start;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: none;
+  border-radius: 999px;
+  padding: var(--space-1) var(--space-3);
+  color: #fff;
+  font-size: 0.85rem;
+  font-family: var(--font-body);
+}
+
+.agenda-evento-pill:hover {
+  opacity: 0.9;
+}
+
+.agenda-evento-pill:focus-visible {
+  outline: 2px solid var(--color-teal-600);
+  outline-offset: 2px;
+}
+
+.agenda-sin-planes {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agenda-evento-pill {
+    transition: none;
+  }
+}
+
 .kanban-responsive {
   width: 100%;
   overflow-x: auto;
@@ -199,7 +402,7 @@
 .kanban-board {
   display: flex;
   gap: var(--space-3);
-  min-width: 720px;
+  width: 100%;
 }
 
 .kanban-column {
@@ -233,7 +436,7 @@
   font-family: var(--font-display);
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--color-navy-900);
+  color: var(--color-heading);
   padding: 0 var(--space-1);
 }
 
@@ -414,7 +617,7 @@
 .stat__value {
   font-family: var(--font-display);
   font-size: 1.8rem;
-  color: var(--color-navy-900);
+  color: var(--color-heading);
 }
 
 .stat__label {

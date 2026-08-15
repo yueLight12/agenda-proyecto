@@ -181,3 +181,18 @@ def puede_editar_reunion(db: Session, usuario: Usuario, reunion: Reunion) -> boo
     if rol.rol in (RolEnum.N1, RolEnum.N2):
         return True
     return reunion.organizador_id == usuario.id
+
+
+def puede_editar_minuta(db: Session, usuario: Usuario, reunion: Reunion) -> bool:
+    """
+    Regla propia para la minuta (distinta de puede_editar_reunion): además
+    de N1/N2 del proyecto o el organizador, CUALQUIER invitado de la
+    reunión puede crear/editar su minuta y sus acuerdos — la reunión en sí
+    (título/fecha/participantes) sigue solo en manos de N1/N2/organizador,
+    sin cambios ahí. Acordado explícitamente con Yue el 2026-08-14: un
+    invitado solo de retroalimentación/oyente (ej. N4 en un proyecto donde
+    no es responsable de nada) igual puede dejar notas de lo que se habló.
+    """
+    if puede_editar_reunion(db, usuario, reunion):
+        return True
+    return any(p.usuario_id == usuario.id for p in reunion.participantes)

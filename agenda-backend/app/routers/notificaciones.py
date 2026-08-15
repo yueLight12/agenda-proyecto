@@ -3,10 +3,10 @@ Router de notificaciones (recordatorios dentro de la app).
 
 La generación automática de recordatorios (revisar fechas próximas a vencer
 y crear notificaciones) se hace en app/services/recordatorios.py, pensado
-para correr como tarea periódica (cron / scheduler). Este router solo expone
-lectura y marcado de leídas.
+para correr como tarea periódica (cron / scheduler). Este router expone
+lectura, marcado de leídas y eliminación.
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -48,3 +48,21 @@ def marcar_como_leida(
     db.commit()
     db.refresh(notificacion)
     return notificacion
+
+
+@router.delete("/{notificacion_id}", status_code=status.HTTP_204_NO_CONTENT)
+def eliminar_notificacion(
+    notificacion_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    notificacion = (
+        db.query(Notificacion)
+        .filter(Notificacion.id == notificacion_id, Notificacion.usuario_id == usuario.id)
+        .first()
+    )
+    if not notificacion:
+        raise HTTPException(status_code=404, detail="Notificación no encontrada")
+
+    db.delete(notificacion)
+    db.commit()

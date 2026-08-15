@@ -28,10 +28,11 @@ class Minuta(Base):
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )
 
-    reunion = relationship("Reunion")
+    reunion = relationship("Reunion", back_populates="minuta")
     acuerdos = relationship(
         "AcuerdoMinuta", back_populates="minuta", cascade="all, delete-orphan"
     )
+    notas = relationship("Nota", back_populates="minuta", cascade="all, delete-orphan")
 
 
 class AcuerdoMinuta(Base):

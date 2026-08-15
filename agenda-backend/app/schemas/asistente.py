@@ -22,7 +22,7 @@ class OpcionAclaracionOut(BaseModel):
 
 
 class InterpretarResponse(BaseModel):
-    tipo: Literal["propuesta", "aclaracion", "error"]
+    tipo: Literal["propuesta", "aclaracion", "error", "respuesta"]
     tool: Optional[str] = None
     parametros: Optional[dict] = None
     resumen: Optional[str] = None

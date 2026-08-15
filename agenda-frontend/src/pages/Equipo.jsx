@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { miEquipoApi, usuariosApi } from "../api/endpoints";
 import ResumenEquipo from "../components/ResumenEquipo";
+import { ROL_LABELS, etiquetaRol } from "../utils/rolLabels";
 
 const ROLES = ["N1", "N2", "N3", "N4"];
 
@@ -50,9 +51,7 @@ function PlantillaEquipo() {
     Promise.all([
       miEquipoApi.listar(),
       usuariosApi.listar().catch(() => {
-        setErrorListaUsuarios(
-          "No tienes permiso para ver el listado completo de usuarios (requiere N1)."
-        );
+        setErrorListaUsuarios("No se pudo cargar el listado de usuarios.");
         return [];
       }),
     ])
@@ -117,7 +116,7 @@ function PlantillaEquipo() {
                 </span>
               )}{" "}
               <span style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
-                {m.email} — {m.rol}
+                {m.email} — {etiquetaRol(m.rol)}
               </span>
             </div>
             <button className="btn btn--ghost" type="button" onClick={() => handleQuitar(m.usuario_id)}>
@@ -155,7 +154,7 @@ function PlantillaEquipo() {
           <select className="input" value={rol} onChange={(e) => setRol(e.target.value)}>
             {ROLES.map((r) => (
               <option key={r} value={r}>
-                {r}
+                {ROL_LABELS[r]}
               </option>
             ))}
           </select>

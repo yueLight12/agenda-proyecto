@@ -3,14 +3,16 @@ Servicio del chatbot de consulta.
 
 Por ahora es de solo lectura: arma un bloque de contexto con los datos que el
 usuario YA puede ver (reutilizando query_entregables_visibles, la misma
-función que usan los routers de entregables/resumen) y se lo pasa a un
-modelo de lenguaje local (Ollama, corriendo fuera de Docker en la máquina
-host) para que redacte la respuesta en español. El modelo nunca toca la
-base de datos ni decide qué es visible — eso ya lo filtró este servicio.
+función que usan los routers de entregables/resumen) y se lo pasa al LLM
+configurado (Ollama local por default, o Gemini — ver
+app/services/llm_cliente.py) para que redacte la respuesta en español. El
+modelo nunca toca la base de datos ni decide qué es visible — eso ya lo
+filtró este servicio. Si el proveedor es Gemini, el contexto y la pregunta
+se seudonimizan antes de mandarlos (app/services/llm_privacidad.py) y los
+nombres reales se restauran en la respuesta.
 """
 from datetime import date, timedelta
 
-import requests
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -18,6 +20,8 @@ from app.core.permissions import query_entregables_visibles
 from app.models.entregable import EstatusEntregable
 from app.models.usuario import Usuario
 from app.models.usuario_proyecto_rol import UsuarioProyectoRol
+from app.services.llm_cliente import generar_texto
+from app.services.llm_privacidad import construir_mapa
 
 SYSTEM_PROMPT = """Eres el asistente de consulta de "Agenda Inteligente de Proyectos".
 Respondes ÚNICAMENTE con base en los datos que se te dan en el bloque "DATOS
@@ -84,30 +88,29 @@ def _construir_contexto(db: Session, usuario: Usuario) -> str:
 
 
 def responder_pregunta(db: Session, usuario: Usuario, pregunta: str) -> str:
-    """Arma el contexto visible del usuario y le pide al LLM local que responda."""
+    """Arma el contexto visible del usuario y le pide al LLM configurado que
+    responda."""
     contexto = _construir_contexto(db, usuario)
+    nombre_para_prompt = usuario.nombre
+
+    mapa = None
+    if settings.asistente_llm_proveedor == "gemini":
+        mapa = construir_mapa(db, usuario)
+        contexto = mapa.redactar(contexto)
+        pregunta = mapa.redactar(pregunta)
+        # El nombre de quien pregunta no está cubierto por el mapa de forma
+        # confiable (depende de si aparece como miembro de algún proyecto
+        # visible) — más simple y seguro no mandarlo tal cual a la nube.
+        nombre_para_prompt = "el usuario"
+
     prompt = (
         f"{SYSTEM_PROMPT}\n\n"
         f"DATOS DISPONIBLES:\n{contexto}\n\n"
-        f"PREGUNTA DE {usuario.nombre}:\n{pregunta}\n\n"
+        f"PREGUNTA DE {nombre_para_prompt}:\n{pregunta}\n\n"
         f"RESPUESTA:"
     )
 
-    try:
-        respuesta = requests.post(
-            f"{settings.ollama_url}/api/generate",
-            json={
-                "model": settings.ollama_modelo,
-                "prompt": prompt,
-                "stream": False,
-            },
-            timeout=120,
-        )
-        respuesta.raise_for_status()
-    except requests.RequestException as exc:
-        raise RuntimeError(
-            "No se pudo contactar al modelo de lenguaje local (Ollama). "
-            "Verifica que esté corriendo en la máquina host."
-        ) from exc
-
-    return respuesta.json()["response"].strip()
+    respuesta = generar_texto(prompt).strip()
+    if mapa is not None:
+        respuesta = mapa.restaurar(respuesta)
+    return respuesta

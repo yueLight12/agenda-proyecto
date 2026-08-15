@@ -1,21 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { equipoResumenApi } from "../api/endpoints";
-import DashboardCompleto from "./DashboardCompleto";
+import { useAuth } from "../context/AuthContext";
 import KanbanSupervisores from "./KanbanSupervisores";
 
 // Vista del Resumen general para TODOS los roles ("Cards de atención", ver
 // CLAUDE.md) — antes era exclusiva de usuarios N1 puros, unificada para
-// todos el 2026-08-12. No oculta información: el detalle completo sigue
-// disponible en el expansor "Ver todos los proyectos", que reutiliza
-// DashboardCompleto tal cual.
+// todos el 2026-08-12.
+//
+// El expansor "Ver todos los proyectos" (que mostraba DashboardCompleto
+// aquí mismo) se ocultó a pedido de Yue el 2026-08-14 — DashboardCompleto.jsx
+// sigue existiendo intacto, solo dejó de estar enlazado desde esta vista.
 //
 // "Requiere tu atención" vivió aquí como tarjeta/Kanban (KanbanAtencion.jsx)
-// hasta el 2026-08-12, cuando se movió al panel de Notificaciones (ver
-// useRequiereAtencion.js + ModalNotificaciones.jsx en AppLayout.jsx) para
-// que fuera visible desde cualquier pantalla, no solo el Dashboard.
+// hasta el 2026-08-12, cuando se movió al panel de Notificaciones para que
+// fuera visible desde cualquier pantalla, no solo el Dashboard; y el
+// 2026-08-14 ese contenido pasó de calcularse en vivo a ser notificaciones
+// reales generadas por el backend (ver ModalNotificaciones.jsx).
 export default function DashboardSimplificado({ resumen }) {
-  const [verTodo, setVerTodo] = useState(false);
+  const { usuario } = useAuth();
   const [equipoAbierto, setEquipoAbierto] = useState(true);
 
   // "Tu equipo": reutiliza tal cual GET /equipo/resumen (mismo endpoint que
@@ -86,16 +89,10 @@ export default function DashboardSimplificado({ resumen }) {
           </Link>
         </div>
 
-        {!cargandoEquipo && <KanbanSupervisores miembros={equipo} />}
+        {!cargandoEquipo && <KanbanSupervisores miembros={equipo} usuarioActualId={usuario?.id} />}
         </>
         )}
       </div>
-
-      <button className="btn btn--ghost" onClick={() => setVerTodo((v) => !v)}>
-        {verTodo ? "Ocultar todos los proyectos ▲" : "Ver todos los proyectos ▼"}
-      </button>
-
-      {verTodo && <DashboardCompleto resumen={resumen} />}
     </div>
   );
 }

@@ -4,8 +4,12 @@ convertir un acuerdo en Entregable real. Usado por el router REST
 (app/routers/minutas.py) y por el asistente de voz (app/services/asistente/).
 
 La visibilidad de una minuta es la misma que la de su reunión (reutiliza
-puede_ver_reunion/puede_editar_reunion de app.core.permissions, sin inventar
-una regla nueva). Convertir un acuerdo en entregable reutiliza
+puede_ver_reunion de app.core.permissions). Editar el CONTENIDO de la
+minuta (notas y acuerdos) usa puede_editar_minuta — más permisiva que
+puede_editar_reunion: cualquier invitado puede aportar a la minuta, no solo
+N1/N2/organizador (la reunión en sí — título/fecha/participantes — sigue
+protegida por puede_editar_reunion sin cambios, ver ModalReunion/reuniones.py).
+Convertir un acuerdo en entregable reutiliza
 app.services.entregables.crear_entregable, la misma lógica y notificaciones
 que usa la creación normal de entregables.
 """
@@ -13,7 +17,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.permissions import (
-    puede_editar_reunion,
+    puede_editar_minuta,
     puede_ver_reunion,
     requerir_participacion_en_proyecto,
 )
@@ -58,8 +62,8 @@ def crear_o_actualizar_minuta(
 ) -> Minuta:
     """Crea la minuta de la reunión, o actualiza su contenido si ya existía."""
     reunion = obtener_reunion_o_404(db, reunion_id)
-    if not puede_editar_reunion(db, usuario, reunion):
-        raise HTTPException(status_code=403, detail="No tienes permiso para editar esta reunión")
+    if not puede_editar_minuta(db, usuario, reunion):
+        raise HTTPException(status_code=403, detail="No tienes permiso para editar esta minuta")
 
     minuta = db.query(Minuta).filter(Minuta.reunion_id == reunion_id).first()
     if minuta:
@@ -75,7 +79,7 @@ def agregar_acuerdo(
     db: Session, usuario: Usuario, minuta_id: int, descripcion: str, responsable_id: int | None
 ) -> AcuerdoMinuta:
     minuta = obtener_minuta_o_404(db, minuta_id)
-    if not puede_editar_reunion(db, usuario, minuta.reunion):
+    if not puede_editar_minuta(db, usuario, minuta.reunion):
         raise HTTPException(status_code=403, detail="No tienes permiso para editar esta minuta")
 
     acuerdo = AcuerdoMinuta(
@@ -91,7 +95,7 @@ def eliminar_acuerdo(db: Session, usuario: Usuario, acuerdo_id: int) -> None:
     acuerdo = db.query(AcuerdoMinuta).filter(AcuerdoMinuta.id == acuerdo_id).first()
     if not acuerdo:
         raise HTTPException(status_code=404, detail="Acuerdo no encontrado")
-    if not puede_editar_reunion(db, usuario, acuerdo.minuta.reunion):
+    if not puede_editar_minuta(db, usuario, acuerdo.minuta.reunion):
         raise HTTPException(status_code=403, detail="No tienes permiso para editar esta minuta")
     db.delete(acuerdo)
 

@@ -1,4 +1,12 @@
 :root {
+  /* Sin esto, algunos navegadores (Chromium en particular) aplican su
+     propio re-theming heurístico a elementos nativos de formulario
+     (select/input) y a veces a contenedores cercanos, ignorando nuestros
+     colores propios — declarar explícitamente qué esquema maneja cada
+     tema evita ese "auto dark mode" del navegador peleándose con el
+     nuestro. */
+  color-scheme: light;
+
   /* Paleta: navy profundo + teal de acento + neutros cálidos para no verse "template" */
   --color-bg: #f7f8fa;
   --color-surface: #ffffff;
@@ -18,6 +26,12 @@
   --color-danger-bg: #fbeae8;
   --color-pending-bg: #eef0f2;
 
+  /* Color de encabezados: separado de --color-navy-900 porque esa variable
+     también se usa como fondo oscuro de chrome (sidebar/login), y en tema
+     oscuro esos dos roles divergen (un encabezado no puede seguir siendo
+     "navy oscuro" sobre una superficie que ahora también es oscura). */
+  --color-heading: #0f2438;
+
   --font-display: "Sora", "Segoe UI", system-ui, sans-serif;
   --font-body: "Inter", "Segoe UI", system-ui, sans-serif;
 
@@ -28,6 +42,33 @@
   --space-3: 16px;
   --space-4: 24px;
   --space-5: 32px;
+}
+
+/* Tema oscuro: redefine los mismos nombres de variable de color (mayor
+   especificidad que :root solo, sin necesitar !important). Como el resto
+   del CSS del proyecto solo consume var(--color-*), no hace falta tocar
+   nada más para que el tema oscuro se propague a toda la app. */
+:root[data-theme="oscuro"] {
+  color-scheme: dark;
+
+  --color-bg: #0e1a24;
+  --color-surface: #16232e;
+  --color-navy-900: #0a1826;
+  --color-navy-700: #1f3d54;
+  --color-teal-500: #1f8a8c;
+  --color-teal-600: #1b8183;
+  --color-border: #2c3e4a;
+  --color-text: #e6ebef;
+  --color-text-muted: #9fb0bb;
+  --color-heading: #e7f2f1;
+
+  --color-success: #26a06c;
+  --color-success-bg: #163329;
+  --color-warning: #b8842a;
+  --color-warning-bg: #3a2c12;
+  --color-danger: #d6685e;
+  --color-danger-bg: #3a1f1c;
+  --color-pending-bg: #22323d;
 }
 
 * {
@@ -43,7 +84,7 @@ body {
 
 h1, h2, h3 {
   font-family: var(--font-display);
-  color: var(--color-navy-900);
+  color: var(--color-heading);
   margin: 0;
 }
 

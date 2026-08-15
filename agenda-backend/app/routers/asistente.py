@@ -55,7 +55,7 @@ def interpretar(
         tool_nombre = datos.tool
         parametros_llm = datos.parametros_llm or {}
     else:
-        interpretado = interpretar_instruccion(datos.texto)
+        interpretado = interpretar_instruccion(db, usuario, datos.texto)
         tool_nombre = interpretado["tool"]
         parametros_llm = interpretado["parametros"]
 
@@ -81,6 +81,11 @@ def interpretar(
             tipo_entrada=resultado.tipo_entrada,
             opciones=[OpcionAclaracionOut(valor=o.valor, etiqueta=o.etiqueta) for o in resultado.opciones],
         )
+
+    if not spec.requiere_confirmacion:
+        # Tools de solo lectura (ej. consultar_agenda): ya se resolvió/ejecutó
+        # dentro del resolver, no hay nada que confirmar.
+        return InterpretarResponse(tipo="respuesta", tool=tool_nombre, mensaje=resultado.resumen)
 
     return InterpretarResponse(
         tipo="propuesta",

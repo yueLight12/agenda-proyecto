@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.permissions import puede_editar_reunion, requerir_participacion_en_proyecto
+from app.models.notificacion import Notificacion, TipoNotificacion
 from app.models.reunion import Reunion, ReunionParticipante
 from app.models.usuario import Usuario
 from app.schemas.reunion import ParticipanteOut, ReunionOut
@@ -51,6 +52,9 @@ def crear_reunion(
     Cualquier participante del proyecto puede agendar una reunión (no requiere
     N1/N2, a diferencia de los entregables): un N2 puede citar a otro N2 o al
     N1, por ejemplo. Queda visible solo para organizador + invitados (y N1).
+    Notifica in-app a cada invitado (tipo `otro`, mismo patrón que las notas —
+    no hay un tipo de notificación dedicado a reuniones), excluyendo al
+    organizador.
     """
     requerir_participacion_en_proyecto(db, usuario, proyecto_id)
 
@@ -67,6 +71,14 @@ def crear_reunion(
 
     for uid in set(participantes_ids) - {usuario.id}:
         db.add(ReunionParticipante(reunion_id=nueva.id, usuario_id=uid))
+        db.add(
+            Notificacion(
+                usuario_id=uid,
+                tipo=TipoNotificacion.otro,
+                mensaje=f'{usuario.nombre} te invitó a la reunión "{titulo}" '
+                f'el {fecha_inicio.strftime("%d/%m/%Y a las %H:%M")}.',
+            )
+        )
 
     return nueva
 
@@ -97,4 +109,9 @@ def eliminar_reunion(db: Session, usuario: Usuario, reunion_id: int) -> None:
         raise HTTPException(
             status_code=403, detail="No tienes permiso para eliminar esta reunión"
         )
+    # Notificacion no cascada por relación ORM (no es un hijo propiamente
+    # dicho) — se limpia a mano, igual que en eliminar_proyecto.
+    db.query(Notificacion).filter(Notificacion.reunion_id == reunion.id).delete(
+        synchronize_session=False
+    )
     db.delete(reunion)

@@ -98,8 +98,13 @@ def resolver_persona_en_equipo(
 
     equipo = listar_equipo_visible(db, usuario, proyecto_id)
     normalizado = _normalizar(nombre_hablado)
+    # Match por PALABRA completa (nombre o apellido), no substring libre —
+    # un substring libre hace que "Ana" empate con "Diana" ("di-ANA"), lo
+    # que resuelve al nombre equivocado en silencio en vez de fallar o
+    # preguntar (encontrado probando editar_reunion con nombres cortos).
     candidatos = [
-        m for m in equipo if normalizado in _normalizar(m.nombre) or _normalizar(m.nombre).startswith(normalizado)
+        m for m in equipo
+        if any(palabra.startswith(normalizado) for palabra in _normalizar(m.nombre).split())
     ]
 
     if len(candidatos) == 1:
@@ -261,7 +266,7 @@ def resolver_rol(texto: Optional[str]) -> ResolucionResultado:
         return ResolucionResultado(resuelto=True, valor=RolEnum.N3)
     return ResolucionResultado(
         resuelto=False,
-        pregunta=f'No reconozco el rol "{texto}". ¿Es dirección (N1), líder (N2), colaborador interno (N3) o externo (N4)?',
+        pregunta=f'No reconozco el rol "{texto}". ¿Es dirección, líder, colaborador interno o externo?',
         tipo_entrada="texto",
     )
 

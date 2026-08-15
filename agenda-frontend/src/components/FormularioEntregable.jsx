@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { entregablesApi } from "../api/endpoints";
+import { etiquetaRol } from "../utils/rolLabels";
 import HistorialAvance from "./HistorialAvance";
 import Modal from "./Modal";
 import SeccionNotas from "./SeccionNotas";
@@ -88,7 +89,7 @@ export default function FormularioEntregable({
               </option>
               {miembros.map((m) => (
                 <option key={m.usuario_id} value={m.usuario_id}>
-                  {m.nombre} ({m.rol})
+                  {m.nombre} ({etiquetaRol(m.rol)})
                 </option>
               ))}
             </select>

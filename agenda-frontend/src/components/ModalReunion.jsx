@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { reunionesApi } from "../api/endpoints";
+import { etiquetaRol } from "../utils/rolLabels";
 import Modal from "./Modal";
 import SeccionNotas from "./SeccionNotas";
 
@@ -140,7 +141,7 @@ export default function ModalReunion({
         <div className="stack" style={{ gap: 4 }}>
           <span style={{ fontSize: "0.85rem" }}>Invitados</span>
           <p style={{ color: "var(--color-text-muted)", fontSize: "0.78rem", margin: 0 }}>
-            Solo el organizador, los invitados y la dirección (N1) podrán ver esta reunión.
+            Solo el organizador, los invitados y la dirección podrán ver esta reunión.
           </p>
           <div className="stack" style={{ gap: 4, maxHeight: 160, overflowY: "auto" }}>
             {invitables.map((m) => (
@@ -151,7 +152,7 @@ export default function ModalReunion({
                   onChange={() => toggleParticipante(m.usuario_id)}
                 />
                 <span style={{ fontSize: "0.88rem" }}>
-                  {m.nombre} {m.puesto ? `— ${m.puesto}` : ""} ({m.rol})
+                  {m.nombre} {m.puesto ? `— ${m.puesto}` : ""} ({etiquetaRol(m.rol)})
                 </span>
               </label>
             ))}

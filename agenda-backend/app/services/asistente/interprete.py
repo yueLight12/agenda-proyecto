@@ -1,6 +1,10 @@
 """
 Interpreta instrucciones en texto libre y decide qué "tool" del asistente de
-voz aplica, usando el LLM local (Ollama) con salida JSON forzada.
+voz aplica, con salida JSON forzada. Motor configurable vía
+settings.asistente_llm_proveedor: "ollama" (default, 100% local) o "gemini"
+(sale a internet — el texto se seudonimiza antes de mandarlo, ver
+app/services/llm_privacidad.py, y se restauran los nombres reales en lo que
+el modelo devuelve).
 
 El LLM NUNCA produce IDs ni decide permisos — solo extrae texto libre
 (nombres, fechas, números) que después se resuelve contra la base de datos
@@ -10,10 +14,13 @@ reintento, se trata como "no_entendido" — nunca se ejecuta nada a ciegas.
 """
 import json
 
-import requests
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.models.usuario import Usuario
 from app.services.asistente.tools import TOOLS
+from app.services.llm_cliente import generar_texto
+from app.services.llm_privacidad import construir_mapa
 
 SIN_ACCION = "no_entendido"
 
@@ -61,28 +68,6 @@ TEXTO DEL USUARIO: "{texto}"
 RESPUESTA:"""
 
 
-def _llamar_ollama(prompt: str) -> str:
-    try:
-        respuesta = requests.post(
-            f"{settings.ollama_url}/api/generate",
-            json={
-                "model": settings.ollama_modelo,
-                "prompt": prompt,
-                "stream": False,
-                "format": "json",
-                "options": {"temperature": 0.1, "num_predict": 300},
-            },
-            timeout=60,
-        )
-        respuesta.raise_for_status()
-    except requests.RequestException as exc:
-        raise RuntimeError(
-            "No se pudo contactar al modelo de lenguaje local (Ollama). "
-            "Verifica que esté corriendo en la máquina host."
-        ) from exc
-    return respuesta.json()["response"]
-
-
 def _parsear_json(texto: str):
     try:
         return json.loads(texto)
@@ -90,16 +75,21 @@ def _parsear_json(texto: str):
         return None
 
 
-def interpretar_instruccion(texto: str) -> dict:
+def interpretar_instruccion(db: Session, usuario: Usuario, texto: str) -> dict:
     """Devuelve {"tool": str, "parametros": dict}. tool == "no_entendido" si
     no aplica ninguna acción, o si el modelo no devolvió JSON válido ni
     siquiera tras un reintento."""
+    mapa = None
+    if settings.asistente_llm_proveedor == "gemini":
+        mapa = construir_mapa(db, usuario)
+        texto = mapa.redactar(texto)
+
     prompt = _construir_prompt(texto)
 
-    datos = _parsear_json(_llamar_ollama(prompt))
+    datos = _parsear_json(generar_texto(prompt, json_forzado=True))
     if datos is None:
         datos = _parsear_json(
-            _llamar_ollama(prompt + "\n\nResponde SOLO el JSON, una sola línea, nada más.")
+            generar_texto(prompt + "\n\nResponde SOLO el JSON, una sola línea, nada más.", json_forzado=True)
         )
 
     if not isinstance(datos, dict):
@@ -110,4 +100,7 @@ def interpretar_instruccion(texto: str) -> dict:
         return {"tool": SIN_ACCION, "parametros": {}}
 
     parametros = datos.get("parametros")
-    return {"tool": tool, "parametros": parametros if isinstance(parametros, dict) else {}}
+    parametros = parametros if isinstance(parametros, dict) else {}
+    if mapa is not None:
+        parametros = mapa.restaurar(parametros)
+    return {"tool": tool, "parametros": parametros}

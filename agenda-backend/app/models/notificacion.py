@@ -14,6 +14,7 @@ class TipoNotificacion(str, enum.Enum):
     recordatorio_vencido = "recordatorio_vencido"
     entregable_asignado = "entregable_asignado"
     avance_actualizado = "avance_actualizado"
+    reunion_hoy = "reunion_hoy"
     otro = "otro"
 
 
@@ -24,6 +25,7 @@ class Notificacion(Base):
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
     entregable_id = Column(Integer, ForeignKey("entregables.id"), nullable=True)
     evento_empresa_id = Column(Integer, ForeignKey("eventos_empresa.id"), nullable=True)
+    reunion_id = Column(Integer, ForeignKey("reuniones.id"), nullable=True)
     tipo = Column(Enum(TipoNotificacion), default=TipoNotificacion.otro, nullable=False)
     mensaje = Column(String(500), nullable=False)
     leida = Column(Boolean, default=False, nullable=False)

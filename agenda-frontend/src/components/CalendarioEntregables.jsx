@@ -8,6 +8,8 @@ import getDay from "date-fns/getDay";
 import es from "date-fns/locale/es";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
+import { colorDeEvento } from "../utils/eventosCalendario";
+import VistaAgendaSemanal from "./VistaAgendaSemanal";
 
 const localizer = dateFnsLocalizer({
   format,
@@ -18,12 +20,6 @@ const localizer = dateFnsLocalizer({
 });
 
 const CalendarioDnD = withDragAndDrop(Calendar);
-
-const COLOR_ESTATUS = {
-  pendiente: "var(--color-text-muted)",
-  en_progreso: "var(--color-warning)",
-  cumplido: "var(--color-success)",
-};
 
 const MENSAJES_ES = {
   next: "Sig.",
@@ -72,6 +68,17 @@ export default function CalendarioEntregables({
 }) {
   const [error, setError] = useState("");
 
+  // La vista "Mes" es una cuadrícula de 7 columnas — no cabe en una
+  // pantalla de celular sin scroll horizontal. En pantallas ≤768px (mismo
+  // umbral que el drawer del sidebar, ver AppLayout.jsx) arranca en
+  // "Agenda" (lista vertical, sin cuadrícula) en vez de "Mes". El usuario
+  // puede seguir cambiando de vista manualmente con el toolbar.
+  const [vista, setVista] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches
+      ? "agenda"
+      : "month"
+  );
+
   const eventosEntregables = entregables.map((e) => {
     const fecha = fechaLocalDesdeISO(e.fecha_entrega);
     return {
@@ -112,33 +119,13 @@ export default function CalendarioEntregables({
 
   const eventos = [...eventosEntregables, ...eventosReuniones, ...eventosDeEmpresa];
 
-  const eventPropGetter = (evento) => {
-    if (evento.resource.tipo === "reunion") {
-      return {
-        style: {
-          backgroundColor: "var(--color-navy-700, #2f4a5c)",
-          borderRadius: 4,
-          border: "none",
-        },
-      };
-    }
-    if (evento.resource.tipo === "evento_empresa") {
-      return {
-        style: {
-          backgroundColor: "var(--color-teal-500)",
-          borderRadius: 4,
-          border: "none",
-        },
-      };
-    }
-    return {
-      style: {
-        backgroundColor: COLOR_ESTATUS[evento.resource.datos.estatus] || COLOR_ESTATUS.pendiente,
-        borderRadius: 4,
-        border: "none",
-      },
-    };
-  };
+  const eventPropGetter = (evento) => ({
+    style: {
+      backgroundColor: colorDeEvento(evento),
+      borderRadius: 4,
+      border: "none",
+    },
+  });
 
   const handleEventDrop = async ({ event, start }) => {
     if (event.resource.tipo !== "entregable") return;
@@ -155,26 +142,54 @@ export default function CalendarioEntregables({
   return (
     <div className="stack">
       {error && <p className="error-text">{error}</p>}
-      <div className="calendar-responsive" style={{ height: 600 }}>
-        <CalendarioDnD
-          localizer={localizer}
-          events={eventos}
-          culture="es"
-          messages={MENSAJES_ES}
-          startAccessor="start"
-          endAccessor="end"
-          eventPropGetter={eventPropGetter}
-          draggableAccessor={(evento) =>
-            evento.resource.tipo === "entregable" && editable && puedeEditar(evento.resource.datos)
-          }
-          resizable={false}
-          onEventDrop={handleEventDrop}
-          onSelectEvent={(evento) => {
-            if (evento.resource.tipo === "reunion") onReunionClick?.(evento.resource.datos);
-            else if (evento.resource.tipo === "entregable") onEntregableClick?.(evento.resource.datos);
-            else if (evento.resource.tipo === "evento_empresa") onEventoEmpresaClick?.(evento.resource.datos);
-          }}
-        />
+      <div
+        className={`calendar-responsive${vista === "agenda" ? " calendar-responsive--agenda" : ""}`}
+        style={{ height: 600, overflowY: "auto" }}
+      >
+        {vista === "agenda" ? (
+          <>
+            <div className="agenda-semanal__header">
+              {["month", "week", "day", "agenda"].map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  className={`btn ${vista === v ? "btn--primary" : "btn--ghost"}`}
+                  onClick={() => setVista(v)}
+                >
+                  {MENSAJES_ES[v]}
+                </button>
+              ))}
+            </div>
+            <VistaAgendaSemanal
+              eventos={eventos}
+              onEntregableClick={onEntregableClick}
+              onReunionClick={onReunionClick}
+              onEventoEmpresaClick={onEventoEmpresaClick}
+            />
+          </>
+        ) : (
+          <CalendarioDnD
+            localizer={localizer}
+            events={eventos}
+            culture="es"
+            messages={MENSAJES_ES}
+            view={vista}
+            onView={setVista}
+            startAccessor="start"
+            endAccessor="end"
+            eventPropGetter={eventPropGetter}
+            draggableAccessor={(evento) =>
+              evento.resource.tipo === "entregable" && editable && puedeEditar(evento.resource.datos)
+            }
+            resizable={false}
+            onEventDrop={handleEventDrop}
+            onSelectEvent={(evento) => {
+              if (evento.resource.tipo === "reunion") onReunionClick?.(evento.resource.datos);
+              else if (evento.resource.tipo === "entregable") onEntregableClick?.(evento.resource.datos);
+              else if (evento.resource.tipo === "evento_empresa") onEventoEmpresaClick?.(evento.resource.datos);
+            }}
+          />
+        )}
       </div>
     </div>
   );

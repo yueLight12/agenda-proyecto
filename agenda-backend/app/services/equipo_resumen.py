@@ -12,10 +12,22 @@ aquí son EXACTAMENTE las que `query_reuniones_visibles` ya deja ver hoy
 (para roles distintos de N1, solo donde el usuario es organizador o
 invitado) — no se amplía esa regla para mostrar "todas las reuniones del
 equipo".
+
+Además de lo anterior (que depende 100% de participar en proyectos), se
+agrega también a quien esté en la plantilla personal "Mi equipo"
+(`EquipoMiembro`, ver app/models/equipo_miembro.py) de quien ve la
+pantalla y todavía no haya aparecido por ningún proyecto — con
+`proyectos=[]`. Esto es solo para que esa persona no desaparezca del todo
+del tablero "Tu equipo" cuando se queda sin ningún proyecto visible (ej.
+un N2 recién asignado, o uno que se quedó temporalmente sin proyectos) —
+no otorga ninguna visibilidad nueva, ya que sus proyectos/entregables
+reales se siguen calculando exactamente igual que para cualquier otra
+persona; si de verdad no tiene ninguno visible, quedan vacíos.
 """
 from sqlalchemy.orm import Session
 
 from app.core.permissions import query_entregables_visibles, query_reuniones_visibles
+from app.models.equipo_miembro import EquipoMiembro
 from app.models.usuario import Usuario
 from app.schemas.equipo_resumen import (
     EntregableResumenPersonaOut,
@@ -86,6 +98,18 @@ def resumen_equipo_multiproyecto(db: Session, usuario: Usuario) -> list[MiembroR
                 )
             else:
                 personas[miembro.usuario_id].proyectos.append(proyecto_de_miembro)
+
+    plantilla = db.query(EquipoMiembro).filter(EquipoMiembro.propietario_id == usuario.id).all()
+    for entrada in plantilla:
+        if entrada.usuario_id in personas:
+            continue
+        personas[entrada.usuario_id] = MiembroResumenOut(
+            usuario_id=entrada.usuario_id,
+            nombre=entrada.usuario.nombre,
+            puesto=entrada.usuario.puesto,
+            email=entrada.usuario.email,
+            proyectos=[],
+        )
 
     resultado = list(personas.values())
     resultado.sort(key=lambda m: (m.usuario_id != usuario.id, m.nombre))

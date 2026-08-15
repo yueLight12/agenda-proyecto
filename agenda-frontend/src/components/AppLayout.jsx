@@ -2,15 +2,15 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet, useMatch } from "react-router-dom";
 import { notificacionesApi } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
-import { useRequiereAtencion } from "../hooks/useRequiereAtencion";
+import { useTema } from "../hooks/useTema";
 import FabAsistenteVoz from "./FabAsistenteVoz";
 import ModalCambiarPassword from "./ModalCambiarPassword";
 import ModalNotificaciones from "./ModalNotificaciones";
 
 export default function AppLayout() {
   const { usuario, logout } = useAuth();
+  const { tema, alternarTema } = useTema();
   const [notificaciones, setNotificaciones] = useState([]);
-  const atencion = useRequiereAtencion();
   const [mostrarNotificaciones, setMostrarNotificaciones] = useState(false);
   const [mostrarCambiarPassword, setMostrarCambiarPassword] = useState(false);
   const [menuAbierto, setMenuAbierto] = useState(false);
@@ -21,19 +21,16 @@ export default function AppLayout() {
   const proyectoIdContexto = matchProyecto ? Number(matchProyecto.params.proyectoId) : null;
 
   const cargarNotificaciones = () =>
-    notificacionesApi.listar().then(setNotificaciones).catch(() => {});
+    notificacionesApi.listar(true).then(setNotificaciones).catch(() => {});
 
   useEffect(() => {
     cargarNotificaciones();
-    const intervalo = setInterval(() => {
-      cargarNotificaciones();
-      atencion.recargar();
-    }, 60000);
+    const intervalo = setInterval(cargarNotificaciones, 60000);
     return () => clearInterval(intervalo);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const noLeidas = notificaciones.filter((n) => !n.leida).length + atencion.total;
+  const noLeidas = notificaciones.filter((n) => !n.leida).length;
 
   const cerrarMenu = () => setMenuAbierto(false);
 
@@ -106,20 +103,30 @@ export default function AppLayout() {
               ☰
             </button>
           </div>
-          <button
-            className="btn btn--ghost app-topbar__notificaciones"
-            onClick={() => setMostrarNotificaciones(true)}
-          >
-            Notificaciones
-            {noLeidas > 0 && (
-              <span
-                className="badge"
-                style={{ background: "var(--color-danger)", color: "#fff" }}
-              >
-                {noLeidas}
-              </span>
-            )}
-          </button>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <button
+              className="btn btn--ghost topbar-tema-btn"
+              onClick={alternarTema}
+              aria-label={tema === "oscuro" ? "Cambiar a tema claro" : "Cambiar a tema oscuro"}
+              aria-pressed={tema === "oscuro"}
+            >
+              {tema === "oscuro" ? "☀️" : "🌙"}
+            </button>
+            <button
+              className="btn btn--ghost app-topbar__notificaciones"
+              onClick={() => setMostrarNotificaciones(true)}
+            >
+              Notificaciones
+              {noLeidas > 0 && (
+                <span
+                  className="badge"
+                  style={{ background: "var(--color-danger)", color: "#fff" }}
+                >
+                  {noLeidas}
+                </span>
+              )}
+            </button>
+          </div>
         </header>
         <main className="main-content">
           <Outlet />
@@ -131,10 +138,6 @@ export default function AppLayout() {
           notificaciones={notificaciones}
           onCambio={cargarNotificaciones}
           onCerrar={() => setMostrarNotificaciones(false)}
-          vencidos={atencion.vencidos}
-          proximos={atencion.proximos}
-          reunionesHoy={atencion.reunionesHoy}
-          cumpleanosProximos={atencion.cumpleanosProximos}
         />
       )}
 

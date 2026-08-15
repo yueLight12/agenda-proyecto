@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { minutasApi } from "../api/endpoints";
+import { etiquetaRol } from "../utils/rolLabels";
 import Modal from "./Modal";
 import SeccionNotas from "./SeccionNotas";
 
@@ -206,7 +207,7 @@ export default function ModalMinuta({ reunion, miembros, puedeAdministrar = fals
                   <option value="">Sin responsable todavía</option>
                   {miembros.map((m) => (
                     <option key={m.usuario_id} value={m.usuario_id}>
-                      {m.nombre} ({m.rol})
+                      {m.nombre} ({etiquetaRol(m.rol)})
                     </option>
                   ))}
                 </select>

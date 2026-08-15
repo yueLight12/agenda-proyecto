@@ -322,6 +322,8 @@ export default function TableroProyecto() {
         <ModalEquipo
           proyectoId={proyectoId}
           miembros={equipo}
+          entregables={entregables}
+          reuniones={reuniones}
           onCambio={cargarTodo}
           onCerrar={() => setMostrarModalEquipo(false)}
         />

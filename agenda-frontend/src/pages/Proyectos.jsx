@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { proyectosApi } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
+import KanbanMisProyectos from "../components/KanbanMisProyectos";
 import ModalEditarProyecto from "../components/ModalEditarProyecto";
 
 export default function Proyectos() {
@@ -36,6 +36,11 @@ export default function Proyectos() {
       (r) => r.proyecto_id === proyectoId && r.rol === "N1"
     );
   };
+
+  const rolDelViewer = (proyectoId) =>
+    usuario?.es_super_admin
+      ? "N1"
+      : usuario?.roles_por_proyecto.find((r) => r.proyecto_id === proyectoId)?.rol;
 
   const handleCrear = async (e) => {
     e.preventDefault();
@@ -107,7 +112,7 @@ export default function Proyectos() {
             {guardando ? "Creando..." : "Crear"}
           </button>
           <p style={{ color: "var(--color-text-muted)", fontSize: "0.8rem" }}>
-            Quedarás como N1 (dirección) de este proyecto y podrás agregar al resto del equipo
+            Quedarás como Dirección de este proyecto y podrás agregar al resto del equipo
             desde "Administrar equipo".
           </p>
         </form>
@@ -120,43 +125,13 @@ export default function Proyectos() {
           No tienes proyectos asignados todavía.
         </p>
       )}
-      <div className="grid-summary">
-        {proyectos.map((p) => (
-          <div key={p.id} className="card stack" style={{ gap: 8 }}>
-            <Link to={`/proyectos/${p.id}`} style={{ textDecoration: "none", color: "inherit" }}>
-              <h3 style={{ fontSize: "1.05rem", margin: 0 }}>
-                {p.nombre}
-                {!p.activo && (
-                  <span className="badge" style={{ marginLeft: 8, fontSize: "0.7rem" }}>
-                    Inactivo
-                  </span>
-                )}
-              </h3>
-              <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
-                {p.descripcion || "Sin descripción"}
-              </p>
-            </Link>
-            {esN1DelProyecto(p.id) && (
-              <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  className="btn btn--ghost"
-                  type="button"
-                  onClick={() => setProyectoAEditar(p)}
-                >
-                  Editar
-                </button>
-                <button
-                  className="btn btn--ghost"
-                  type="button"
-                  onClick={() => handleEliminar(p)}
-                >
-                  Eliminar
-                </button>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
+      <KanbanMisProyectos
+        proyectos={proyectos}
+        rolDeProyecto={rolDelViewer}
+        esN1DelProyecto={esN1DelProyecto}
+        onEditar={setProyectoAEditar}
+        onEliminar={handleEliminar}
+      />
 
       {proyectoAEditar && (
         <ModalEditarProyecto

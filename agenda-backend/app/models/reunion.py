@@ -31,6 +31,10 @@ class Reunion(Base):
     participantes = relationship(
         "ReunionParticipante", back_populates="reunion", cascade="all, delete-orphan"
     )
+    minuta = relationship(
+        "Minuta", back_populates="reunion", uselist=False, cascade="all, delete-orphan"
+    )
+    notas = relationship("Nota", back_populates="reunion", cascade="all, delete-orphan")
 
 
 class ReunionParticipante(Base):

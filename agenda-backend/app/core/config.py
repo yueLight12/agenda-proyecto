@@ -23,6 +23,14 @@ class Settings(BaseSettings):
     # a diferencia de Ollama que corre en la máquina host — ver docker-compose.yml)
     whisper_url: str = "http://whisper:9000"
 
+    # Motor de interpretación del asistente de voz: "ollama" (default, 100%
+    # local, para producción con datos reales) o "gemini" (solo para probar
+    # el diseño del catálogo de tools con frases de prueba — NUNCA con datos
+    # reales de clientes, ver CLAUDE.md sección 6, Milestone C).
+    asistente_llm_proveedor: str = "ollama"
+    gemini_api_key: str = ""
+    gemini_modelo: str = "gemini-flash-latest"
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 

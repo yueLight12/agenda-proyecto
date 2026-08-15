@@ -1,22 +1,48 @@
-import { useState } from "react";
 import { Link } from "react-router-dom";
-import { agruparPorSupervisor } from "../utils/equipoSupervisores";
+import { armarColumnasEquipo } from "../utils/equipoSupervisores";
 import { fechaLocal, textoDiasRelativos } from "../utils/fechas";
+import { etiquetaRol } from "../utils/rolLabels";
+import EstatusBadge from "./EstatusBadge";
 
-// "Tu equipo" en tarjetas Kanban (mismo patrón visual que
-// KanbanAtencion.jsx): una columna por SUPERVISOR (cruzando proyectos, ver
-// agruparPorSupervisor en utils/equipoSupervisores.js), y dentro de cada tarjeta
-// una lista colapsable de sus subordinados — al expandir a una persona se
-// ven sus proyectos con entregables y reuniones bajo ese supervisor.
-function EntregablesYReuniones({ proyectos }) {
+// "Tu equipo" en tarjetas Kanban: una columna por cada persona directamente
+// debajo de quien ve la pantalla (ver armarColumnasEquipo en
+// utils/equipoSupervisores.js) — el CONTENIDO de cada columna son siempre
+// PROYECTOS (con sus entregables/reuniones), nunca una lista de personas:
+// si esa persona a su vez supervisa a un equipo, sus proyectos ya vienen
+// agregados en una sola columna con su nombre (ej. Bernardo ve una columna
+// "David" con los proyectos Cubo/Suit/Agenda Inteligente, no los nombres de
+// Ana/Iván/Juan). La regla es la misma para cualquier nivel de la
+// jerarquía, sin ramas especiales por rol — se ajusta sola conforme
+// cambien personas o proyectos.
+//
+// `onAdministrar`/`puedeAdministrar` son opcionales: cuando se pasan (uso
+// desde ResumenEquipo.jsx en /equipo), cada proyecto muestra un botón
+// "Administrar" que abre ModalEquipo — el Dashboard ("Tu equipo") no los
+// pasa y por tanto no muestra ese botón, sin cambio de comportamiento ahí.
+function EntregablesYReuniones({ proyectos, onAdministrar, puedeAdministrar }) {
   const hoyIso = new Date().toISOString().slice(0, 10);
 
   return (
     <div className="stack" style={{ gap: 8, padding: "4px 0 4px 12px" }}>
       {proyectos.map((p) => (
         <div key={p.proyecto_id}>
-          <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--color-text-muted)" }}>
-            {p.proyecto_nombre}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--color-text-muted)" }}>
+              <Link to={`/proyectos/${p.proyecto_id}`} style={{ color: "inherit" }}>
+                {p.proyecto_nombre}
+              </Link>
+              {p.rol && <span style={{ fontWeight: 400 }}> ({etiquetaRol(p.rol)})</span>}
+            </span>
+            {onAdministrar && puedeAdministrar?.(p.proyecto_id) && (
+              <button
+                className="btn btn--ghost"
+                type="button"
+                style={{ fontSize: "0.75rem", padding: "2px 8px" }}
+                onClick={() => onAdministrar(p.proyecto_id, p.proyecto_nombre)}
+              >
+                Administrar
+              </button>
+            )}
           </div>
           {p.entregables.length === 0 && p.reuniones.length === 0 && (
             <p style={{ fontSize: "0.8rem", color: "var(--color-text-muted)", margin: "2px 0" }}>
@@ -26,28 +52,32 @@ function EntregablesYReuniones({ proyectos }) {
           {p.entregables.map((e) => {
             const vencido = e.estatus !== "cumplido" && e.fecha_entrega < hoyIso;
             return (
-              <Link
-                key={`entregable-${e.id}`}
-                to={`/proyectos/${p.proyecto_id}`}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 8,
-                  fontSize: "0.8rem",
-                  padding: "2px 0",
-                  textDecoration: "none",
-                  color: "inherit",
-                }}
-              >
-                <span>
-                  {vencido && "🔴 "}
-                  {e.nombre}
-                </span>
-                <span style={{ color: "var(--color-text-muted)", whiteSpace: "nowrap" }}>
-                  {fechaLocal(e.fecha_entrega).toLocaleDateString("es-MX", { dateStyle: "short" })} ·{" "}
-                  {textoDiasRelativos(e.fecha_entrega)}
-                </span>
-              </Link>
+              <div key={`entregable-${e.id}`} style={{ padding: "3px 0" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: "0.8rem" }}>
+                  <Link
+                    to={`/proyectos/${p.proyecto_id}`}
+                    style={{ color: "inherit", textDecoration: "none", flex: 1 }}
+                  >
+                    {vencido && "🔴 "}
+                    {e.nombre}
+                    {e.sensible && (
+                      <span className="badge badge--sensible" style={{ marginLeft: 6, fontSize: "0.65rem" }}>
+                        Sensible
+                      </span>
+                    )}
+                  </Link>
+                  <EstatusBadge estatus={e.estatus} />
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <div className="progress-bar" style={{ flex: 1 }}>
+                    <div className="progress-bar__fill" style={{ width: `${e.porcentaje_avance}%` }} />
+                  </div>
+                  <span style={{ fontSize: "0.7rem", color: "var(--color-text-muted)", whiteSpace: "nowrap" }}>
+                    {fechaLocal(e.fecha_entrega).toLocaleDateString("es-MX", { dateStyle: "short" })} ·{" "}
+                    {textoDiasRelativos(e.fecha_entrega)}
+                  </span>
+                </div>
+              </div>
             );
           })}
           {p.reuniones.map((r) => (
@@ -74,61 +104,45 @@ function EntregablesYReuniones({ proyectos }) {
   );
 }
 
-function TarjetaSupervisor({ supervisor }) {
-  const [personaAbiertaId, setPersonaAbiertaId] = useState(null);
-
-  const totalVencidos = supervisor.reportes.reduce(
-    (acc, r) =>
-      acc +
-      r.proyectos.reduce((a, p) => {
-        const hoyIso = new Date().toISOString().slice(0, 10);
-        return a + p.entregables.filter((e) => e.estatus !== "cumplido" && e.fecha_entrega < hoyIso).length;
-      }, 0),
+function TarjetaColumna({ columna, onAdministrar, puedeAdministrar }) {
+  const hoyIso = new Date().toISOString().slice(0, 10);
+  const vencidos = columna.proyectos.reduce(
+    (acc, p) => acc + p.entregables.filter((e) => e.estatus !== "cumplido" && e.fecha_entrega < hoyIso).length,
     0
   );
 
   return (
     <div className="kanban-column">
       <div className="kanban-column__header">
-        <span>{supervisor.nombre}</span>
-        <span className="kanban-column__contador">{supervisor.reportes.length}</span>
+        <span>{columna.nombre}</span>
+        <span className="kanban-column__contador">{columna.proyectos.length}</span>
       </div>
-      {totalVencidos > 0 && (
+      {vencidos > 0 && (
         <p style={{ fontSize: "0.78rem", color: "var(--color-danger)", margin: "2px 0 6px" }}>
-          🔴 {totalVencidos} entregable{totalVencidos === 1 ? "" : "s"} vencido{totalVencidos === 1 ? "" : "s"} en
-          su equipo
+          🔴 {vencidos} entregable{vencidos === 1 ? "" : "s"} vencido{vencidos === 1 ? "" : "s"}
         </p>
       )}
       <div className="kanban-column__lista">
-        {supervisor.reportes.map((r) => {
-          const abierta = personaAbiertaId === r.usuario_id;
-          return (
-            <div key={r.usuario_id} className="kanban-card" style={{ cursor: "default" }}>
-              <button
-                type="button"
-                className="list-inline list-inline--boton"
-                style={{ padding: 0 }}
-                onClick={() => setPersonaAbiertaId(abierta ? null : r.usuario_id)}
-                aria-expanded={abierta}
-              >
-                <div className="kanban-card__titulo">{r.nombre}</div>
-                <span style={{ fontSize: "0.8rem", color: "var(--color-text-muted)" }}>
-                  {r.proyectos.length} proyecto{r.proyectos.length === 1 ? "" : "s"} {abierta ? "▲" : "▼"}
-                </span>
-              </button>
-              {abierta && <EntregablesYReuniones proyectos={r.proyectos} />}
-            </div>
-          );
-        })}
+        {columna.proyectos.length === 0 ? (
+          <p style={{ fontSize: "0.8rem", color: "var(--color-text-muted)", margin: "4px 0" }}>
+            Sin proyectos asignados todavía.
+          </p>
+        ) : (
+          <EntregablesYReuniones
+            proyectos={columna.proyectos}
+            onAdministrar={onAdministrar}
+            puedeAdministrar={puedeAdministrar}
+          />
+        )}
       </div>
     </div>
   );
 }
 
-export default function KanbanSupervisores({ miembros }) {
-  const supervisores = agruparPorSupervisor(miembros);
+export default function KanbanSupervisores({ miembros, onAdministrar, puedeAdministrar, usuarioActualId }) {
+  const columnas = armarColumnasEquipo(miembros, usuarioActualId);
 
-  if (supervisores.length === 0) {
+  if (columnas.length === 0) {
     return (
       <p style={{ color: "var(--color-text-muted)" }}>
         No tienes equipo visible en ningún proyecto todavía.
@@ -139,8 +153,13 @@ export default function KanbanSupervisores({ miembros }) {
   return (
     <div className="kanban-responsive">
       <div className="kanban-board">
-        {supervisores.map((s) => (
-          <TarjetaSupervisor key={s.usuario_id} supervisor={s} />
+        {columnas.map((c) => (
+          <TarjetaColumna
+            key={c.usuario_id}
+            columna={c}
+            onAdministrar={onAdministrar}
+            puedeAdministrar={puedeAdministrar}
+          />
         ))}
       </div>
     </div>

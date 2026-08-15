@@ -28,7 +28,11 @@ from app.routers import (
     reuniones,
     usuarios,
 )
-from app.services.recordatorios import generar_recordatorios, generar_recordatorios_cumpleanos
+from app.services.recordatorios import (
+    generar_recordatorios,
+    generar_recordatorios_cumpleanos,
+    generar_recordatorios_reuniones_hoy,
+)
 
 # Crea las tablas si no existen (para desarrollo rápido).
 # En un entorno con más de un desarrollador o ya en AWS, esto se reemplaza
@@ -73,6 +77,7 @@ def _ejecutar_barrido_recordatorios():
     try:
         generar_recordatorios(db)
         generar_recordatorios_cumpleanos(db)
+        generar_recordatorios_reuniones_hoy(db)
     finally:
         db.close()
 

@@ -1,6 +1,5 @@
-import { Link } from "react-router-dom";
+import { useState } from "react";
 import { notificacionesApi } from "../api/endpoints";
-import { fechaLocal, textoDiasRelativos } from "../utils/fechas";
 import Modal from "./Modal";
 
 const ETIQUETA_TIPO = {
@@ -8,100 +7,63 @@ const ETIQUETA_TIPO = {
   recordatorio_vencido: "Vencido",
   entregable_asignado: "Asignación",
   avance_actualizado: "Avance",
+  reunion_hoy: "Reunión hoy",
   otro: "Aviso",
 };
 
-// Arma, a partir de lo que ya calcula useRequiereAtencion (ver
-// AppLayout.jsx), una lista de filas normalizadas — mismo look que una
-// notificación, pero con etiqueta "Urgente" en vez del tipo, para
-// mostrarlas dentro de este mismo modal. Experimento pedido por Yue: antes
-// que un botón separado junto a "Notificaciones", primero probar mezclarlo
-// aquí; si no convence, se separa a su propio botón/panel.
-function itemsDeAtencion({ vencidos, proximos, reunionesHoy, cumpleanosProximos }) {
-  const items = [];
-
-  for (const e of vencidos) {
-    items.push({
-      key: `atencion-entregable-${e.id}`,
-      texto: `${e.nombre} — ${e.proyecto_nombre} (${e.responsable_nombre})`,
-      detalle: `venció el ${fechaLocal(e.fecha_entrega).toLocaleDateString("es-MX", { dateStyle: "medium" })} · ${textoDiasRelativos(e.fecha_entrega)}`,
-      link: `/proyectos/${e.proyecto_id}`,
-    });
-  }
-  for (const e of proximos) {
-    items.push({
-      key: `atencion-entregable-${e.id}`,
-      texto: `${e.nombre} — ${e.proyecto_nombre} (${e.responsable_nombre})`,
-      detalle: `vence el ${fechaLocal(e.fecha_entrega).toLocaleDateString("es-MX", { dateStyle: "medium" })} · ${textoDiasRelativos(e.fecha_entrega)}`,
-      link: `/proyectos/${e.proyecto_id}`,
-    });
-  }
-  for (const r of reunionesHoy) {
-    items.push({
-      key: `atencion-reunion-${r.id}`,
-      texto: `${r.titulo} — ${r.proyecto_nombre}`,
-      detalle: `hoy a las ${new Date(r.fecha_inicio).toLocaleTimeString("es-MX", { timeStyle: "short" })}`,
-      link: `/proyectos/${r.proyecto_id}`,
-    });
-  }
-  for (const c of cumpleanosProximos) {
-    items.push({
-      key: `atencion-cumpleanos-${c.id}`,
-      texto: `🎂 Cumpleaños de ${c.nombre}`,
-      detalle: new Date(c.fecha + "T00:00:00").toLocaleDateString("es-MX", { dateStyle: "medium" }),
-      link: null,
-    });
-  }
-  return items;
+// Los vencidos se destacan en rojo (mismo peso visual que tenía "Urgente"
+// antes de unificarse con las notificaciones reales); el resto usa el
+// teal/gris genérico de siempre.
+function colorBadge(n) {
+  if (n.leida) return { background: "var(--color-pending-bg)", color: "var(--color-text-muted)" };
+  if (n.tipo === "recordatorio_vencido") return { background: "var(--color-danger)", color: "#fff" };
+  return { background: "var(--color-teal-500)", color: "#fff" };
 }
 
-export default function ModalNotificaciones({
-  notificaciones,
-  onCambio,
-  onCerrar,
-  vencidos = [],
-  proximos = [],
-  reunionesHoy = [],
-  cumpleanosProximos = [],
-}) {
+// Todas las notificaciones (vencidos/próximos, reuniones de hoy,
+// cumpleaños, asignaciones, avances) son filas reales de Notificacion —
+// generadas por el barrido de app/services/recordatorios.py — así que
+// todas pasan por el mismo camino de marcar leída/eliminar. Antes existía
+// una capa aparte de items "Urgente" calculados en vivo (useRequiereAtencion)
+// sin esas opciones; se retiró en favor de esta lista única al extender el
+// backend para que también genere notificación real de esos casos.
+export default function ModalNotificaciones({ notificaciones, onCambio, onCerrar }) {
+  const [verLeidas, setVerLeidas] = useState(false);
+  const [leidas, setLeidas] = useState([]);
+  const [cargandoLeidas, setCargandoLeidas] = useState(false);
+
   const marcarLeida = async (id) => {
     await notificacionesApi.marcarLeida(id);
     await onCambio();
   };
 
-  const atencion = itemsDeAtencion({ vencidos, proximos, reunionesHoy, cumpleanosProximos });
+  const eliminar = async (id) => {
+    await notificacionesApi.eliminar(id);
+    await onCambio();
+    if (verLeidas) await cargarLeidas();
+  };
+
+  const cargarLeidas = async () => {
+    setCargandoLeidas(true);
+    try {
+      const todas = await notificacionesApi.listar(false);
+      setLeidas(todas.filter((n) => n.leida));
+    } finally {
+      setCargandoLeidas(false);
+    }
+  };
+
+  const alternarVerLeidas = async () => {
+    if (!verLeidas) await cargarLeidas();
+    setVerLeidas((v) => !v);
+  };
 
   return (
     <Modal titulo="Notificaciones" onCerrar={onCerrar}>
       <div className="stack">
-        {notificaciones.length === 0 && atencion.length === 0 && (
+        {notificaciones.length === 0 && (
           <p style={{ color: "var(--color-text-muted)" }}>No tienes notificaciones.</p>
         )}
-        {atencion.map((item) => {
-          const contenido = (
-            <>
-              <span
-                className="badge"
-                style={{ background: "var(--color-danger)", color: "#fff", marginRight: 8 }}
-              >
-                Urgente
-              </span>
-              <span style={{ fontSize: "0.88rem" }}>{item.texto}</span>
-              <div style={{ fontSize: "0.75rem", color: "var(--color-text-muted)" }}>{item.detalle}</div>
-            </>
-          );
-          return (
-            <div key={item.key} className="list-inline" style={{ alignItems: "flex-start", gap: 8 }}>
-              {item.link ? (
-                <Link to={item.link} style={{ textDecoration: "none", color: "inherit" }} onClick={onCerrar}>
-                  {contenido}
-                </Link>
-              ) : (
-                <div>{contenido}</div>
-              )}
-            </div>
-          );
-        })}
         {notificaciones.map((n) => (
           <div
             key={n.id}
@@ -111,11 +73,7 @@ export default function ModalNotificaciones({
             <div>
               <span
                 className="badge"
-                style={{
-                  background: n.leida ? "var(--color-pending-bg)" : "var(--color-teal-500)",
-                  color: n.leida ? "var(--color-text-muted)" : "#fff",
-                  marginRight: 8,
-                }}
+                style={{ ...colorBadge(n), marginRight: 8 }}
               >
                 {ETIQUETA_TIPO[n.tipo] || n.tipo}
               </span>
@@ -124,13 +82,60 @@ export default function ModalNotificaciones({
                 {new Date(n.fecha_creacion).toLocaleString("es-MX")}
               </div>
             </div>
-            {!n.leida && (
-              <button className="btn btn--ghost" onClick={() => marcarLeida(n.id)}>
-                Marcar leída
+            <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+              {!n.leida && (
+                <button className="btn btn--ghost" onClick={() => marcarLeida(n.id)}>
+                  Marcar leída
+                </button>
+              )}
+              <button className="btn btn--ghost" onClick={() => eliminar(n.id)}>
+                Eliminar
               </button>
-            )}
+            </div>
           </div>
         ))}
+
+        {notificaciones.length > 0 && (
+          <button
+            className="btn btn--ghost"
+            style={{ alignSelf: "flex-start" }}
+            onClick={alternarVerLeidas}
+            disabled={cargandoLeidas}
+          >
+            {verLeidas ? "Ocultar leídas" : "Ver leídas"}
+          </button>
+        )}
+
+        {verLeidas && (
+          <div className="stack">
+            {leidas.length === 0 && !cargandoLeidas && (
+              <p style={{ color: "var(--color-text-muted)" }}>No hay avisos leídos.</p>
+            )}
+            {leidas.map((n) => (
+              <div key={n.id} className="list-inline" style={{ alignItems: "flex-start", gap: 8 }}>
+                <div>
+                  <span
+                    className="badge"
+                    style={{
+                      background: "var(--color-pending-bg)",
+                      color: "var(--color-text-muted)",
+                      marginRight: 8,
+                    }}
+                  >
+                    {ETIQUETA_TIPO[n.tipo] || n.tipo}
+                  </span>
+                  <span style={{ fontSize: "0.88rem" }}>{n.mensaje}</span>
+                  <div style={{ fontSize: "0.75rem", color: "var(--color-text-muted)" }}>
+                    {new Date(n.fecha_creacion).toLocaleString("es-MX")}
+                  </div>
+                </div>
+                <button className="btn btn--ghost" onClick={() => eliminar(n.id)}>
+                  Eliminar
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </Modal>
   );

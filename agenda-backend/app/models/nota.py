@@ -28,9 +28,9 @@ class Nota(Base):
     autor_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
     fecha_creacion = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-    entregable = relationship("Entregable")
-    reunion = relationship("Reunion")
-    minuta = relationship("Minuta")
+    entregable = relationship("Entregable", back_populates="notas")
+    reunion = relationship("Reunion", back_populates="notas")
+    minuta = relationship("Minuta", back_populates="notas")
     autor = relationship("Usuario", foreign_keys=[autor_id])
 
     __table_args__ = (

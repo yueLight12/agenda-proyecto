@@ -27,6 +27,7 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
   const [aclaracionActual, setAclaracionActual] = useState(null); // { campo, pregunta, tipo_entrada, opciones }
   const [propuesta, setPropuesta] = useState(null); // { tool, parametros, resumen }
   const [respuestaTexto, setRespuestaTexto] = useState("");
+  const [tipoResultado, setTipoResultado] = useState("accion"); // "accion" | "respuesta"
 
   const reiniciar = () => {
     setFase(FASES.INICIO);
@@ -38,6 +39,7 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
     setAclaracionActual(null);
     setPropuesta(null);
     setRespuestaTexto("");
+    setTipoResultado("accion");
   };
 
   const manejarInterpretar = async (payload) => {
@@ -58,6 +60,10 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
           opciones: resp.opciones || [],
         });
         setFase(FASES.ACLARANDO);
+      } else if (resp.tipo === "respuesta") {
+        setRespuestaTexto(resp.mensaje);
+        setTipoResultado("respuesta");
+        setFase(FASES.RESULTADO);
       } else {
         setMensaje(resp.mensaje || "No entendí bien esa instrucción.");
         setFase(FASES.ERROR);
@@ -73,7 +79,10 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
     await manejarInterpretar({ texto, proyecto_id_contexto: proyectoIdContexto || null });
   };
 
-  const grabar = async () => {
+  // `alTranscribir` recibe el texto ya transcrito: enviarTexto() para la
+  // instrucción inicial, responderAclaracion() para responder por voz una
+  // pregunta de aclaración — mismo mecanismo de grabación en ambos casos.
+  const grabar = async (alTranscribir) => {
     try {
       setFase(FASES.GRABANDO);
       const blob = await iniciar();
@@ -84,13 +93,15 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
         setFase(FASES.ERROR);
         return;
       }
-      await enviarTexto(texto);
+      await alTranscribir(texto);
     } catch (err) {
       if (err.message !== "sin_permiso_microfono") {
         setMensaje("No se pudo procesar el audio. Intenta de nuevo.");
         setFase(FASES.ERROR);
       } else {
-        setFase(FASES.INICIO);
+        // Vuelve a la pregunta de aclaración en vez de reiniciar todo, si
+        // fue ahí donde se intentó grabar (aclaracionActual sigue en pie).
+        setFase(aclaracionActual ? FASES.ACLARANDO : FASES.INICIO);
       }
     }
   };
@@ -112,6 +123,7 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
     try {
       const resp = await asistenteApi.confirmar({ tool: propuesta.tool, parametros: propuesta.parametros });
       setRespuestaTexto(resp.mensaje);
+      setTipoResultado("accion");
       setFase(FASES.RESULTADO);
     } catch (err) {
       setMensaje(err.response?.data?.detail || "No se pudo completar la acción.");
@@ -133,10 +145,11 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
           <div className="stack">
             <p style={{ color: "var(--color-text-muted)", fontSize: "0.9rem" }}>
               Dicta lo que quieres hacer, por ejemplo: "crea un entregable para David, el informe de
-              ventas, para el viernes" o "pon el avance de la maqueta en 80 por ciento".
+              ventas, para el viernes", "agrega a Diana a la reunión con David" o "¿cómo va el
+              avance del proyecto Cubo?".
             </p>
             {errorMic && <p className="error-text">{errorMic}</p>}
-            <button className="btn btn--primary" type="button" onClick={grabar}>
+            <button className="btn btn--primary" type="button" onClick={() => grabar(enviarTexto)}>
               🎙️ Grabar
             </button>
             <div className="stack" style={{ gap: 4 }}>
@@ -185,7 +198,20 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
                 ))}
               </div>
             ) : (
-              <RespuestaTexto onEnviar={responderAclaracion} />
+              <div className="stack" style={{ gap: 8 }}>
+                {errorMic && <p className="error-text">{errorMic}</p>}
+                <button
+                  className="btn btn--primary"
+                  type="button"
+                  onClick={() => grabar(responderAclaracion)}
+                >
+                  🎙️ Responder por voz
+                </button>
+                <div className="stack" style={{ gap: 4 }}>
+                  <span style={{ fontSize: "0.85rem" }}>O escribe tu respuesta:</span>
+                  <RespuestaTexto onEnviar={responderAclaracion} />
+                </div>
+              </div>
             )}
           </div>
         )}
@@ -208,7 +234,7 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
 
         {fase === FASES.RESULTADO && (
           <div className="stack">
-            <p>✅ {respuestaTexto}</p>
+            <p>{tipoResultado === "respuesta" ? "💬" : "✅"} {respuestaTexto}</p>
             <button className="btn btn--ghost" type="button" onClick={reiniciar}>
               Hacer otra cosa
             </button>
@@ -218,7 +244,11 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
         {fase === FASES.ERROR && (
           <div className="stack">
             <p className="error-text">{mensaje}</p>
-            <button className="btn btn--ghost" type="button" onClick={reiniciar}>
+            <button
+              className="btn btn--ghost"
+              type="button"
+              onClick={() => (aclaracionActual ? setFase(FASES.ACLARANDO) : reiniciar())}
+            >
               Reintentar
             </button>
           </div>

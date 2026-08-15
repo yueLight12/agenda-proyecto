@@ -127,4 +127,5 @@ export const notificacionesApi = {
   listar: async (soloNoLeidas = false) =>
     (await api.get(`/notificaciones`, { params: { solo_no_leidas: soloNoLeidas } })).data,
   marcarLeida: async (id) => (await api.patch(`/notificaciones/${id}`)).data,
+  eliminar: async (id) => api.delete(`/notificaciones/${id}`),
 };

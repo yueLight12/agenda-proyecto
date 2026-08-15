@@ -48,3 +48,4 @@ class Entregable(Base):
     historial = relationship(
         "HistorialAvance", back_populates="entregable", cascade="all, delete-orphan"
     )
+    notas = relationship("Nota", back_populates="entregable", cascade="all, delete-orphan")

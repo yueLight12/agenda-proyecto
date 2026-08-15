@@ -17,6 +17,7 @@ from app.core.permissions import (
 from app.models.entregable import Entregable
 from app.models.notificacion import Notificacion
 from app.models.proyecto import Proyecto
+from app.models.reunion import Reunion
 from app.models.usuario import RolEnum, Usuario
 from app.models.usuario_proyecto_rol import UsuarioProyectoRol
 from app.schemas.proyecto import MiembroEquipoOut
@@ -65,7 +66,16 @@ def actualizar_proyecto(db: Session, usuario: Usuario, proyecto_id: int, campos:
 
 
 def eliminar_proyecto(db: Session, usuario: Usuario, proyecto_id: int) -> None:
-    """Elimina el proyecto y todo lo que cuelga de él (equipo, entregables, reuniones). Requiere N1."""
+    """
+    Elimina el proyecto y todo lo que cuelga de él (equipo, entregables,
+    reuniones, minutas/acuerdos, notas). Requiere N1.
+
+    Notificacion no tiene relación ORM hacia Entregable/Reunion (es más un
+    log/bandeja que un hijo propiamente dicho), así que sus filas se limpian
+    aquí a mano antes del delete — el resto (historial de avance, notas,
+    minuta+acuerdos, participantes) cascada solo vía las relaciones
+    declaradas en los modelos.
+    """
     rol = requerir_participacion_en_proyecto(db, usuario, proyecto_id)
     requerir_rol_minimo(rol, [RolEnum.N1])
 
@@ -74,8 +84,15 @@ def eliminar_proyecto(db: Session, usuario: Usuario, proyecto_id: int) -> None:
     entregable_ids = [
         e.id for e in db.query(Entregable).filter(Entregable.proyecto_id == proyecto_id).all()
     ]
+    reunion_ids = [
+        r.id for r in db.query(Reunion).filter(Reunion.proyecto_id == proyecto_id).all()
+    ]
     if entregable_ids:
         db.query(Notificacion).filter(Notificacion.entregable_id.in_(entregable_ids)).delete(
+            synchronize_session=False
+        )
+    if reunion_ids:
+        db.query(Notificacion).filter(Notificacion.reunion_id.in_(reunion_ids)).delete(
             synchronize_session=False
         )
 
