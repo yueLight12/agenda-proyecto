@@ -8,11 +8,19 @@ import requests
 from app.core.config import settings
 
 
-def transcribir(audio_bytes: bytes, nombre_archivo: str, content_type: str) -> str:
+def transcribir(audio_bytes: bytes, nombre_archivo: str, content_type: str, initial_prompt: str = "") -> str:
+    """`initial_prompt` es el mecanismo propio de Whisper para sesgar la
+    transcripción hacia palabras/nombres esperados (ver docs de
+    onerahmet/openai-whisper-asr-webservice) — sin esto, nombres cortos o
+    poco comunes (ej. "Jasso") a veces se transcriben como una alucinación
+    de nombre completo no relacionado en vez del nombre real dicho."""
+    params = {"task": "transcribe", "language": "es", "output": "txt"}
+    if initial_prompt:
+        params["initial_prompt"] = initial_prompt
     try:
         respuesta = requests.post(
             f"{settings.whisper_url}/asr",
-            params={"task": "transcribe", "language": "es", "output": "txt"},
+            params=params,
             files={"audio_file": (nombre_archivo, audio_bytes, content_type)},
             timeout=60,
         )

@@ -6,6 +6,7 @@ existentes (listar_equipo_visible, listar_proyectos_visibles,
 query_entregables_visibles), nunca por GET /usuarios (que exige N1 global y
 rompería para N2/N3/N4 hablándole al asistente).
 """
+import difflib
 import re
 import unicodedata
 from dataclasses import dataclass, field
@@ -39,6 +40,20 @@ def _normalizar(texto: str) -> str:
     texto = texto.strip().lower()
     texto = "".join(c for c in unicodedata.normalize("NFD", texto) if unicodedata.category(c) != "Mn")
     return texto
+
+
+def _candidatos_por_similitud(nombre_hablado: str, candidatos: list) -> list:
+    """Fallback cuando el match exacto por prefijo de palabra no encuentra a
+    nadie: compara por similitud de texto completo (difflib, de la librería
+    estándar) contra el nombre de cada candidato — tolera que la
+    transcripción de voz haya salido con alguna letra distinta (ej. "Jaso" o
+    "Hasso" en vez de "Jasso"). `candidatos` es cualquier lista de objetos
+    con atributo `.nombre`. cutoff=0.6 es conservador: no inventa
+    coincidencias para nombres realmente distintos."""
+    normalizado = _normalizar(nombre_hablado)
+    por_nombre = {_normalizar(c.nombre): c for c in candidatos}
+    cercanos = difflib.get_close_matches(normalizado, por_nombre.keys(), n=4, cutoff=0.6)
+    return [por_nombre[n] for n in cercanos]
 
 
 def resolver_campo(
@@ -110,6 +125,14 @@ def resolver_persona_en_equipo(
     if len(candidatos) == 1:
         return ResolucionResultado(resuelto=True, valor=candidatos[0].usuario_id)
     if not candidatos:
+        cercanos = _candidatos_por_similitud(nombre_hablado, equipo)
+        if cercanos:
+            return ResolucionResultado(
+                resuelto=False,
+                pregunta=f'No encontré exactamente a "{nombre_hablado}", ¿te refieres a alguno de estos?',
+                tipo_entrada="opciones",
+                opciones=[OpcionResolucion(m.usuario_id, f"{m.nombre} ({m.rol.value})") for m in cercanos],
+            )
         return ResolucionResultado(
             resuelto=False,
             pregunta=f'No encontré a nadie llamado "{nombre_hablado}" en tu equipo visible de este proyecto. '
@@ -144,6 +167,14 @@ def resolver_persona_organizacion(db: Session, nombre_hablado: Optional[str]) ->
     if len(candidatos) == 1:
         return ResolucionResultado(resuelto=True, valor=candidatos[0].id)
     if not candidatos:
+        cercanos = _candidatos_por_similitud(nombre_hablado, usuarios)
+        if cercanos:
+            return ResolucionResultado(
+                resuelto=False,
+                pregunta=f'No encontré exactamente a "{nombre_hablado}", ¿te refieres a alguno de estos?',
+                tipo_entrada="opciones",
+                opciones=[OpcionResolucion(u.id, u.nombre) for u in cercanos],
+            )
         return ResolucionResultado(
             resuelto=False,
             pregunta=f'No encontré a nadie llamado "{nombre_hablado}" en el sistema. '

@@ -36,13 +36,35 @@ from app.services.asistente.whisper_client import transcribir as transcribir_aud
 router = APIRouter(prefix="/asistente", tags=["Asistente de voz"])
 
 
+def _prompt_nombres_conocidos(db: Session) -> str:
+    """Arma el `initial_prompt` que se le pasa a Whisper con los nombres
+    reales de todos los usuarios del sistema, para que la transcripción
+    reconozca nombres cortos o poco comunes (ej. "Jasso") en vez de
+    alucinar un nombre completo no relacionado. Se usan todos los usuarios,
+    no solo los visibles para quien graba, porque el asistente necesita
+    poder agregar a alguien que todavía no participa en ningún proyecto
+    compartido con quien habla (ver agregar_miembro en tools.py) — esto
+    nunca sale de este proceso local, solo se manda al contenedor de
+    Whisper que corre en la misma Pi."""
+    nombres = [u.nombre for u in db.query(Usuario).all()]
+    if not nombres:
+        return ""
+    return "Nombres de personas mencionadas: " + ", ".join(nombres) + "."
+
+
 @router.post("/transcribir", response_model=TranscribirResponse)
 async def transcribir(
     audio: UploadFile = File(...),
+    db: Session = Depends(get_db),
     usuario: Usuario = Depends(obtener_usuario_actual),
 ):
     contenido = await audio.read()
-    texto = transcribir_audio(contenido, audio.filename or "audio.webm", audio.content_type or "audio/webm")
+    texto = transcribir_audio(
+        contenido,
+        audio.filename or "audio.webm",
+        audio.content_type or "audio/webm",
+        initial_prompt=_prompt_nombres_conocidos(db),
+    )
     return TranscribirResponse(texto=texto)
 
 
