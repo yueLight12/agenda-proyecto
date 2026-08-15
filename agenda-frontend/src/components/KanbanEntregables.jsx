@@ -13,7 +13,7 @@ const COLUMNAS = [
   { estatus: "cumplido", titulo: "Cumplido", porcentajeObjetivo: 100 },
 ];
 
-function TarjetaEntregable({ entregable, equipo, onDragStart, onClick }) {
+export function TarjetaEntregable({ entregable, equipo, onDragStart, onClick }) {
   const responsable =
     equipo.find((m) => m.usuario_id === entregable.responsable_id)?.nombre ||
     `Usuario #${entregable.responsable_id}`;

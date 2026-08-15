@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { asistenteApi } from "../api/endpoints";
 import useGrabadorAudio from "../hooks/useGrabadorAudio";
+import VistaPreviaAccion from "./asistente/VistaPreviaAccion";
 import Modal from "./Modal";
 
 const FASES = {
@@ -25,7 +26,7 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
   const [parametrosLlm, setParametrosLlm] = useState(null);
   const [aclaraciones, setAclaraciones] = useState({});
   const [aclaracionActual, setAclaracionActual] = useState(null); // { campo, pregunta, tipo_entrada, opciones }
-  const [propuesta, setPropuesta] = useState(null); // { tool, parametros, resumen }
+  const [propuesta, setPropuesta] = useState(null); // { tool, parametros, resumen, preview }
   const [respuestaTexto, setRespuestaTexto] = useState("");
   const [tipoResultado, setTipoResultado] = useState("accion"); // "accion" | "respuesta"
 
@@ -68,7 +69,7 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
       setAccionesPendientes(resp.acciones_pendientes || []);
       if (resp.tipo === "propuesta") {
         setTool(resp.tool);
-        setPropuesta({ tool: resp.tool, parametros: resp.parametros, resumen: resp.resumen });
+        setPropuesta({ tool: resp.tool, parametros: resp.parametros, resumen: resp.resumen, preview: resp.preview });
         setFase(FASES.CONFIRMANDO);
       } else if (resp.tipo === "aclaracion") {
         setTool(resp.tool);
@@ -266,6 +267,7 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
 
         {fase === FASES.CONFIRMANDO && propuesta && (
           <div className="stack">
+            <VistaPreviaAccion preview={propuesta.preview} />
             <p>{propuesta.resumen}</p>
             {accionesPendientes.length > 0 && (
               <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
