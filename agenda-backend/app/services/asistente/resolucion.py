@@ -44,23 +44,31 @@ def _normalizar(texto: str) -> str:
 
 def _candidatos_por_similitud(nombre_hablado: str, candidatos: list, cutoff: float = 0.65) -> list:
     """Fallback cuando el match exacto por prefijo de palabra no encuentra a
-    nadie: compara CADA PALABRA del nombre del candidato (no el nombre
-    completo — comparar "Jaso" contra "Jasso Ramírez" completo sale con
-    similitud baja solo por la diferencia de longitud) contra lo que se
-    dijo, con difflib de la librería estándar. Tolera que la transcripción
-    de voz haya salido con alguna letra distinta (ej. "Jaso" o "Hasso" en
-    vez de "Jasso" — probado con datos reales: ratio 0.89 y 0.80). No
-    ayuda cuando Whisper alucina un nombre completo no relacionado (para
-    eso está el initial_prompt en whisper_client.py) — cutoff=0.65 es
-    conservador para no inventar coincidencias con nombres muy distintos."""
+    nadie: compara lo que se dijo contra el nombre de cada candidato con
+    difflib (librería estándar), de dos formas — se usa la que dé mejor
+    similitud:
+    - frase completa contra nombre completo: cubre el caso real de "José
+      Francisco Jiménez Hazo" contra "José Francisco Jiménez Jasso" (ratio
+      0.91 — Whisper transcribió bien 3 de 4 palabras, solo el apellido
+      salió mal).
+    - lo dicho contra CADA PALABRA del candidato por separado: cubre decir
+      solo un nombre corto, ej. "Jaso" o "Hasso" contra "Jasso Ramírez"
+      (ratio 0.89/0.80) — comparar contra el nombre completo ahí da una
+      similitud baja solo por la diferencia de longitud.
+    No ayuda cuando Whisper alucina un nombre completo sin relación real
+    (para eso está el initial_prompt en whisper_client.py) — cutoff=0.65
+    es conservador para no inventar coincidencias con nombres muy
+    distintos."""
     normalizado = _normalizar(nombre_hablado)
     puntuados = []
     for c in candidatos:
-        palabras = _normalizar(c.nombre).split()
-        mejor = max(
-            (difflib.SequenceMatcher(None, normalizado, palabra).ratio() for palabra in palabras),
+        nombre_candidato = _normalizar(c.nombre)
+        ratio_completo = difflib.SequenceMatcher(None, normalizado, nombre_candidato).ratio()
+        ratio_por_palabra = max(
+            (difflib.SequenceMatcher(None, normalizado, palabra).ratio() for palabra in nombre_candidato.split()),
             default=0.0,
         )
+        mejor = max(ratio_completo, ratio_por_palabra)
         if mejor >= cutoff:
             puntuados.append((mejor, c))
     puntuados.sort(key=lambda par: par[0], reverse=True)
