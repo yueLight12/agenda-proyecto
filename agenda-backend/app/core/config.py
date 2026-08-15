@@ -27,9 +27,13 @@ class Settings(BaseSettings):
     # local, para producción con datos reales) o "gemini" (solo para probar
     # el diseño del catálogo de tools con frases de prueba — NUNCA con datos
     # reales de clientes, ver CLAUDE.md sección 6, Milestone C).
+    # o "claude" (API de Anthropic — mejor tool-calling/JSON estructurado que
+    # Gemini, tampoco es local, se le aplica la misma seudonimización).
     asistente_llm_proveedor: str = "ollama"
     gemini_api_key: str = ""
     gemini_modelo: str = "gemini-flash-latest"
+    claude_api_key: str = ""
+    claude_modelo: str = "claude-opus-5"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
