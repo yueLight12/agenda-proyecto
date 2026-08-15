@@ -135,10 +135,15 @@ def resolver_persona_en_equipo(
     # Match por PALABRA completa (nombre o apellido), no substring libre —
     # un substring libre hace que "Ana" empate con "Diana" ("di-ANA"), lo
     # que resuelve al nombre equivocado en silencio en vez de fallar o
-    # preguntar (encontrado probando editar_reunion con nombres cortos).
+    # preguntar (encontrado probando editar_reunion con nombres cortos). Se
+    # incluye también el nombre completo exacto, porque decir el nombre y
+    # apellido completos de corrido no matchea con "empieza con" de una sola
+    # palabra (se resolvería igual vía el fallback difuso, pero de una vez
+    # sin pedir confirmación de más).
     candidatos = [
         m for m in equipo
-        if any(palabra.startswith(normalizado) for palabra in _normalizar(m.nombre).split())
+        if _normalizar(m.nombre) == normalizado
+        or any(palabra.startswith(normalizado) for palabra in _normalizar(m.nombre).split())
     ]
 
     if len(candidatos) == 1:
@@ -180,7 +185,8 @@ def resolver_persona_organizacion(db: Session, nombre_hablado: Optional[str]) ->
     normalizado = _normalizar(nombre_hablado)
     candidatos = [
         u for u in usuarios
-        if any(palabra.startswith(normalizado) for palabra in _normalizar(u.nombre).split())
+        if _normalizar(u.nombre) == normalizado
+        or any(palabra.startswith(normalizado) for palabra in _normalizar(u.nombre).split())
     ]
 
     if len(candidatos) == 1:
