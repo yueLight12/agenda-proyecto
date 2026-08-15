@@ -34,7 +34,16 @@ class Reunion(Base):
     minuta = relationship(
         "Minuta", back_populates="reunion", uselist=False, cascade="all, delete-orphan"
     )
-    notas = relationship("Nota", back_populates="reunion", cascade="all, delete-orphan")
+    # OJO: nombrada distinto del Column `notas` de arriba a propósito — un
+    # nombre igual (como estaba antes) hace que esta relación PISE al Column
+    # en el atributo de Python (la última asignación en el cuerpo de la clase
+    # gana), dejando `Reunion.notas` como una lista de Nota en vez de texto y
+    # rompiendo crear_reunion/ReunionOut en cualquier llamada (encontrado
+    # porque _ejecutar_agendar_reunion pasaba notas=None y tronaba con
+    # "Incompatible collection type"). El texto libre de "notas" en el
+    # formulario de reunión (ModalReunion.jsx) es el Column; esta relación es
+    # el hilo de comentarios (SeccionNotas.jsx / tabla `notas`), otra cosa.
+    notas_asociadas = relationship("Nota", back_populates="reunion", cascade="all, delete-orphan")
 
 
 class ReunionParticipante(Base):

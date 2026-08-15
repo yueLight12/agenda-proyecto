@@ -29,7 +29,7 @@ class Nota(Base):
     fecha_creacion = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     entregable = relationship("Entregable", back_populates="notas")
-    reunion = relationship("Reunion", back_populates="notas")
+    reunion = relationship("Reunion", back_populates="notas_asociadas")
     minuta = relationship("Minuta", back_populates="notas")
     autor = relationship("Usuario", foreign_keys=[autor_id])
 
