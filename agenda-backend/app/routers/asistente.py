@@ -116,6 +116,7 @@ def _resolver_y_responder(
         tool=tool_nombre,
         parametros=resultado.parametros,
         resumen=resultado.resumen,
+        preview=resultado.preview,
         acciones_pendientes=acciones_pendientes,
     )
 

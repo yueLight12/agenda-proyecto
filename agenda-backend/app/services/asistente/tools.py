@@ -31,7 +31,9 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.permissions import requerir_participacion_en_proyecto, requerir_rol_minimo
+from app.models.entregable import Entregable
 from app.models.minuta import Minuta
+from app.models.proyecto import Proyecto
 from app.models.reunion import Reunion
 from app.models.usuario import RolEnum, Usuario
 from app.schemas.nota import NotaCrear
@@ -62,6 +64,11 @@ class ResultadoInterpretacion:
     listo: bool
     parametros: Optional[dict] = None
     resumen: Optional[str] = None
+    # Datos estructurados para que el frontend pinte una vista previa fiel
+    # (tarjeta de entregable/proyecto/reunión/etc.) en vez de solo mostrar
+    # `resumen` como texto — ver app/components/asistente/VistaPreviaAccion.jsx.
+    # {"tipo": "entregable"|"proyecto"|"miembro"|"reunion"|"nota"|"acuerdo", ...}
+    preview: Optional[dict] = None
     campo: Optional[str] = None
     pregunta: Optional[str] = None
     tipo_entrada: Optional[str] = None
@@ -129,6 +136,8 @@ def _resolver_crear_entregable(
     if not fecha_res.resuelto:
         return _pendiente("fecha_entrega", fecha_res)
 
+    responsable_obj = db.query(Usuario).filter(Usuario.id == responsable_res.valor).first()
+
     parametros = {
         "proyecto_id": proyecto_id,
         "nombre": nombre,
@@ -138,7 +147,17 @@ def _resolver_crear_entregable(
         "sensible": bool(parametros_llm.get("sensible") or False),
     }
     resumen = f'Voy a crear el entregable "{nombre}", con fecha límite {fecha_res.valor.isoformat()}. ¿Confirmas?'
-    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen)
+    preview = {
+        "tipo": "entregable",
+        "nombre": nombre,
+        "descripcion": parametros["descripcion"],
+        "fecha_entrega": parametros["fecha_entrega"],
+        "responsable_id": responsable_res.valor,
+        "responsable_nombre": responsable_obj.nombre if responsable_obj else "?",
+        "sensible": parametros["sensible"],
+        "porcentaje_avance": 0,
+    }
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen, preview=preview)
 
 
 def _ejecutar_crear_entregable(db: Session, usuario: Usuario, parametros: dict) -> dict:
@@ -197,7 +216,21 @@ def _resolver_actualizar_avance(
 
     parametros = {"entregable_id": entregable_res.valor, "porcentaje_avance": porcentaje}
     resumen = f"Voy a poner el avance en {porcentaje}%. ¿Confirmas?"
-    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen)
+
+    preview = None
+    entregable_actual = db.query(Entregable).filter(Entregable.id == entregable_res.valor).first()
+    if entregable_actual:
+        preview = {
+            "tipo": "entregable",
+            "nombre": entregable_actual.nombre,
+            "descripcion": entregable_actual.descripcion,
+            "fecha_entrega": entregable_actual.fecha_entrega.isoformat(),
+            "responsable_id": entregable_actual.responsable_id,
+            "responsable_nombre": entregable_actual.responsable.nombre if entregable_actual.responsable else "?",
+            "sensible": entregable_actual.sensible,
+            "porcentaje_avance": porcentaje,
+        }
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen, preview=preview)
 
 
 def _ejecutar_actualizar_avance(db: Session, usuario: Usuario, parametros: dict) -> dict:
@@ -233,7 +266,13 @@ def _resolver_crear_proyecto(
             f'Voy a crear el proyecto "{nombre}". Quedarás como {rol.value} '
             "(según tu equipo guardado). ¿Confirmas?"
         )
-    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen)
+    preview = {
+        "tipo": "proyecto",
+        "nombre": nombre,
+        "descripcion": parametros["descripcion"],
+        "equipo": [{"usuario_id": usuario.id, "nombre": usuario.nombre, "rol": rol.value}],
+    }
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen, preview=preview)
 
 
 def _ejecutar_crear_proyecto(db: Session, usuario: Usuario, parametros: dict) -> dict:
@@ -295,7 +334,19 @@ def _resolver_agendar_reunion(
         "participantes_ids": participantes_res.valor,
     }
     resumen = f'Voy a agendar "{titulo}" para el {fecha_res.valor.strftime("%d/%m/%Y a las %H:%M")}. ¿Confirmas?'
-    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen)
+    participantes_nombres = (
+        [u.nombre for u in db.query(Usuario).filter(Usuario.id.in_(participantes_res.valor)).all()]
+        if participantes_res.valor else []
+    )
+    preview = {
+        "tipo": "reunion",
+        "titulo": titulo,
+        "fecha_inicio": parametros["fecha_inicio"],
+        "duracion_minutos": duracion,
+        "organizador_nombre": usuario.nombre,
+        "participantes": [{"nombre": n} for n in participantes_nombres],
+    }
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen, preview=preview)
 
 
 def _ejecutar_agendar_reunion(db: Session, usuario: Usuario, parametros: dict) -> dict:
@@ -358,6 +409,7 @@ def _resolver_asignar_rol(
 
     persona = db.query(Usuario).filter(Usuario.id == persona_res.valor).first()
     nombre_persona = persona.nombre if persona else "esa persona"
+    proyecto_obj = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
 
     parametros = {
         "proyecto_id": proyecto_id,
@@ -366,7 +418,15 @@ def _resolver_asignar_rol(
         "supervisor_id": supervisor_id,
     }
     resumen = f'Voy a asignar a {nombre_persona} como {rol_res.valor.value} en este proyecto. ¿Confirmas?'
-    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen)
+    preview = {
+        "tipo": "miembro",
+        "usuario_id": persona_res.valor,
+        "nombre": nombre_persona,
+        "puesto": persona.puesto if persona else None,
+        "rol": rol_res.valor.value,
+        "proyecto_nombre": proyecto_obj.nombre if proyecto_obj else "",
+    }
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen, preview=preview)
 
 
 def _ejecutar_asignar_rol(db: Session, usuario: Usuario, parametros: dict) -> dict:
@@ -431,6 +491,7 @@ def _resolver_agregar_miembro(
 
     persona = db.query(Usuario).filter(Usuario.id == persona_res.valor).first()
     nombre_persona = persona.nombre if persona else "esa persona"
+    proyecto_obj = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
 
     parametros = {
         "proyecto_id": proyecto_id,
@@ -439,7 +500,15 @@ def _resolver_agregar_miembro(
         "supervisor_id": supervisor_id,
     }
     resumen = f'Voy a agregar a {nombre_persona} al proyecto como {rol_res.valor.value}. ¿Confirmas?'
-    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen)
+    preview = {
+        "tipo": "miembro",
+        "usuario_id": persona_res.valor,
+        "nombre": nombre_persona,
+        "puesto": persona.puesto if persona else None,
+        "rol": rol_res.valor.value,
+        "proyecto_nombre": proyecto_obj.nombre if proyecto_obj else "",
+    }
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen, preview=preview)
 
 
 def _ejecutar_agregar_miembro(db: Session, usuario: Usuario, parametros: dict) -> dict:
@@ -507,7 +576,15 @@ def _resolver_registrar_acuerdo(
         "responsable_id": responsable_id,
     }
     resumen = f'Voy a agregar el acuerdo "{descripcion}" a la minuta. ¿Confirmas?'
-    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen)
+    reunion_obj = db.query(Reunion).filter(Reunion.id == reunion_res.valor).first()
+    responsable_obj = db.query(Usuario).filter(Usuario.id == responsable_id).first() if responsable_id else None
+    preview = {
+        "tipo": "acuerdo",
+        "descripcion": descripcion,
+        "responsable_nombre": responsable_obj.nombre if responsable_obj else None,
+        "reunion_titulo": reunion_obj.titulo if reunion_obj else "",
+    }
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen, preview=preview)
 
 
 def _ejecutar_registrar_acuerdo(db: Session, usuario: Usuario, parametros: dict) -> dict:
@@ -591,7 +668,21 @@ def _resolver_agregar_nota(
     parametros = {"entregable_id": entregable_id, "reunion_id": reunion_id, "contenido": contenido}
     destino = "el entregable" if entregable_id else "la reunión"
     resumen = f'Voy a agregar esta nota a {destino}: "{contenido}". ¿Confirmas?'
-    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen)
+
+    destino_nombre = None
+    if entregable_id:
+        e = db.query(Entregable).filter(Entregable.id == entregable_id).first()
+        destino_nombre = e.nombre if e else None
+    elif reunion_id:
+        r = db.query(Reunion).filter(Reunion.id == reunion_id).first()
+        destino_nombre = r.titulo if r else None
+    preview = {
+        "tipo": "nota",
+        "contenido": contenido,
+        "autor_nombre": usuario.nombre,
+        "destino": destino_nombre,
+    }
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen, preview=preview)
 
 
 def _ejecutar_agregar_nota(db: Session, usuario: Usuario, parametros: dict) -> dict:
@@ -630,6 +721,7 @@ def _resolver_editar_reunion(
     if not reunion_res.resuelto:
         return _pendiente("reunion_id", reunion_res)
     reunion_id = reunion_res.valor
+    reunion_actual = db.query(Reunion).filter(Reunion.id == reunion_id).first()
 
     campos: dict = {}
     resumen_partes: list[str] = []
@@ -666,7 +758,6 @@ def _resolver_editar_reunion(
         # Se AGREGAN a los que ya estaban invitados, nunca se reemplaza la
         # lista completa a ciegas — decir "agrega a Lucía" no debe borrar al
         # resto de invitados que el usuario no volvió a mencionar.
-        reunion_actual = db.query(Reunion).filter(Reunion.id == reunion_id).first()
         ids_actuales = {p.usuario_id for p in reunion_actual.participantes} if reunion_actual else set()
         ids_nuevos = set(participantes_res.valor) - ids_actuales
         if ids_nuevos:
@@ -694,7 +785,29 @@ def _resolver_editar_reunion(
 
     parametros = {"reunion_id": reunion_id, "campos": campos}
     resumen = f"Voy a actualizar {', '.join(resumen_partes)} de la reunión. ¿Confirmas?"
-    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen)
+
+    participantes_ids_final = campos.get(
+        "participantes_ids",
+        [p.usuario_id for p in reunion_actual.participantes] if reunion_actual else [],
+    )
+    participantes_nombres = [
+        u.nombre for u in db.query(Usuario).filter(Usuario.id.in_(participantes_ids_final)).all()
+    ]
+    preview = {
+        "tipo": "reunion",
+        "titulo": campos.get("titulo", reunion_actual.titulo if reunion_actual else titulo_nuevo),
+        "fecha_inicio": campos.get(
+            "fecha_inicio", reunion_actual.fecha_inicio.isoformat() if reunion_actual else None
+        ),
+        "duracion_minutos": campos.get(
+            "duracion_minutos", reunion_actual.duracion_minutos if reunion_actual else None
+        ),
+        "organizador_nombre": (
+            reunion_actual.organizador.nombre if reunion_actual and reunion_actual.organizador else usuario.nombre
+        ),
+        "participantes": [{"nombre": n} for n in participantes_nombres],
+    }
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen, preview=preview)
 
 
 def _ejecutar_editar_reunion(db: Session, usuario: Usuario, parametros: dict) -> dict:
@@ -730,6 +843,7 @@ def _resolver_editar_entregable(
     if not entregable_res.resuelto:
         return _pendiente("entregable_id", entregable_res)
     entregable_id = entregable_res.valor
+    entregable_actual = db.query(Entregable).filter(Entregable.id == entregable_id).first()
 
     campos: dict = {}
     resumen_partes: list[str] = []
@@ -772,7 +886,28 @@ def _resolver_editar_entregable(
 
     parametros = {"entregable_id": entregable_id, "campos": campos}
     resumen = f"Voy a actualizar {', '.join(resumen_partes)} del entregable. ¿Confirmas?"
-    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen)
+
+    responsable_id_final = campos.get(
+        "responsable_id", entregable_actual.responsable_id if entregable_actual else None
+    )
+    responsable_obj = (
+        db.query(Usuario).filter(Usuario.id == responsable_id_final).first() if responsable_id_final else None
+    )
+    preview = {
+        "tipo": "entregable",
+        "nombre": campos.get("nombre", entregable_actual.nombre if entregable_actual else nombre_nuevo),
+        "descripcion": campos.get(
+            "descripcion", entregable_actual.descripcion if entregable_actual else None
+        ),
+        "fecha_entrega": campos.get(
+            "fecha_entrega", entregable_actual.fecha_entrega.isoformat() if entregable_actual else None
+        ),
+        "responsable_id": responsable_id_final,
+        "responsable_nombre": responsable_obj.nombre if responsable_obj else None,
+        "sensible": entregable_actual.sensible if entregable_actual else False,
+        "porcentaje_avance": entregable_actual.porcentaje_avance if entregable_actual else 0,
+    }
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen, preview=preview)
 
 
 def _ejecutar_editar_entregable(db: Session, usuario: Usuario, parametros: dict) -> dict:
@@ -803,6 +938,7 @@ def _resolver_editar_proyecto(
     if not proyecto_res.resuelto:
         return _pendiente("proyecto_id", proyecto_res)
     proyecto_id = proyecto_res.valor
+    proyecto_actual = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
 
     campos: dict = {}
     resumen_partes: list[str] = []
@@ -826,7 +962,15 @@ def _resolver_editar_proyecto(
 
     parametros = {"proyecto_id": proyecto_id, "campos": campos}
     resumen = f"Voy a actualizar {', '.join(resumen_partes)} del proyecto. ¿Confirmas?"
-    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen)
+    preview = {
+        "tipo": "proyecto",
+        "nombre": campos.get("nombre", proyecto_actual.nombre if proyecto_actual else nombre_nuevo),
+        "descripcion": campos.get(
+            "descripcion", proyecto_actual.descripcion if proyecto_actual else None
+        ),
+        "equipo": [],
+    }
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen, preview=preview)
 
 
 def _ejecutar_editar_proyecto(db: Session, usuario: Usuario, parametros: dict) -> dict:

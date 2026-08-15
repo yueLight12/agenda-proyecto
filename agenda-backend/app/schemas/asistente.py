@@ -41,6 +41,10 @@ class InterpretarResponse(BaseModel):
     opciones: list[OpcionAclaracionOut] = []
     parametros_llm: Optional[dict] = None
     mensaje: Optional[str] = None
+    # Datos estructurados para pintar una vista previa fiel (tarjeta de
+    # entregable/proyecto/reunión/etc.) en vez de solo el texto de `resumen`
+    # — ver ResultadoInterpretacion.preview en tools.py.
+    preview: Optional[dict] = None
     # Resto de acciones de la misma instrucción compuesta, todavía sin
     # resolver (ver app/routers/asistente.py) — el cliente las va mandando de
     # vuelta una a la vez conforme confirma cada paso.
