@@ -7,9 +7,10 @@ función que usan los routers de entregables/resumen) y se lo pasa al LLM
 configurado (Ollama local por default, o Gemini — ver
 app/services/llm_cliente.py) para que redacte la respuesta en español. El
 modelo nunca toca la base de datos ni decide qué es visible — eso ya lo
-filtró este servicio. Si el proveedor es Gemini, el contexto y la pregunta
-se seudonimizan antes de mandarlos (app/services/llm_privacidad.py) y los
-nombres reales se restauran en la respuesta.
+filtró este servicio. Si el proveedor es Gemini o Claude (ambos salen a
+internet), el contexto y la pregunta se seudonimizan antes de mandarlos
+(app/services/llm_privacidad.py) y los nombres reales se restauran en la
+respuesta.
 """
 from datetime import date, timedelta
 
@@ -94,7 +95,7 @@ def responder_pregunta(db: Session, usuario: Usuario, pregunta: str) -> str:
     nombre_para_prompt = usuario.nombre
 
     mapa = None
-    if settings.asistente_llm_proveedor == "gemini":
+    if settings.asistente_llm_proveedor in ("gemini", "claude"):
         mapa = construir_mapa(db, usuario)
         contexto = mapa.redactar(contexto)
         pregunta = mapa.redactar(pregunta)

@@ -80,7 +80,7 @@ def interpretar_instruccion(db: Session, usuario: Usuario, texto: str) -> dict:
     no aplica ninguna acción, o si el modelo no devolvió JSON válido ni
     siquiera tras un reintento."""
     mapa = None
-    if settings.asistente_llm_proveedor == "gemini":
+    if settings.asistente_llm_proveedor in ("gemini", "claude"):
         mapa = construir_mapa(db, usuario)
         texto = mapa.redactar(texto)
 
