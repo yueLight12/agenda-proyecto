@@ -42,18 +42,29 @@ def _normalizar(texto: str) -> str:
     return texto
 
 
-def _candidatos_por_similitud(nombre_hablado: str, candidatos: list) -> list:
+def _candidatos_por_similitud(nombre_hablado: str, candidatos: list, cutoff: float = 0.65) -> list:
     """Fallback cuando el match exacto por prefijo de palabra no encuentra a
-    nadie: compara por similitud de texto completo (difflib, de la librería
-    estándar) contra el nombre de cada candidato — tolera que la
-    transcripción de voz haya salido con alguna letra distinta (ej. "Jaso" o
-    "Hasso" en vez de "Jasso"). `candidatos` es cualquier lista de objetos
-    con atributo `.nombre`. cutoff=0.6 es conservador: no inventa
-    coincidencias para nombres realmente distintos."""
+    nadie: compara CADA PALABRA del nombre del candidato (no el nombre
+    completo — comparar "Jaso" contra "Jasso Ramírez" completo sale con
+    similitud baja solo por la diferencia de longitud) contra lo que se
+    dijo, con difflib de la librería estándar. Tolera que la transcripción
+    de voz haya salido con alguna letra distinta (ej. "Jaso" o "Hasso" en
+    vez de "Jasso" — probado con datos reales: ratio 0.89 y 0.80). No
+    ayuda cuando Whisper alucina un nombre completo no relacionado (para
+    eso está el initial_prompt en whisper_client.py) — cutoff=0.65 es
+    conservador para no inventar coincidencias con nombres muy distintos."""
     normalizado = _normalizar(nombre_hablado)
-    por_nombre = {_normalizar(c.nombre): c for c in candidatos}
-    cercanos = difflib.get_close_matches(normalizado, por_nombre.keys(), n=4, cutoff=0.6)
-    return [por_nombre[n] for n in cercanos]
+    puntuados = []
+    for c in candidatos:
+        palabras = _normalizar(c.nombre).split()
+        mejor = max(
+            (difflib.SequenceMatcher(None, normalizado, palabra).ratio() for palabra in palabras),
+            default=0.0,
+        )
+        if mejor >= cutoff:
+            puntuados.append((mejor, c))
+    puntuados.sort(key=lambda par: par[0], reverse=True)
+    return [c for _, c in puntuados[:4]]
 
 
 def resolver_campo(
