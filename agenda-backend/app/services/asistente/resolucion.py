@@ -277,7 +277,7 @@ def resolver_entregable(
     )
 
 
-_PREFIJO_ARTICULO = re.compile(r"^(para\s+)?(el|la|los|las)\s+", flags=re.IGNORECASE)
+_PREFIJO_ARTICULO = re.compile(r"^(para\s+)?(el|la|los|las)\s+(d[ií]as?\s*,?\s*)?", flags=re.IGNORECASE)
 
 
 def resolver_fecha(texto: Optional[str]) -> ResolucionResultado:
