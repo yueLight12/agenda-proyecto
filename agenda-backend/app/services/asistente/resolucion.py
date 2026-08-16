@@ -17,6 +17,8 @@ import dateparser
 from sqlalchemy.orm import Session
 
 from app.core.permissions import query_entregables_visibles, query_reuniones_visibles
+from app.models.equipo_miembro import EquipoMiembro
+from app.models.minuta import Minuta
 from app.models.usuario import RolEnum, Usuario
 from app.services.proyectos import listar_equipo_visible, listar_proyectos_visibles
 
@@ -427,6 +429,87 @@ def resolver_personas_organizacion(
             tipo_entrada="texto",
         )
     return ResolucionResultado(resuelto=True, valor=ids)
+
+
+def resolver_acuerdo(
+    db: Session, usuario: Usuario, reunion_id: int, texto: Optional[str]
+) -> ResolucionResultado:
+    """Busca un acuerdo por descripción dentro de la minuta de una reunión ya
+    resuelta — mismo patrón que resolver_entregable, pero sobre
+    AcuerdoMinuta.descripcion en vez de un nombre. La visibilidad ya quedó
+    cubierta al resolver la reunión (resolver_reunion usa
+    query_reuniones_visibles), así que aquí no se vuelve a chequear permiso."""
+    if not texto:
+        return ResolucionResultado(resuelto=False, pregunta="¿Cuál acuerdo?", tipo_entrada="texto")
+
+    minuta = db.query(Minuta).filter(Minuta.reunion_id == reunion_id).first()
+    acuerdos = minuta.acuerdos if minuta else []
+    if not acuerdos:
+        return ResolucionResultado(
+            resuelto=False,
+            pregunta="Esta reunión no tiene acuerdos registrados todavía.",
+            tipo_entrada="texto",
+        )
+
+    normalizado = _normalizar(texto)
+    candidatos = [a for a in acuerdos if normalizado in _normalizar(a.descripcion)]
+
+    if len(candidatos) == 1:
+        return ResolucionResultado(resuelto=True, valor=candidatos[0].id)
+    if not candidatos:
+        return ResolucionResultado(
+            resuelto=False,
+            pregunta=f'No encontré ningún acuerdo parecido a "{texto}" en esta reunión. '
+            "¿Puedes decirlo de otra forma?",
+            tipo_entrada="texto",
+        )
+    return ResolucionResultado(
+        resuelto=False,
+        pregunta=f'Encontré varios acuerdos parecidos a "{texto}", ¿cuál es?',
+        tipo_entrada="opciones",
+        opciones=[OpcionResolucion(a.id, a.descripcion) for a in candidatos],
+    )
+
+
+def resolver_miembro_mi_equipo(
+    db: Session, usuario: Usuario, nombre_hablado: Optional[str]
+) -> ResolucionResultado:
+    """Como resolver_persona_en_equipo, pero busca entre las personas que YA
+    están en la plantilla personal "Mi equipo" de quien habla (no en un
+    proyecto) — usado para quitar_de_mi_equipo, donde solo tiene sentido
+    ofrecer a alguien que de verdad está guardado ahí."""
+    if not nombre_hablado:
+        return ResolucionResultado(
+            resuelto=False, pregunta="¿A quién quieres quitar de tu equipo guardado?", tipo_entrada="texto"
+        )
+
+    plantilla = db.query(EquipoMiembro).filter(EquipoMiembro.propietario_id == usuario.id).all()
+    if not plantilla:
+        return ResolucionResultado(
+            resuelto=False, pregunta="Tu equipo guardado está vacío, no hay nadie que quitar.", tipo_entrada="texto"
+        )
+
+    normalizado = _normalizar(nombre_hablado)
+    candidatos = [
+        m for m in plantilla
+        if _normalizar(m.usuario.nombre) == normalizado
+        or any(palabra.startswith(normalizado) for palabra in _normalizar(m.usuario.nombre).split())
+    ]
+
+    if len(candidatos) == 1:
+        return ResolucionResultado(resuelto=True, valor=candidatos[0].usuario_id)
+    if not candidatos:
+        return ResolucionResultado(
+            resuelto=False,
+            pregunta=f'No encontré a "{nombre_hablado}" en tu equipo guardado. ¿Puedes decir el nombre completo?',
+            tipo_entrada="texto",
+        )
+    return ResolucionResultado(
+        resuelto=False,
+        pregunta=f'Encontré varias personas parecidas a "{nombre_hablado}" en tu equipo guardado, ¿cuál es?',
+        tipo_entrada="opciones",
+        opciones=[OpcionResolucion(m.usuario_id, m.usuario.nombre) for m in candidatos],
+    )
 
 
 def resolver_reunion(

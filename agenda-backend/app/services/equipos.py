@@ -5,6 +5,7 @@ asistente de voz (app/services/asistente/).
 """
 from typing import Optional
 
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.permissions import requerir_participacion_en_proyecto, requerir_rol_minimo
@@ -42,6 +43,43 @@ def equipo_miembro_a_out(registro: EquipoMiembro) -> EquipoMiembroOut:
         email=registro.usuario.email,
         rol=registro.rol,
     )
+
+
+def agregar_a_mi_equipo(db: Session, usuario: Usuario, usuario_id: int, rol: RolEnum) -> EquipoMiembro:
+    """Agrega (o reasigna el rol de) una persona en la plantilla personal de
+    `usuario` — extraído del router para que el asistente de voz pueda
+    reutilizarlo igual que cualquier otra tool (ver agregar_a_mi_equipo en
+    app/services/asistente/tools.py). El caller hace db.commit()/refresh."""
+    if usuario_id == usuario.id:
+        raise HTTPException(
+            status_code=400, detail="No puedes agregarte a ti mismo a tu propio equipo"
+        )
+
+    existente = (
+        db.query(EquipoMiembro)
+        .filter(EquipoMiembro.propietario_id == usuario.id, EquipoMiembro.usuario_id == usuario_id)
+        .first()
+    )
+    if existente:
+        existente.rol = rol
+        return existente
+
+    registro = EquipoMiembro(propietario_id=usuario.id, usuario_id=usuario_id, rol=rol)
+    db.add(registro)
+    return registro
+
+
+def quitar_de_mi_equipo(db: Session, usuario: Usuario, usuario_id: int) -> None:
+    """Contraparte de agregar_a_mi_equipo — extraída del router por el mismo
+    motivo. El caller hace db.commit()."""
+    registro = (
+        db.query(EquipoMiembro)
+        .filter(EquipoMiembro.propietario_id == usuario.id, EquipoMiembro.usuario_id == usuario_id)
+        .first()
+    )
+    if not registro:
+        raise HTTPException(status_code=404, detail="Ese usuario no está en tu equipo guardado")
+    db.delete(registro)
 
 
 def aplicar_mi_equipo(db: Session, usuario: Usuario, proyecto_id: int) -> list[EquipoMiembroOut]:

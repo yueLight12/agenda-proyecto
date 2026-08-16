@@ -32,7 +32,9 @@ from sqlalchemy.orm import Session
 
 from app.core.permissions import requerir_participacion_en_proyecto, requerir_rol_minimo
 from app.models.entregable import Entregable
-from app.models.minuta import Minuta
+from app.models.equipo_miembro import EquipoMiembro
+from app.models.minuta import AcuerdoMinuta, Minuta
+from app.models.notificacion import Notificacion
 from app.models.proyecto import Proyecto
 from app.models.reunion import Reunion
 from app.models.usuario import RolEnum, Usuario
@@ -40,10 +42,12 @@ from app.schemas.nota import NotaCrear
 from app.services.asistente.resolucion import (
     OpcionResolucion,
     ResolucionResultado,
+    resolver_acuerdo,
     resolver_campo,
     resolver_entregable,
     resolver_fecha,
     resolver_fecha_hora,
+    resolver_miembro_mi_equipo,
     resolver_persona_en_equipo,
     resolver_persona_organizacion,
     resolver_personas_organizacion,
@@ -52,12 +56,33 @@ from app.services.asistente.resolucion import (
     resolver_rol,
 )
 from app.services.chatbot import responder_pregunta
-from app.services.entregables import actualizar_avance, actualizar_entregable, crear_entregable
-from app.services.equipos import rol_default_para_nuevo_proyecto
-from app.services.minutas import agregar_acuerdo, crear_o_actualizar_minuta
+from app.services.entregables import (
+    actualizar_avance,
+    actualizar_entregable,
+    crear_entregable,
+    eliminar_entregable,
+)
+from app.services.equipos import (
+    agregar_a_mi_equipo,
+    aplicar_mi_equipo,
+    quitar_de_mi_equipo,
+    rol_default_para_nuevo_proyecto,
+)
+from app.services.minutas import (
+    agregar_acuerdo,
+    convertir_acuerdo_a_entregable,
+    crear_o_actualizar_minuta,
+    eliminar_acuerdo,
+)
 from app.services.notas import crear_nota
-from app.services.proyectos import actualizar_proyecto, asignar_rol_en_proyecto, crear_proyecto, listar_equipo_visible
-from app.services.reuniones import actualizar_reunion, crear_reunion
+from app.services.proyectos import (
+    actualizar_proyecto,
+    asignar_rol_en_proyecto,
+    crear_proyecto,
+    eliminar_proyecto,
+    listar_equipo_visible,
+)
+from app.services.reuniones import actualizar_reunion, crear_reunion, eliminar_reunion
 
 
 @dataclass
@@ -1025,6 +1050,445 @@ def _ejecutar_editar_proyecto(db: Session, usuario: Usuario, parametros: dict) -
     return {"mensaje": f'Proyecto "{proyecto.nombre}" actualizado correctamente.', "resultado": {"id": proyecto.id}}
 
 
+# --- leer_notificaciones (solo lectura, sin confirmación) ------------------
+
+def _resolver_leer_notificaciones(
+    db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
+) -> ResultadoInterpretacion:
+    solo_no_leidas = str(parametros_llm.get("filtro") or "no_leidas").strip().lower() != "todas"
+
+    query = db.query(Notificacion).filter(Notificacion.usuario_id == usuario.id)
+    if solo_no_leidas:
+        query = query.filter(Notificacion.leida.is_(False))
+    notificaciones = query.order_by(Notificacion.fecha_creacion.desc()).limit(10).all()
+
+    if not notificaciones:
+        texto = "No tienes notificaciones sin leer." if solo_no_leidas else "No tienes ninguna notificación."
+    else:
+        lineas = [f"{i + 1}. {n.mensaje}" for i, n in enumerate(notificaciones)]
+        texto = f"Tienes {len(notificaciones)} notificación(es):\n" + "\n".join(lineas)
+
+    return ResultadoInterpretacion(listo=True, parametros={}, resumen=texto)
+
+
+def _ejecutar_leer_notificaciones(db: Session, usuario: Usuario, parametros: dict) -> dict:
+    # No debería llamarse nunca: requiere_confirmacion=False, ver consultar_agenda.
+    return {"mensaje": "", "resultado": None}
+
+
+# --- eliminar_entregable -----------------------------------------------------
+
+def _resolver_eliminar_entregable(
+    db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
+) -> ResultadoInterpretacion:
+    proyecto_res = resolver_campo(
+        "proyecto_id", aclaraciones, parametros_llm.get("proyecto"),
+        lambda t: resolver_proyecto(db, usuario, t, proyecto_id_contexto),
+    )
+    if not proyecto_res.resuelto:
+        return _pendiente("proyecto_id", proyecto_res)
+    proyecto_id = proyecto_res.valor
+
+    entregable_res = resolver_campo(
+        "entregable_id", aclaraciones, parametros_llm.get("entregable"),
+        lambda t: resolver_entregable(db, usuario, proyecto_id, t),
+    )
+    if not entregable_res.resuelto:
+        return _pendiente("entregable_id", entregable_res)
+
+    entregable_actual = db.query(Entregable).filter(Entregable.id == entregable_res.valor).first()
+    nombre = entregable_actual.nombre if entregable_actual else "ese entregable"
+
+    parametros = {"entregable_id": entregable_res.valor}
+    resumen = f'Voy a ELIMINAR el entregable "{nombre}". Esta acción no se puede deshacer. ¿Confirmas?'
+    preview = None
+    if entregable_actual:
+        preview = {
+            "tipo": "entregable",
+            "nombre": entregable_actual.nombre,
+            "descripcion": entregable_actual.descripcion,
+            "fecha_entrega": entregable_actual.fecha_entrega.isoformat(),
+            "responsable_id": entregable_actual.responsable_id,
+            "responsable_nombre": entregable_actual.responsable.nombre if entregable_actual.responsable else "?",
+            "sensible": entregable_actual.sensible,
+            "porcentaje_avance": entregable_actual.porcentaje_avance,
+        }
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen, preview=preview)
+
+
+def _ejecutar_eliminar_entregable(db: Session, usuario: Usuario, parametros: dict) -> dict:
+    eliminar_entregable(db, usuario, parametros["entregable_id"])
+    db.commit()
+    return {"mensaje": "Entregable eliminado correctamente.", "resultado": None}
+
+
+# --- eliminar_proyecto ---------------------------------------------------------
+
+def _resolver_eliminar_proyecto(
+    db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
+) -> ResultadoInterpretacion:
+    proyecto_res = resolver_campo(
+        "proyecto_id", aclaraciones, parametros_llm.get("proyecto"),
+        lambda t: resolver_proyecto(db, usuario, t, proyecto_id_contexto),
+    )
+    if not proyecto_res.resuelto:
+        return _pendiente("proyecto_id", proyecto_res)
+
+    proyecto_actual = db.query(Proyecto).filter(Proyecto.id == proyecto_res.valor).first()
+    nombre = proyecto_actual.nombre if proyecto_actual else "ese proyecto"
+
+    parametros = {"proyecto_id": proyecto_res.valor}
+    resumen = (
+        f'Voy a ELIMINAR el proyecto "{nombre}" y TODO lo que tiene (entregables, reuniones, '
+        "minutas, equipo). Esta acción no se puede deshacer. ¿Confirmas?"
+    )
+    preview = {
+        "tipo": "proyecto",
+        "nombre": nombre,
+        "descripcion": proyecto_actual.descripcion if proyecto_actual else None,
+        "equipo": [],
+    }
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen, preview=preview)
+
+
+def _ejecutar_eliminar_proyecto(db: Session, usuario: Usuario, parametros: dict) -> dict:
+    eliminar_proyecto(db, usuario, parametros["proyecto_id"])
+    db.commit()
+    return {"mensaje": "Proyecto eliminado correctamente.", "resultado": None}
+
+
+# --- eliminar_reunion -----------------------------------------------------------
+
+def _resolver_eliminar_reunion(
+    db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
+) -> ResultadoInterpretacion:
+    proyecto_res = resolver_campo(
+        "proyecto_id", aclaraciones, parametros_llm.get("proyecto"),
+        lambda t: resolver_proyecto(db, usuario, t, proyecto_id_contexto),
+    )
+    if not proyecto_res.resuelto:
+        return _pendiente("proyecto_id", proyecto_res)
+    proyecto_id = proyecto_res.valor
+
+    reunion_res = resolver_campo(
+        "reunion_id", aclaraciones, parametros_llm.get("reunion"),
+        lambda t: resolver_reunion(db, usuario, proyecto_id, t),
+    )
+    if not reunion_res.resuelto:
+        return _pendiente("reunion_id", reunion_res)
+
+    reunion_actual = db.query(Reunion).filter(Reunion.id == reunion_res.valor).first()
+    titulo = reunion_actual.titulo if reunion_actual else "esa reunión"
+
+    parametros = {"reunion_id": reunion_res.valor}
+    resumen = f'Voy a ELIMINAR la reunión "{titulo}". Esta acción no se puede deshacer. ¿Confirmas?'
+    preview = None
+    if reunion_actual:
+        participantes_nombres = [
+            u.nombre for u in db.query(Usuario)
+            .filter(Usuario.id.in_([p.usuario_id for p in reunion_actual.participantes]))
+            .all()
+        ]
+        preview = {
+            "tipo": "reunion",
+            "titulo": reunion_actual.titulo,
+            "fecha_inicio": reunion_actual.fecha_inicio.isoformat(),
+            "duracion_minutos": reunion_actual.duracion_minutos,
+            "organizador_nombre": reunion_actual.organizador.nombre if reunion_actual.organizador else "?",
+            "participantes": [{"nombre": n} for n in participantes_nombres],
+        }
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen, preview=preview)
+
+
+def _ejecutar_eliminar_reunion(db: Session, usuario: Usuario, parametros: dict) -> dict:
+    eliminar_reunion(db, usuario, parametros["reunion_id"])
+    db.commit()
+    return {"mensaje": "Reunión eliminada correctamente.", "resultado": None}
+
+
+# --- eliminar_acuerdo -----------------------------------------------------------
+
+def _resolver_eliminar_acuerdo(
+    db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
+) -> ResultadoInterpretacion:
+    proyecto_res = resolver_campo(
+        "proyecto_id", aclaraciones, parametros_llm.get("proyecto"),
+        lambda t: resolver_proyecto(db, usuario, t, proyecto_id_contexto),
+    )
+    if not proyecto_res.resuelto:
+        return _pendiente("proyecto_id", proyecto_res)
+    proyecto_id = proyecto_res.valor
+
+    reunion_res = resolver_campo(
+        "reunion_id", aclaraciones, parametros_llm.get("reunion"),
+        lambda t: resolver_reunion(db, usuario, proyecto_id, t),
+    )
+    if not reunion_res.resuelto:
+        return _pendiente("reunion_id", reunion_res)
+    reunion_id = reunion_res.valor
+
+    acuerdo_res = resolver_campo(
+        "acuerdo_id", aclaraciones, parametros_llm.get("acuerdo"),
+        lambda t: resolver_acuerdo(db, usuario, reunion_id, t),
+    )
+    if not acuerdo_res.resuelto:
+        return _pendiente("acuerdo_id", acuerdo_res)
+
+    acuerdo_actual = db.query(AcuerdoMinuta).filter(AcuerdoMinuta.id == acuerdo_res.valor).first()
+    reunion_actual = db.query(Reunion).filter(Reunion.id == reunion_id).first()
+    descripcion = acuerdo_actual.descripcion if acuerdo_actual else "ese acuerdo"
+
+    parametros = {"acuerdo_id": acuerdo_res.valor}
+    resumen = f'Voy a ELIMINAR el acuerdo "{descripcion}" de la minuta. Esta acción no se puede deshacer. ¿Confirmas?'
+    preview = {
+        "tipo": "acuerdo",
+        "descripcion": descripcion,
+        "responsable_nombre": (
+            acuerdo_actual.responsable.nombre if acuerdo_actual and acuerdo_actual.responsable else None
+        ),
+        "reunion_titulo": reunion_actual.titulo if reunion_actual else "",
+    }
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen, preview=preview)
+
+
+def _ejecutar_eliminar_acuerdo(db: Session, usuario: Usuario, parametros: dict) -> dict:
+    eliminar_acuerdo(db, usuario, parametros["acuerdo_id"])
+    db.commit()
+    return {"mensaje": "Acuerdo eliminado correctamente.", "resultado": None}
+
+
+# --- convertir_acuerdo_a_entregable ---------------------------------------------
+
+def _resolver_convertir_acuerdo(
+    db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
+) -> ResultadoInterpretacion:
+    proyecto_res = resolver_campo(
+        "proyecto_id", aclaraciones, parametros_llm.get("proyecto"),
+        lambda t: resolver_proyecto(db, usuario, t, proyecto_id_contexto),
+    )
+    if not proyecto_res.resuelto:
+        return _pendiente("proyecto_id", proyecto_res)
+    proyecto_id = proyecto_res.valor
+
+    reunion_res = resolver_campo(
+        "reunion_id", aclaraciones, parametros_llm.get("reunion"),
+        lambda t: resolver_reunion(db, usuario, proyecto_id, t),
+    )
+    if not reunion_res.resuelto:
+        return _pendiente("reunion_id", reunion_res)
+    reunion_id = reunion_res.valor
+
+    acuerdo_res = resolver_campo(
+        "acuerdo_id", aclaraciones, parametros_llm.get("acuerdo"),
+        lambda t: resolver_acuerdo(db, usuario, reunion_id, t),
+    )
+    if not acuerdo_res.resuelto:
+        return _pendiente("acuerdo_id", acuerdo_res)
+    acuerdo_id = acuerdo_res.valor
+    acuerdo_actual = db.query(AcuerdoMinuta).filter(AcuerdoMinuta.id == acuerdo_id).first()
+
+    if acuerdo_actual and acuerdo_actual.convertido:
+        return ResultadoInterpretacion(
+            listo=False, campo="acuerdo_id",
+            pregunta="Ese acuerdo ya fue convertido en entregable antes. ¿Te refieres a otro acuerdo?",
+            tipo_entrada="texto",
+        )
+
+    # El servicio exige que el acuerdo YA tenga responsable_id -- si no lo
+    # tiene, se resuelve aquí (nunca se escribe en la BD todavía: eso
+    # pasa recién en _ejecutar_convertir_acuerdo, tras la confirmación).
+    responsable_id_nuevo = None
+    responsable_id_final = acuerdo_actual.responsable_id if acuerdo_actual else None
+    if not responsable_id_final:
+        responsable_res = resolver_campo(
+            "responsable_id", aclaraciones, parametros_llm.get("responsable"),
+            lambda t: resolver_persona_en_equipo(db, usuario, proyecto_id, t),
+        )
+        if not responsable_res.resuelto:
+            return _pendiente("responsable_id", responsable_res)
+        responsable_id_nuevo = responsable_res.valor
+        responsable_id_final = responsable_res.valor
+
+    fecha_res = resolver_campo(
+        "fecha_entrega", aclaraciones, parametros_llm.get("fecha_entrega"), resolver_fecha,
+    )
+    if not fecha_res.resuelto:
+        return _pendiente("fecha_entrega", fecha_res)
+
+    parametros = {
+        "acuerdo_id": acuerdo_id,
+        "responsable_id_nuevo": responsable_id_nuevo,
+        "fecha_entrega": fecha_res.valor.isoformat(),
+        "sensible": bool(parametros_llm.get("sensible") or False),
+    }
+    resumen = (
+        f'Voy a convertir el acuerdo "{acuerdo_actual.descripcion if acuerdo_actual else ""}" '
+        f"en un entregable, con fecha límite {fecha_res.valor.isoformat()}. ¿Confirmas?"
+    )
+    responsable_obj = (
+        db.query(Usuario).filter(Usuario.id == responsable_id_final).first() if responsable_id_final else None
+    )
+    preview = {
+        "tipo": "entregable",
+        "nombre": acuerdo_actual.descripcion if acuerdo_actual else "",
+        "descripcion": None,
+        "fecha_entrega": parametros["fecha_entrega"],
+        "responsable_id": responsable_id_final,
+        "responsable_nombre": responsable_obj.nombre if responsable_obj else "?",
+        "sensible": parametros["sensible"],
+        "porcentaje_avance": 0,
+    }
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen, preview=preview)
+
+
+def _ejecutar_convertir_acuerdo(db: Session, usuario: Usuario, parametros: dict) -> dict:
+    from datetime import date
+
+    if parametros.get("responsable_id_nuevo"):
+        acuerdo = db.query(AcuerdoMinuta).filter(AcuerdoMinuta.id == parametros["acuerdo_id"]).first()
+        if acuerdo and not acuerdo.responsable_id:
+            acuerdo.responsable_id = parametros["responsable_id_nuevo"]
+
+    acuerdo = convertir_acuerdo_a_entregable(
+        db, usuario, parametros["acuerdo_id"],
+        date.fromisoformat(parametros["fecha_entrega"]), parametros.get("sensible", False),
+    )
+    db.commit()
+    return {
+        "mensaje": f'Acuerdo convertido en entregable: "{acuerdo.descripcion}".',
+        "resultado": {"id": acuerdo.entregable_id},
+    }
+
+
+# --- agregar_a_mi_equipo (plantilla personal) -----------------------------------
+
+def _resolver_agregar_a_mi_equipo(
+    db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
+) -> ResultadoInterpretacion:
+    persona_res = resolver_campo(
+        "usuario_id", aclaraciones, parametros_llm.get("persona"),
+        lambda t: resolver_persona_organizacion(db, t, usuario),
+    )
+    if not persona_res.resuelto:
+        return _pendiente("usuario_id", persona_res)
+
+    rol_res = resolver_campo("rol", aclaraciones, parametros_llm.get("rol"), resolver_rol)
+    if not rol_res.resuelto:
+        return _pendiente("rol", rol_res)
+
+    persona = db.query(Usuario).filter(Usuario.id == persona_res.valor).first()
+    nombre_persona = persona.nombre if persona else "esa persona"
+
+    parametros = {"usuario_id": persona_res.valor, "rol": rol_res.valor.value}
+    resumen = f'Voy a guardar a {nombre_persona} en tu equipo, como {rol_res.valor.value}. ¿Confirmas?'
+    preview = {
+        "tipo": "miembro",
+        "usuario_id": persona_res.valor,
+        "nombre": nombre_persona,
+        "puesto": persona.puesto if persona else None,
+        "rol": rol_res.valor.value,
+        "proyecto_nombre": "Mi equipo (plantilla personal)",
+    }
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen, preview=preview)
+
+
+def _ejecutar_agregar_a_mi_equipo(db: Session, usuario: Usuario, parametros: dict) -> dict:
+    registro = agregar_a_mi_equipo(db, usuario, parametros["usuario_id"], RolEnum(parametros["rol"]))
+    db.commit()
+    db.refresh(registro)
+    return {
+        "mensaje": f"{registro.usuario.nombre} se guardó en tu equipo como {registro.rol.value}.",
+        "resultado": {"usuario_id": registro.usuario_id, "rol": registro.rol.value},
+    }
+
+
+# --- quitar_de_mi_equipo (plantilla personal) -----------------------------------
+
+def _resolver_quitar_de_mi_equipo(
+    db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
+) -> ResultadoInterpretacion:
+    persona_res = resolver_campo(
+        "usuario_id", aclaraciones, parametros_llm.get("persona"),
+        lambda t: resolver_miembro_mi_equipo(db, usuario, t),
+    )
+    if not persona_res.resuelto:
+        return _pendiente("usuario_id", persona_res)
+
+    persona = db.query(Usuario).filter(Usuario.id == persona_res.valor).first()
+    nombre_persona = persona.nombre if persona else "esa persona"
+    registro_actual = (
+        db.query(EquipoMiembro)
+        .filter(EquipoMiembro.propietario_id == usuario.id, EquipoMiembro.usuario_id == persona_res.valor)
+        .first()
+    )
+
+    parametros = {"usuario_id": persona_res.valor}
+    resumen = f'Voy a quitar a {nombre_persona} de tu equipo guardado. ¿Confirmas?'
+    preview = {
+        "tipo": "miembro",
+        "usuario_id": persona_res.valor,
+        "nombre": nombre_persona,
+        "puesto": persona.puesto if persona else None,
+        "rol": registro_actual.rol.value if registro_actual else None,
+        "proyecto_nombre": "Mi equipo (plantilla personal)",
+    }
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen, preview=preview)
+
+
+def _ejecutar_quitar_de_mi_equipo(db: Session, usuario: Usuario, parametros: dict) -> dict:
+    quitar_de_mi_equipo(db, usuario, parametros["usuario_id"])
+    db.commit()
+    return {"mensaje": "Se quitó de tu equipo guardado.", "resultado": None}
+
+
+# --- aplicar_mi_equipo (plantilla personal) -------------------------------------
+
+def _resolver_aplicar_mi_equipo(
+    db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
+) -> ResultadoInterpretacion:
+    proyecto_res = resolver_campo(
+        "proyecto_id", aclaraciones, parametros_llm.get("proyecto"),
+        lambda t: resolver_proyecto(db, usuario, t, proyecto_id_contexto),
+    )
+    if not proyecto_res.resuelto:
+        return _pendiente("proyecto_id", proyecto_res)
+    proyecto_id = proyecto_res.valor
+
+    proyecto_actual = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
+    plantilla = db.query(EquipoMiembro).filter(EquipoMiembro.propietario_id == usuario.id).all()
+    if not plantilla:
+        return ResultadoInterpretacion(
+            listo=False, campo="proyecto_id",
+            pregunta="Tu equipo guardado está vacío, no hay a quién aplicar. Primero guarda gente en tu equipo.",
+            tipo_entrada="texto",
+        )
+
+    nombres = [m.usuario.nombre for m in plantilla]
+    parametros = {"proyecto_id": proyecto_id}
+    resumen = (
+        f'Voy a aplicar tu equipo guardado ({", ".join(nombres)}) al proyecto '
+        f'"{proyecto_actual.nombre if proyecto_actual else ""}". ¿Confirmas?'
+    )
+    preview = {
+        "tipo": "proyecto",
+        "nombre": proyecto_actual.nombre if proyecto_actual else "",
+        "descripcion": proyecto_actual.descripcion if proyecto_actual else None,
+        "equipo": [
+            {"usuario_id": m.usuario_id, "nombre": m.usuario.nombre, "rol": m.rol.value} for m in plantilla
+        ],
+    }
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen, preview=preview)
+
+
+def _ejecutar_aplicar_mi_equipo(db: Session, usuario: Usuario, parametros: dict) -> dict:
+    resultado = aplicar_mi_equipo(db, usuario, parametros["proyecto_id"])
+    db.commit()
+    return {
+        "mensaje": f"Se aplicó tu equipo guardado al proyecto ({len(resultado)} persona(s)).",
+        "resultado": {"cantidad": len(resultado)},
+    }
+
+
 # --- consultar_agenda (solo lectura, sin confirmación) -----------------------
 
 def _resolver_consultar_agenda(
@@ -1313,6 +1777,137 @@ TOOLS: dict[str, ToolSpec] = {
         ],
         resolver=_resolver_editar_proyecto,
         ejecutar=_ejecutar_editar_proyecto,
+    ),
+    "leer_notificaciones": ToolSpec(
+        nombre="leer_notificaciones",
+        descripcion=(
+            "Leer las notificaciones/avisos del usuario — consulta de SOLO LECTURA, no ejecuta "
+            "ninguna acción. Úsala para pedidos como 'lee mis notificaciones', 'qué avisos tengo', "
+            "'tengo notificaciones nuevas', 'muéstrame mis notificaciones'."
+        ),
+        parametros_llm={
+            "filtro": "'no_leidas' (default si no se especifica) o 'todas' si se pidió explícitamente ver también las ya leídas",
+        },
+        ejemplos=[
+            ("lee mis notificaciones", {"filtro": "no_leidas"}),
+            ("qué notificaciones tengo sin leer", {"filtro": "no_leidas"}),
+            ("muéstrame todas mis notificaciones, incluidas las leídas", {"filtro": "todas"}),
+        ],
+        resolver=_resolver_leer_notificaciones,
+        ejecutar=_ejecutar_leer_notificaciones,
+        requiere_confirmacion=False,
+    ),
+    "eliminar_entregable": ToolSpec(
+        nombre="eliminar_entregable",
+        descripcion="Eliminar un entregable que ya existe (acción irreversible). Requiere ser dirección o líder del proyecto.",
+        parametros_llm={
+            "entregable": "nombre del entregable a eliminar, tal como se mencionó",
+            "proyecto": "nombre del proyecto si se mencionó, si no dejar vacío",
+        },
+        ejemplos=[
+            ("elimina el entregable informe de ventas", {"entregable": "informe de ventas", "proyecto": ""}),
+            ("borra la tarea maqueta del proyecto Cubo", {"entregable": "maqueta", "proyecto": "Cubo"}),
+        ],
+        resolver=_resolver_eliminar_entregable,
+        ejecutar=_ejecutar_eliminar_entregable,
+    ),
+    "eliminar_proyecto": ToolSpec(
+        nombre="eliminar_proyecto",
+        descripcion=(
+            "Eliminar un proyecto completo y todo lo que tiene (entregables, reuniones, minutas, "
+            "equipo) — acción irreversible. Requiere ser dirección del proyecto."
+        ),
+        parametros_llm={"proyecto": "nombre del proyecto a eliminar, tal como se mencionó"},
+        ejemplos=[("elimina el proyecto Escuelas", {"proyecto": "Escuelas"})],
+        resolver=_resolver_eliminar_proyecto,
+        ejecutar=_ejecutar_eliminar_proyecto,
+    ),
+    "eliminar_reunion": ToolSpec(
+        nombre="eliminar_reunion",
+        descripcion="Eliminar (cancelar) una reunión que ya existe — acción irreversible. Requiere ser dirección/líder del proyecto o el organizador.",
+        parametros_llm={
+            "reunion": "título de la reunión a eliminar, tal como se mencionó",
+            "proyecto": "nombre del proyecto si se mencionó, si no dejar vacío",
+        },
+        ejemplos=[("cancela la reunión de revisión de avances", {"reunion": "revisión de avances", "proyecto": ""})],
+        resolver=_resolver_eliminar_reunion,
+        ejecutar=_ejecutar_eliminar_reunion,
+    ),
+    "eliminar_acuerdo": ToolSpec(
+        nombre="eliminar_acuerdo",
+        descripcion="Eliminar un acuerdo de la minuta de una reunión — acción irreversible.",
+        parametros_llm={
+            "reunion": "título de la reunión cuya minuta tiene el acuerdo",
+            "acuerdo": "descripción del acuerdo a eliminar, tal como se mencionó",
+            "proyecto": "nombre del proyecto si se mencionó, si no dejar vacío",
+        },
+        ejemplos=[
+            (
+                "elimina el acuerdo de enviar el reporte final de la reunión de revisión de presupuesto",
+                {"reunion": "revisión de presupuesto", "acuerdo": "enviar el reporte final", "proyecto": ""},
+            ),
+        ],
+        resolver=_resolver_eliminar_acuerdo,
+        ejecutar=_ejecutar_eliminar_acuerdo,
+    ),
+    "convertir_acuerdo_a_entregable": ToolSpec(
+        nombre="convertir_acuerdo_a_entregable",
+        descripcion="Convertir un acuerdo ya registrado en una minuta en un Entregable real, con fecha límite.",
+        parametros_llm={
+            "reunion": "título de la reunión cuya minuta tiene el acuerdo",
+            "acuerdo": "descripción del acuerdo a convertir, tal como se mencionó",
+            "responsable": "nombre de quien será responsable del entregable, solo si el acuerdo no tiene ya uno; si no, vacío",
+            "fecha_entrega": "fecha límite tal como se dijo (ej. 'el viernes', 'en dos semanas')",
+            "proyecto": "nombre del proyecto si se mencionó, si no dejar vacío",
+            "sensible": "true o false, si se dijo que es sensible/confidencial (default false)",
+        },
+        ejemplos=[
+            (
+                "convierte el acuerdo de enviar el reporte final en un entregable para el viernes",
+                {
+                    "reunion": "",
+                    "acuerdo": "enviar el reporte final",
+                    "responsable": "",
+                    "fecha_entrega": "el viernes",
+                    "proyecto": "",
+                    "sensible": False,
+                },
+            ),
+        ],
+        resolver=_resolver_convertir_acuerdo,
+        ejecutar=_ejecutar_convertir_acuerdo,
+    ),
+    "agregar_a_mi_equipo": ToolSpec(
+        nombre="agregar_a_mi_equipo",
+        descripcion=(
+            "Guardar a una persona en la plantilla personal 'Mi equipo' del usuario (para aplicarla "
+            "después de un clic a cualquier proyecto) — NO agrega a ningún proyecto todavía."
+        ),
+        parametros_llm={
+            "persona": "nombre de la persona a guardar, tal como se mencionó",
+            "rol": "rol con el que se guarda (dirección, líder, colaborador interno, colaborador externo, N1-N4)",
+        },
+        ejemplos=[
+            ("guarda a Sofía en mi equipo como colaboradora", {"persona": "Sofía", "rol": "colaboradora interna"}),
+        ],
+        resolver=_resolver_agregar_a_mi_equipo,
+        ejecutar=_ejecutar_agregar_a_mi_equipo,
+    ),
+    "quitar_de_mi_equipo": ToolSpec(
+        nombre="quitar_de_mi_equipo",
+        descripcion="Quitar a una persona de la plantilla personal 'Mi equipo' del usuario — no la quita de ningún proyecto donde ya participe.",
+        parametros_llm={"persona": "nombre de la persona a quitar, tal como se mencionó"},
+        ejemplos=[("quita a Roberto de mi equipo guardado", {"persona": "Roberto"})],
+        resolver=_resolver_quitar_de_mi_equipo,
+        ejecutar=_ejecutar_quitar_de_mi_equipo,
+    ),
+    "aplicar_mi_equipo": ToolSpec(
+        nombre="aplicar_mi_equipo",
+        descripcion="Aplicar la plantilla personal 'Mi equipo' completa a un proyecto de un clic (asigna a todas las personas guardadas con su rol). Requiere ser dirección o líder del proyecto.",
+        parametros_llm={"proyecto": "nombre del proyecto al que aplicar el equipo guardado, tal como se mencionó"},
+        ejemplos=[("aplica mi equipo al proyecto Cubo", {"proyecto": "Cubo"})],
+        resolver=_resolver_aplicar_mi_equipo,
+        ejecutar=_ejecutar_aplicar_mi_equipo,
     ),
     "consultar_agenda": ToolSpec(
         nombre="consultar_agenda",

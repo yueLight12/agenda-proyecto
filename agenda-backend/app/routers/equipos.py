@@ -7,7 +7,7 @@ Ver app/models/equipo_miembro.py para el modelo (no está ligado a ningún
 proyecto en particular). Aplicar la plantilla a un proyecto sí reutiliza la
 tabla usuario_proyecto_rol de siempre — no crea una regla de permisos nueva.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -15,7 +15,11 @@ from app.dependencies import obtener_usuario_actual
 from app.models.equipo_miembro import EquipoMiembro
 from app.models.usuario import Usuario
 from app.schemas.equipo import EquipoMiembroCrear, EquipoMiembroOut
-from app.services.equipos import aplicar_mi_equipo as aplicar_mi_equipo_servicio
+from app.services.equipos import (
+    agregar_a_mi_equipo as agregar_a_mi_equipo_servicio,
+    aplicar_mi_equipo as aplicar_mi_equipo_servicio,
+    quitar_de_mi_equipo as quitar_de_mi_equipo_servicio,
+)
 
 router = APIRouter(tags=["Mi equipo"])
 
@@ -47,33 +51,9 @@ def agregar_a_mi_equipo(
     usuario: Usuario = Depends(obtener_usuario_actual),
 ):
     """Agrega (o reasigna el rol de) una persona en tu equipo guardado."""
-    if datos.usuario_id == usuario.id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No puedes agregarte a ti mismo a tu propio equipo",
-        )
-
-    existente = (
-        db.query(EquipoMiembro)
-        .filter(
-            EquipoMiembro.propietario_id == usuario.id,
-            EquipoMiembro.usuario_id == datos.usuario_id,
-        )
-        .first()
-    )
-    if existente:
-        existente.rol = datos.rol
-        db.commit()
-        db.refresh(existente)
-        registro = existente
-    else:
-        registro = EquipoMiembro(
-            propietario_id=usuario.id, usuario_id=datos.usuario_id, rol=datos.rol
-        )
-        db.add(registro)
-        db.commit()
-        db.refresh(registro)
-
+    registro = agregar_a_mi_equipo_servicio(db, usuario, datos.usuario_id, datos.rol)
+    db.commit()
+    db.refresh(registro)
     return _a_out(registro)
 
 
@@ -83,18 +63,7 @@ def quitar_de_mi_equipo(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(obtener_usuario_actual),
 ):
-    registro = (
-        db.query(EquipoMiembro)
-        .filter(
-            EquipoMiembro.propietario_id == usuario.id,
-            EquipoMiembro.usuario_id == usuario_id,
-        )
-        .first()
-    )
-    if not registro:
-        raise HTTPException(status_code=404, detail="Ese usuario no está en tu equipo guardado")
-
-    db.delete(registro)
+    quitar_de_mi_equipo_servicio(db, usuario, usuario_id)
     db.commit()
 
 
