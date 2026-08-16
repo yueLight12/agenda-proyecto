@@ -123,6 +123,25 @@ def resolver_proyecto(
         candidatos = [p for p in proyectos if normalizado in _normalizar(p.nombre)]
         if len(candidatos) == 1:
             return ResolucionResultado(resuelto=True, valor=candidatos[0].id)
+        if len(candidatos) > 1:
+            return ResolucionResultado(
+                resuelto=False,
+                pregunta=f'Encontré varios proyectos parecidos a "{texto}", ¿cuál es?',
+                tipo_entrada="opciones",
+                opciones=[OpcionResolucion(p.id, p.nombre) for p in candidatos],
+            )
+        # Cero candidatos por substring -- probar coincidencia difusa antes
+        # de rendirse, mismo motivo que con nombres de personas: Whisper
+        # puede transcribir mal una palabra del nombre del proyecto (ej.
+        # "agenda" como "agente").
+        cercanos = _candidatos_por_similitud(texto, proyectos)
+        if cercanos:
+            return ResolucionResultado(
+                resuelto=False,
+                pregunta=f'No encontré exactamente "{texto}", ¿te refieres a alguno de estos?',
+                tipo_entrada="opciones",
+                opciones=[OpcionResolucion(p.id, p.nombre) for p in cercanos],
+            )
 
     if len(proyectos) == 1:
         return ResolucionResultado(resuelto=True, valor=proyectos[0].id)

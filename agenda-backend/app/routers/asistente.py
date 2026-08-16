@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import obtener_usuario_actual
+from app.models.proyecto import Proyecto
 from app.models.usuario import Usuario
 from app.schemas.asistente import (
     AccionPendienteOut,
@@ -36,20 +37,37 @@ from app.services.asistente.whisper_client import transcribir as transcribir_aud
 router = APIRouter(prefix="/asistente", tags=["Asistente de voz"])
 
 
+_VOCABULARIO_DOMINIO = (
+    "agenda, entregable, entregables, proyecto, proyectos, reunión, minuta, "
+    "acuerdo, colaborador, colaboradora, líder, dirección, avance"
+)
+
+
 def _prompt_nombres_conocidos(db: Session) -> str:
     """Arma el `initial_prompt` que se le pasa a Whisper con los nombres
-    reales de todos los usuarios del sistema, para que la transcripción
-    reconozca nombres cortos o poco comunes (ej. "Jasso") en vez de
-    alucinar un nombre completo no relacionado. Se usan todos los usuarios,
-    no solo los visibles para quien graba, porque el asistente necesita
-    poder agregar a alguien que todavía no participa en ningún proyecto
-    compartido con quien habla (ver agregar_miembro en tools.py) — esto
-    nunca sale de este proceso local, solo se manda al contenedor de
-    Whisper que corre en la misma Pi."""
+    reales de todos los usuarios y proyectos del sistema, más un puñado de
+    palabras propias del dominio de la app, para que la transcripción
+    reconozca nombres cortos o poco comunes (ej. "Jasso") y no confunda
+    palabras parecidas del vocabulario típico (ej. "agenda" transcrito como
+    "agente"). Se usan todos los usuarios y proyectos, no solo los visibles
+    para quien graba, porque el asistente necesita poder agregar a alguien
+    que todavía no participa en ningún proyecto compartido con quien habla
+    (ver agregar_miembro en tools.py) — esto nunca sale de este proceso
+    local, solo se manda al contenedor de Whisper que corre en la misma Pi.
+
+    Nota: esto solo reduce el error de transcripción de palabras que YA
+    existen (nombres, proyectos existentes). Para un proyecto/entregable
+    nuevo que se está creando, el texto transcrito se vuelve el nombre
+    guardado tal cual — no hay nada contra qué comparar todavía, así que la
+    vista previa de confirmación sigue siendo la última línea de defensa."""
     nombres = [u.nombre for u in db.query(Usuario).all()]
-    if not nombres:
-        return ""
-    return "Nombres de personas mencionadas: " + ", ".join(nombres) + "."
+    proyectos = [p.nombre for p in db.query(Proyecto).all()]
+    partes = [f"Vocabulario de la aplicación: {_VOCABULARIO_DOMINIO}."]
+    if nombres:
+        partes.append("Nombres de personas mencionadas: " + ", ".join(nombres) + ".")
+    if proyectos:
+        partes.append("Nombres de proyectos mencionados: " + ", ".join(proyectos) + ".")
+    return " ".join(partes)
 
 
 @router.post("/transcribir", response_model=TranscribirResponse)
