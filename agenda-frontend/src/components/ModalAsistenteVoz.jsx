@@ -1,7 +1,12 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { asistenteApi } from "../api/endpoints";
 import useGrabadorAudio from "../hooks/useGrabadorAudio";
+import useSintesisVoz from "../hooks/useSintesisVoz";
+import { useModoVoz } from "../hooks/useModoVoz";
+import { clasificarIntencionVoz } from "../utils/intencionVoz";
+import { desbloquearAudio, reproducirBeep } from "../utils/sonidoBeep";
 import VistaPreviaAccion from "./asistente/VistaPreviaAccion";
+import TextoAsistente from "./asistente/TextoAsistente";
 import Modal from "./Modal";
 
 const FASES = {
@@ -14,6 +19,8 @@ const FASES = {
   RESULTADO: "resultado",
   ERROR: "error",
 };
+
+const LIMITE_REINTENTOS_CONFIRMACION = 2;
 
 export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
   const { error: errorMic, iniciar, detener } = useGrabadorAudio();
@@ -45,6 +52,33 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
   // de un render anterior — el ref siempre tiene el valor real y actual.
   const mensajesRef = useRef([]);
 
+  // Voz de salida (texto-a-voz) + modo manos-libres: lee el mensaje de cada
+  // fase y, si modoVoz está activo, escucha la respuesta automáticamente al
+  // terminar de hablar. ultimoTextoLeidoRef evita releer el mismo mensaje en
+  // cada re-render; reintentosRef limita cuántas veces se vuelve a preguntar
+  // "¿confirmas o cancelas?" antes de dejar solo los botones como salida.
+  const { soportado: vozSoportada, hablar, detener: detenerVoz, desbloquear: desbloquearVoz } = useSintesisVoz();
+  const { modoVoz, alternarModoVoz } = useModoVoz();
+  const modoVozRef = useRef(modoVoz);
+  const ultimoTextoLeidoRef = useRef("");
+  const reintentosRef = useRef(0);
+  const audioDesbloqueadoRef = useRef(false);
+
+  useEffect(() => {
+    modoVozRef.current = modoVoz;
+  }, [modoVoz]);
+
+  // Chrome/Safari en móvil solo dejan "arrancar" audio (síntesis de voz o el
+  // beep de Web Audio) dentro de un gesto de usuario síncrono — se llama una
+  // sola vez, en el primer clic real dentro del modal, antes de que el modo
+  // manos-libres intente reproducir nada por su cuenta de forma asíncrona.
+  const desbloquearInteraccion = () => {
+    if (audioDesbloqueadoRef.current) return;
+    audioDesbloqueadoRef.current = true;
+    desbloquearAudio();
+    desbloquearVoz();
+  };
+
   const reiniciar = () => {
     setFase(FASES.INICIO);
     setTextoManual("");
@@ -60,6 +94,9 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
     setProyectoIdContextoActivo(proyectoIdContexto || null);
     setMensajesAcumulados([]);
     mensajesRef.current = [];
+    detenerVoz();
+    ultimoTextoLeidoRef.current = "";
+    reintentosRef.current = 0;
   };
 
   const manejarInterpretar = async (payload) => {
@@ -82,7 +119,7 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
         });
         setFase(FASES.ACLARANDO);
       } else if (resp.tipo === "respuesta") {
-        await avanzarOTerminar(resp.mensaje, resp.acciones_pendientes || []);
+        await avanzarOTerminar(resp.mensaje, resp.acciones_pendientes || [], undefined, "respuesta");
       } else {
         setMensaje(resp.mensaje || "No entendí bien esa instrucción.");
         setFase(FASES.ERROR);
@@ -97,7 +134,7 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
   // instrucción compuesta, sigue automáticamente con la próxima en vez de
   // terminar aquí. `idProyectoNuevo` es el id devuelto por crear_proyecto,
   // si esta acción era esa.
-  const avanzarOTerminar = async (mensajeAccion, colaRestante, idProyectoNuevo) => {
+  const avanzarOTerminar = async (mensajeAccion, colaRestante, idProyectoNuevo, tipoOrigen = "accion") => {
     mensajesRef.current = [...mensajesRef.current, mensajeAccion];
     setMensajesAcumulados(mensajesRef.current);
 
@@ -119,7 +156,7 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
     }
 
     setRespuestaTexto(mensajesRef.current.join(" "));
-    setTipoResultado("accion");
+    setTipoResultado(tipoOrigen);
     setFase(FASES.RESULTADO);
   };
 
@@ -132,6 +169,12 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
   // instrucción inicial, responderAclaracion() para responder por voz una
   // pregunta de aclaración — mismo mecanismo de grabación en ambos casos.
   const grabar = async (alTranscribir) => {
+    if (fase === FASES.GRABANDO || fase === FASES.PROCESANDO) return;
+    // Se guarda para poder volver exactamente a esta fase (con su propuesta/
+    // aclaración/error intactos) si falla el permiso de micrófono — antes
+    // solo contemplaba ACLARANDO/INICIO; con el modo manos-libres, grabar()
+    // también se dispara automáticamente desde CONFIRMANDO y ERROR.
+    const faseOrigen = fase;
     try {
       setFase(FASES.GRABANDO);
       const blob = await iniciar();
@@ -148,9 +191,7 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
         setMensaje("No se pudo procesar el audio. Intenta de nuevo.");
         setFase(FASES.ERROR);
       } else {
-        // Vuelve a la pregunta de aclaración en vez de reiniciar todo, si
-        // fue ahí donde se intentó grabar (aclaracionActual sigue en pie).
-        setFase(aclaracionActual ? FASES.ACLARANDO : FASES.INICIO);
+        setFase(faseOrigen);
       }
     }
   };
@@ -187,9 +228,106 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
     reiniciar();
   };
 
+  // Suena un beep breve (señal de "ya puedes hablar") y arranca a grabar,
+  // sin que el usuario toque nada — usado por el modo manos-libres.
+  const escucharConVoz = async (alTranscribir) => {
+    await reproducirBeep();
+    grabar(alTranscribir);
+  };
+
+  const manejarTranscripcionConfirmacion = (texto) => {
+    const intencion = clasificarIntencionVoz(texto);
+    if (intencion === "confirmar") return confirmar();
+    if (intencion === "cancelar") return cancelar();
+    reintentosRef.current += 1;
+    if (reintentosRef.current > LIMITE_REINTENTOS_CONFIRMACION) {
+      hablar("Puedes usar los botones para confirmar o cancelar.");
+      return;
+    }
+    const textoReintento =
+      intencion === "repetir" ? propuesta.resumen : "No entendí si confirmas o cancelas. Dilo de nuevo o usa los botones.";
+    hablar(textoReintento, { onFin: () => escucharConVoz(manejarTranscripcionConfirmacion) });
+  };
+
+  const manejarRespuestaError = (texto) => {
+    const intencion = clasificarIntencionVoz(texto);
+    if (intencion === "cancelar") return reiniciar();
+    if (aclaracionActual) return responderAclaracion(texto);
+    if (intencion === "repetir") {
+      hablar("Dime de nuevo tu instrucción.", { onFin: () => escucharConVoz(enviarTexto) });
+      return;
+    }
+    return enviarTexto(texto);
+  };
+
+  // Corta cualquier lectura en curso al entrar a una fase sin mensaje que
+  // leer (grabando/procesando/ejecutando) — cubre tanto el caso de que el
+  // usuario grabe manualmente mientras el asistente habla, como el de que
+  // una acción se ejecute justo después de leer el resumen.
+  useEffect(() => {
+    if ([FASES.GRABANDO, FASES.PROCESANDO, FASES.EJECUTANDO].includes(fase)) {
+      detenerVoz();
+    }
+  }, [fase]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Lee en voz alta el mensaje de la fase actual (pregunta de aclaración,
+  // resumen a confirmar, error, o resultado) y, si el modo manos-libres está
+  // activo, escucha automáticamente la respuesta al terminar de hablar.
+  useEffect(() => {
+    let texto = "";
+    if (fase === FASES.ACLARANDO && aclaracionActual) {
+      texto = aclaracionActual.pregunta;
+      if (aclaracionActual.tipo_entrada === "opciones" && aclaracionActual.opciones?.length) {
+        texto += " Opciones: " + aclaracionActual.opciones.map((op) => op.etiqueta).join(", ");
+      }
+    } else if (fase === FASES.CONFIRMANDO && propuesta) {
+      texto = propuesta.resumen;
+    } else if (fase === FASES.ERROR) {
+      texto = mensaje;
+    } else if (fase === FASES.RESULTADO) {
+      texto = mensajesAcumulados.length > 1 ? mensajesAcumulados.join(". ") : respuestaTexto;
+    }
+
+    if (!texto || texto === ultimoTextoLeidoRef.current) return;
+    ultimoTextoLeidoRef.current = texto;
+    reintentosRef.current = 0;
+
+    const faseAlHablar = fase;
+    const aclaracionAlHablar = aclaracionActual;
+    hablar(texto, {
+      onFin: () => {
+        if (!modoVozRef.current) return;
+        if (faseAlHablar === FASES.CONFIRMANDO) {
+          escucharConVoz(manejarTranscripcionConfirmacion);
+        } else if (faseAlHablar === FASES.ERROR) {
+          escucharConVoz(manejarRespuestaError);
+        } else if (faseAlHablar === FASES.ACLARANDO && aclaracionAlHablar?.tipo_entrada !== "opciones") {
+          escucharConVoz(responderAclaracion);
+        }
+      },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fase, aclaracionActual, propuesta, mensaje, respuestaTexto, mensajesAcumulados]);
+
   return (
     <Modal titulo="Asistente de voz" onCerrar={onCerrar}>
       <div className="stack">
+        {vozSoportada && (
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button
+              className="btn btn--ghost"
+              type="button"
+              style={{ fontSize: "0.8rem" }}
+              onClick={() => {
+                desbloquearInteraccion();
+                if (modoVoz) detenerVoz();
+                alternarModoVoz();
+              }}
+            >
+              {modoVoz ? "🔊 Voz activada" : "🔇 Voz desactivada"}
+            </button>
+          </div>
+        )}
         {fase === FASES.INICIO && (
           <div className="stack">
             <p style={{ color: "var(--color-text-muted)", fontSize: "0.9rem" }}>
@@ -198,7 +336,14 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
               avance del proyecto Cubo?".
             </p>
             {errorMic && <p className="error-text">{errorMic}</p>}
-            <button className="btn btn--primary" type="button" onClick={() => grabar(enviarTexto)}>
+            <button
+              className="btn btn--primary"
+              type="button"
+              onClick={() => {
+                desbloquearInteraccion();
+                grabar(enviarTexto);
+              }}
+            >
               🎙️ Grabar
             </button>
             <div className="stack" style={{ gap: 4 }}>
@@ -209,9 +354,21 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
                   value={textoManual}
                   onChange={(e) => setTextoManual(e.target.value)}
                   placeholder="Escribe aquí..."
-                  onKeyDown={(e) => e.key === "Enter" && enviarTexto(textoManual)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      desbloquearInteraccion();
+                      enviarTexto(textoManual);
+                    }
+                  }}
                 />
-                <button className="btn btn--ghost" type="button" onClick={() => enviarTexto(textoManual)}>
+                <button
+                  className="btn btn--ghost"
+                  type="button"
+                  onClick={() => {
+                    desbloquearInteraccion();
+                    enviarTexto(textoManual);
+                  }}
+                >
                   Enviar
                 </button>
               </div>
@@ -268,7 +425,7 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
         {fase === FASES.CONFIRMANDO && propuesta && (
           <div className="stack">
             <VistaPreviaAccion preview={propuesta.preview} />
-            <p>{propuesta.resumen}</p>
+            <TextoAsistente texto={propuesta.resumen} />
             {accionesPendientes.length > 0 && (
               <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
                 + {accionesPendientes.length} acción{accionesPendientes.length === 1 ? "" : "es"} más después de esta
@@ -296,7 +453,10 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
                 ))}
               </ul>
             ) : (
-              <p>{tipoResultado === "respuesta" ? "💬" : "✅"} {respuestaTexto}</p>
+              <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                <span>{tipoResultado === "respuesta" ? "💬" : "✅"}</span>
+                <TextoAsistente texto={respuestaTexto} />
+              </div>
             )}
             <button className="btn btn--ghost" type="button" onClick={reiniciar}>
               Hacer otra cosa
@@ -306,7 +466,7 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
 
         {fase === FASES.ERROR && (
           <div className="stack">
-            <p className="error-text">{mensaje}</p>
+            <TextoAsistente texto={mensaje} className="error-text" />
             <button
               className="btn btn--ghost"
               type="button"
