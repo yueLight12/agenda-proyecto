@@ -26,6 +26,14 @@ export default function useSintesisVoz() {
   // A MEDIO HABLAR (o antes de arrancar), y el audio simplemente no se
   // escucha, sin ningún error — este ref lo mantiene vivo mientras dura.
   const utteranceActualRef = useRef(null);
+  // Otro bug real de Chrome: llamar speak() INMEDIATAMENTE después de
+  // cancel() a veces se pierde en silencio (carrera interna del navegador,
+  // muy reportada) — hablar() siempre cancela primero (incluso la primera
+  // vez, cuando no hay nada que cancelar), así que sin un margen entre
+  // ambos, la voz podía no sonar NUNCA, no solo en llamadas repetidas. El
+  // token invalida un speak() pendiente si se pide hablar otra cosa antes
+  // de que llegue a ejecutarse.
+  const tokenRef = useRef(0);
 
   useEffect(() => {
     if (!soportado) return;
@@ -41,6 +49,9 @@ export default function useSintesisVoz() {
 
   const hablar = useCallback((textoOriginal, { onFin, onError } = {}) => {
     const texto = limpiarParaVoz(textoOriginal);
+    tokenRef.current += 1;
+    const miToken = tokenRef.current;
+
     if (!texto) {
       onFin?.();
       return;
@@ -53,30 +64,36 @@ export default function useSintesisVoz() {
     suprimirCallbackRef.current = false;
     window.speechSynthesis.cancel();
 
-    const utterance = new SpeechSynthesisUtterance(texto);
-    utterance.lang = "es-MX";
-    const voz = elegirVoz();
-    if (voz) utterance.voice = voz;
+    setTimeout(() => {
+      if (tokenRef.current !== miToken) return; // se pidió hablar otra cosa mientras esperábamos
 
-    utterance.onend = () => {
-      if (utteranceActualRef.current === utterance) utteranceActualRef.current = null;
-      if (suprimirCallbackRef.current) return;
-      onFin?.();
-    };
-    utterance.onerror = (e) => {
-      if (utteranceActualRef.current === utterance) utteranceActualRef.current = null;
-      if (suprimirCallbackRef.current) return;
-      if (e.error === "canceled" || e.error === "interrupted") return;
-      onError?.(e);
-      onFin?.();
-    };
+      const utterance = new SpeechSynthesisUtterance(texto);
+      utterance.lang = "es-MX";
+      const voz = elegirVoz();
+      if (voz) utterance.voice = voz;
 
-    utteranceActualRef.current = utterance;
-    window.speechSynthesis.speak(utterance);
+      utterance.onend = () => {
+        if (utteranceActualRef.current === utterance) utteranceActualRef.current = null;
+        if (suprimirCallbackRef.current) return;
+        onFin?.();
+      };
+      utterance.onerror = (e) => {
+        if (utteranceActualRef.current === utterance) utteranceActualRef.current = null;
+        if (suprimirCallbackRef.current) return;
+        if (e.error === "canceled" || e.error === "interrupted") return;
+        onError?.(e);
+        onFin?.();
+      };
+
+      utteranceActualRef.current = utterance;
+      window.speechSynthesis.resume();
+      window.speechSynthesis.speak(utterance);
+    }, 150);
   }, []);
 
   const detener = useCallback(() => {
     if (!soportado) return;
+    tokenRef.current += 1; // invalida cualquier speak() pendiente en su setTimeout
     suprimirCallbackRef.current = true;
     window.speechSynthesis.cancel();
   }, []);
