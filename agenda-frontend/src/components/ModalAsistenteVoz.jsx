@@ -61,6 +61,14 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
   const { modoVoz, alternarModoVoz } = useModoVoz();
   const modoVozRef = useRef(modoVoz);
   const ultimoTextoLeidoRef = useRef("");
+  // Recuerda en qué fase se leyó el último mensaje: si el texto de un nuevo
+  // error/resumen es IDÉNTICO al anterior (ej. "No entendí bien esa
+  // instrucción." dos veces seguidas), la comparación por texto sola no
+  // distingue "es el mismo render repitiéndose" de "es un segundo intento
+  // real que dio el mismo mensaje" — por eso también se compara si de
+  // verdad se volvió a ENTRAR a la fase (pasando por otra fase en medio,
+  // como PROCESANDO), no solo si el texto cambió.
+  const ultimaFaseHabladaRef = useRef(null);
   const reintentosRef = useRef(0);
   const audioDesbloqueadoRef = useRef(false);
 
@@ -96,6 +104,7 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
     mensajesRef.current = [];
     detenerVoz();
     ultimoTextoLeidoRef.current = "";
+    ultimaFaseHabladaRef.current = null;
     reintentosRef.current = 0;
   };
 
@@ -288,7 +297,16 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
       texto = mensajesAcumulados.length > 1 ? mensajesAcumulados.join(". ") : respuestaTexto;
     }
 
-    if (!texto || texto === ultimoTextoLeidoRef.current) return;
+    // Si de verdad se acaba de ENTRAR a esta fase (pasando por otra fase en
+    // medio, ej. PROCESANDO), es un evento nuevo y se habla aunque el texto
+    // coincida con el de la vez anterior. Si la fase no cambió, solo se
+    // dedupea por texto (protege contra re-renders/StrictMode repitiendo
+    // el mismo mensaje sin ningún evento nuevo real).
+    const esEntradaNueva = fase !== ultimaFaseHabladaRef.current;
+    ultimaFaseHabladaRef.current = fase;
+
+    if (!texto) return;
+    if (!esEntradaNueva && texto === ultimoTextoLeidoRef.current) return;
     ultimoTextoLeidoRef.current = texto;
     reintentosRef.current = 0;
 
