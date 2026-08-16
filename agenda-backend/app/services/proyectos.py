@@ -49,7 +49,16 @@ def crear_proyecto(db: Session, usuario: Usuario, nombre: str, descripcion: str 
     """Cualquier usuario autenticado puede crear un proyecto. Por default
     queda como N1 (dirección) de él -- salvo que alguien más ya lo tenga
     guardado en su plantilla de "mi equipo", en cuyo caso hereda ese rol y
-    ese supervisor (ver rol_default_para_nuevo_proyecto)."""
+    ese supervisor (ver rol_default_para_nuevo_proyecto).
+
+    Si hereda N3/N4 (tiene supervisor), ese supervisor se agrega también al
+    proyecto como N2 -- si no, el creador queda sin nadie con permiso para
+    terminar de organizar su propio equipo recién creado (asignar roles
+    requiere N1/N2), y cualquier instrucción compuesta tipo "crea el
+    proyecto y pon a Fulano de líder" se rompería justo ahí. Refleja la
+    jerarquía real: quien supervisa a alguien en la organización queda como
+    líder de los proyectos que esa persona crea, salvo que se reasigne
+    después."""
     nuevo = Proyecto(nombre=nombre, descripcion=descripcion)
     db.add(nuevo)
     db.flush()
@@ -60,6 +69,12 @@ def crear_proyecto(db: Session, usuario: Usuario, nombre: str, descripcion: str 
             usuario_id=usuario.id, proyecto_id=nuevo.id, rol=rol, supervisor_id=supervisor_id
         )
     )
+    if supervisor_id is not None:
+        db.add(
+            UsuarioProyectoRol(
+                usuario_id=supervisor_id, proyecto_id=nuevo.id, rol=RolEnum.N2, supervisor_id=None
+            )
+        )
     return nuevo
 
 

@@ -259,19 +259,28 @@ def _resolver_crear_proyecto(
         )
 
     parametros = {"nombre": nombre, "descripcion": parametros_llm.get("descripcion") or None}
-    rol, _ = rol_default_para_nuevo_proyecto(db, usuario)
+    rol, supervisor_id = rol_default_para_nuevo_proyecto(db, usuario)
+    equipo = [{"usuario_id": usuario.id, "nombre": usuario.nombre, "rol": rol.value}]
     if rol == RolEnum.N1:
         resumen = f'Voy a crear el proyecto "{nombre}". Quedarás como dirección. ¿Confirmas?'
     else:
-        resumen = (
-            f'Voy a crear el proyecto "{nombre}". Quedarás como {rol.value} '
-            "(según tu equipo guardado). ¿Confirmas?"
-        )
+        supervisor = db.query(Usuario).filter(Usuario.id == supervisor_id).first() if supervisor_id else None
+        if supervisor:
+            equipo.append({"usuario_id": supervisor.id, "nombre": supervisor.nombre, "rol": RolEnum.N2.value})
+            resumen = (
+                f'Voy a crear el proyecto "{nombre}". Quedarás como {rol.value} y {supervisor.nombre} '
+                f"como {RolEnum.N2.value} (tu supervisor). ¿Confirmas?"
+            )
+        else:
+            resumen = (
+                f'Voy a crear el proyecto "{nombre}". Quedarás como {rol.value} '
+                "(según tu equipo guardado). ¿Confirmas?"
+            )
     preview = {
         "tipo": "proyecto",
         "nombre": nombre,
         "descripcion": parametros["descripcion"],
-        "equipo": [{"usuario_id": usuario.id, "nombre": usuario.nombre, "rol": rol.value}],
+        "equipo": equipo,
     }
     return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen, preview=preview)
 
