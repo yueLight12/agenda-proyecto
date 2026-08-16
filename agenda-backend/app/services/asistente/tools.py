@@ -397,6 +397,13 @@ def _resolver_asignar_rol(
         resultado_equipo = resolver_persona_en_equipo(db, usuario, proyecto_id, texto)
         if resultado_equipo.resuelto:
             return resultado_equipo
+        # Si no había texto que resolver ("¿Para quién es?") o si sí se
+        # encontraron candidatos ambiguos dentro del equipo (opciones para
+        # desambiguar), no hay nada que "arreglar" buscando en otro lado —
+        # solo se cae al caso "de verdad no está en el equipo" (tipo_entrada
+        # texto, sin opciones), que es cuando vale la pena intentar org-wide.
+        if not texto or resultado_equipo.opciones:
+            return resultado_equipo
         # No está en el equipo visible del proyecto — puede que la persona
         # exista en la organización pero todavía no participe aquí (mismo
         # caso que agregar_miembro). Pedirle al usuario "repite el nombre
@@ -417,7 +424,7 @@ def _resolver_asignar_rol(
                 "pueden agregar o reasignar gente aquí. Pide a alguien con ese rol que lo haga.",
                 tipo_entrada="texto",
             )
-        return resolver_persona_organizacion(db, texto)
+        return resolver_persona_organizacion(db, texto, usuario)
 
     persona_res = resolver_campo(
         "usuario_id", aclaraciones, parametros_llm.get("persona"),
@@ -505,7 +512,7 @@ def _resolver_agregar_miembro(
 
     persona_res = resolver_campo(
         "usuario_id", aclaraciones, parametros_llm.get("persona"),
-        lambda t: resolver_persona_organizacion(db, t),
+        lambda t: resolver_persona_organizacion(db, t, usuario),
     )
     if not persona_res.resuelto:
         return _pendiente("usuario_id", persona_res)

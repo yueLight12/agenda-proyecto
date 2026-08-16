@@ -42,6 +42,17 @@ def _normalizar(texto: str) -> str:
     return texto
 
 
+_PALABRAS_AUTORREFERENCIA = {"yo", "yo mismo", "yo misma", "mi", "mí", "a mi", "a mí", "me"}
+
+
+def _es_autoreferencia(texto: str) -> bool:
+    """El LLM a veces manda literal la palabra "yo"/"mi" cuando alguien se
+    refiere a sí mismo ("y yo quedo como colaborador") — buscar eso como si
+    fuera un nombre nunca encuentra a nadie. Se detecta aquí para resolver
+    directo al usuario que está pidiendo la acción, en vez de un dead-end."""
+    return _normalizar(texto) in _PALABRAS_AUTORREFERENCIA
+
+
 def _candidatos_por_similitud(nombre_hablado: str, candidatos: list, cutoff: float = 0.65) -> list:
     """Fallback cuando el match exacto por prefijo de palabra no encuentra a
     nadie: compara lo que se dijo contra el nombre de cada candidato con
@@ -129,6 +140,8 @@ def resolver_persona_en_equipo(
 ) -> ResolucionResultado:
     if not nombre_hablado:
         return ResolucionResultado(resuelto=False, pregunta="¿Para quién es?", tipo_entrada="texto")
+    if _es_autoreferencia(nombre_hablado):
+        return ResolucionResultado(resuelto=True, valor=usuario.id)
 
     equipo = listar_equipo_visible(db, usuario, proyecto_id)
     normalizado = _normalizar(nombre_hablado)
@@ -171,7 +184,9 @@ def resolver_persona_en_equipo(
     )
 
 
-def resolver_persona_organizacion(db: Session, nombre_hablado: Optional[str]) -> ResolucionResultado:
+def resolver_persona_organizacion(
+    db: Session, nombre_hablado: Optional[str], usuario_actor: Optional[Usuario] = None
+) -> ResolucionResultado:
     """Como resolver_persona_en_equipo, pero busca en TODOS los usuarios de la
     organización, no solo en el equipo de un proyecto — es lo que hace falta
     para agregar a alguien que todavía no participa en el proyecto (ver
@@ -180,6 +195,8 @@ def resolver_persona_organizacion(db: Session, nombre_hablado: Optional[str]) ->
     esto, para no exponer el directorio completo a cualquiera."""
     if not nombre_hablado:
         return ResolucionResultado(resuelto=False, pregunta="¿A quién quieres agregar?", tipo_entrada="texto")
+    if usuario_actor and _es_autoreferencia(nombre_hablado):
+        return ResolucionResultado(resuelto=True, valor=usuario_actor.id)
 
     usuarios = db.query(Usuario).all()
     normalizado = _normalizar(nombre_hablado)
