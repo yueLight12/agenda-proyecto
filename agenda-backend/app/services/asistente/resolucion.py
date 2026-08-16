@@ -397,12 +397,16 @@ def resolver_rol(texto: Optional[str]) -> ResolucionResultado:
     )
 
 
-def resolver_personas_en_equipo(
-    db: Session, usuario: Usuario, proyecto_id: int, texto: Optional[str]
+def resolver_personas_organizacion(
+    db: Session, usuario: Usuario, texto: Optional[str]
 ) -> ResolucionResultado:
     """Resuelve varios nombres a la vez (ej. "David y Bernardo"), reutilizando
-    resolver_persona_en_equipo por cada nombre. Texto vacío = sin participantes
-    adicionales (válido, ej. una reunión solo con quien la agenda)."""
+    resolver_persona_organizacion por cada nombre. Texto vacío = sin
+    participantes adicionales (válido, ej. una reunión solo con quien la
+    agenda). Busca en TODA la organización, no solo en el equipo del
+    proyecto -- invitar a alguien a una reunión no requiere que ya
+    participe en el proyecto (crear_reunion no lo exige, ver
+    services/reuniones.py), a diferencia de asignar_rol/agregar_miembro."""
     if not texto:
         return ResolucionResultado(resuelto=True, valor=[])
 
@@ -410,7 +414,7 @@ def resolver_personas_en_equipo(
     ids: list[int] = []
     no_identificados: list[str] = []
     for nombre in nombres:
-        resultado = resolver_persona_en_equipo(db, usuario, proyecto_id, nombre)
+        resultado = resolver_persona_organizacion(db, nombre, usuario)
         if resultado.resuelto:
             ids.append(resultado.valor)
         else:

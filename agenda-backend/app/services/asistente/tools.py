@@ -46,7 +46,7 @@ from app.services.asistente.resolucion import (
     resolver_fecha_hora,
     resolver_persona_en_equipo,
     resolver_persona_organizacion,
-    resolver_personas_en_equipo,
+    resolver_personas_organizacion,
     resolver_proyecto,
     resolver_reunion,
     resolver_rol,
@@ -326,7 +326,7 @@ def _resolver_agendar_reunion(
 
     participantes_res = resolver_campo(
         "participantes_ids", aclaraciones, parametros_llm.get("participantes"),
-        lambda t: resolver_personas_en_equipo(db, usuario, proyecto_id, t),
+        lambda t: resolver_personas_organizacion(db, usuario, t),
     )
     if not participantes_res.resuelto:
         return _pendiente("participantes_ids", participantes_res)
@@ -796,7 +796,7 @@ def _resolver_editar_reunion(
     if parametros_llm.get("participantes") or "participantes_ids" in aclaraciones:
         participantes_res = resolver_campo(
             "participantes_ids", aclaraciones, parametros_llm.get("participantes"),
-            lambda t: resolver_personas_en_equipo(db, usuario, proyecto_id, t),
+            lambda t: resolver_personas_organizacion(db, usuario, t),
         )
         if not participantes_res.resuelto:
             return _pendiente("participantes_ids", participantes_res)
