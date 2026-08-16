@@ -397,8 +397,17 @@ def _resolver_asignar_rol(
         # agregar_miembro, para no exponer el directorio completo a quien
         # no puede agregar gente de todas formas.
         rol_actual = requerir_participacion_en_proyecto(db, usuario, proyecto_id)
-        if rol_actual not in (RolEnum.N1, RolEnum.N2):
-            return resultado_equipo
+        if rol_actual.rol not in (RolEnum.N1, RolEnum.N2):
+            # No se revela si la persona existe o no en la organización —
+            # mismo criterio de privacidad que agregar_miembro — pero el
+            # mensaje debe ser honesto: el problema es de permiso, no de que
+            # el nombre esté mal dicho (repetirlo no serviría de nada).
+            return ResolucionResultado(
+                resuelto=False,
+                pregunta="Esa persona no está en el equipo de este proyecto, y solo dirección o líderes "
+                "pueden agregar o reasignar gente aquí. Pide a alguien con ese rol que lo haga.",
+                tipo_entrada="texto",
+            )
         return resolver_persona_organizacion(db, texto)
 
     persona_res = resolver_campo(
