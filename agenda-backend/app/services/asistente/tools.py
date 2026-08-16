@@ -111,6 +111,26 @@ def _pendiente(campo: str, resolucion) -> ResultadoInterpretacion:
     )
 
 
+# Los campos "rol" dentro de un `preview` estructurado se dejan como código
+# crudo (N1-N4) a propósito -- el frontend ya los traduce con su propio
+# etiquetaRol() (src/utils/rolLabels.js) al pintar la tarjeta, mismo patrón
+# que el resto de la UI. Pero un `resumen`/`mensaje` es una ORACIÓN que se
+# muestra Y se lee en voz alta -- ahí SÍ hace falta la palabra en español,
+# igual que ya se hizo para el resto de los mensajes del asistente (ver
+# CLAUDE.md, "Etiquetas N1-N4 también quitadas de mensajes generados por
+# backend").
+_ETIQUETAS_ROL = {
+    RolEnum.N1: "dirección",
+    RolEnum.N2: "líder",
+    RolEnum.N3: "colaborador interno",
+    RolEnum.N4: "colaborador externo",
+}
+
+
+def _etiqueta_rol(rol: RolEnum) -> str:
+    return _ETIQUETAS_ROL.get(rol, rol.value)
+
+
 @dataclass
 class ToolSpec:
     nombre: str
@@ -487,7 +507,7 @@ def _resolver_asignar_rol(
         "supervisor_id": supervisor_id,
     }
     verbo = "asignar" if ya_en_equipo else "agregar"
-    resumen = f'Voy a {verbo} a {nombre_persona} como {rol_res.valor.value} en este proyecto. ¿Confirmas?'
+    resumen = f'Voy a {verbo} a {nombre_persona} como {_etiqueta_rol(rol_res.valor)} en este proyecto. ¿Confirmas?'
     preview = {
         "tipo": "miembro",
         "usuario_id": persona_res.valor,
@@ -510,7 +530,7 @@ def _ejecutar_asignar_rol(db: Session, usuario: Usuario, parametros: dict) -> di
     )
     db.commit()
     return {
-        "mensaje": f"{resultado.nombre} quedó asignado como {resultado.rol.value} en el proyecto.",
+        "mensaje": f"{resultado.nombre} quedó asignado como {_etiqueta_rol(resultado.rol)} en el proyecto.",
         "resultado": {"usuario_id": resultado.usuario_id, "rol": resultado.rol.value},
     }
 
@@ -569,7 +589,7 @@ def _resolver_agregar_miembro(
         "rol": rol_res.valor.value,
         "supervisor_id": supervisor_id,
     }
-    resumen = f'Voy a agregar a {nombre_persona} al proyecto como {rol_res.valor.value}. ¿Confirmas?'
+    resumen = f'Voy a agregar a {nombre_persona} al proyecto como {_etiqueta_rol(rol_res.valor)}. ¿Confirmas?'
     preview = {
         "tipo": "miembro",
         "usuario_id": persona_res.valor,
@@ -592,7 +612,7 @@ def _ejecutar_agregar_miembro(db: Session, usuario: Usuario, parametros: dict) -
     )
     db.commit()
     return {
-        "mensaje": f"{resultado.nombre} se agregó al proyecto como {resultado.rol.value}.",
+        "mensaje": f"{resultado.nombre} se agregó al proyecto como {_etiqueta_rol(resultado.rol)}.",
         "resultado": {"usuario_id": resultado.usuario_id, "rol": resultado.rol.value},
     }
 
@@ -1380,7 +1400,7 @@ def _resolver_agregar_a_mi_equipo(
     nombre_persona = persona.nombre if persona else "esa persona"
 
     parametros = {"usuario_id": persona_res.valor, "rol": rol_res.valor.value}
-    resumen = f'Voy a guardar a {nombre_persona} en tu equipo, como {rol_res.valor.value}. ¿Confirmas?'
+    resumen = f'Voy a guardar a {nombre_persona} en tu equipo, como {_etiqueta_rol(rol_res.valor)}. ¿Confirmas?'
     preview = {
         "tipo": "miembro",
         "usuario_id": persona_res.valor,
@@ -1397,7 +1417,7 @@ def _ejecutar_agregar_a_mi_equipo(db: Session, usuario: Usuario, parametros: dic
     db.commit()
     db.refresh(registro)
     return {
-        "mensaje": f"{registro.usuario.nombre} se guardó en tu equipo como {registro.rol.value}.",
+        "mensaje": f"{registro.usuario.nombre} se guardó en tu equipo como {_etiqueta_rol(registro.rol)}.",
         "resultado": {"usuario_id": registro.usuario_id, "rol": registro.rol.value},
     }
 
