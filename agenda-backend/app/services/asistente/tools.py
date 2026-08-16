@@ -39,6 +39,7 @@ from app.models.usuario import RolEnum, Usuario
 from app.schemas.nota import NotaCrear
 from app.services.asistente.resolucion import (
     OpcionResolucion,
+    ResolucionResultado,
     resolver_campo,
     resolver_entregable,
     resolver_fecha,
@@ -55,7 +56,7 @@ from app.services.entregables import actualizar_avance, actualizar_entregable, c
 from app.services.equipos import rol_default_para_nuevo_proyecto
 from app.services.minutas import agregar_acuerdo, crear_o_actualizar_minuta
 from app.services.notas import crear_nota
-from app.services.proyectos import actualizar_proyecto, asignar_rol_en_proyecto, crear_proyecto
+from app.services.proyectos import actualizar_proyecto, asignar_rol_en_proyecto, crear_proyecto, listar_equipo_visible
 from app.services.reuniones import actualizar_reunion, crear_reunion
 
 
@@ -383,9 +384,26 @@ def _resolver_asignar_rol(
         return _pendiente("proyecto_id", proyecto_res)
     proyecto_id = proyecto_res.valor
 
+    def _resolver_persona_con_fallback_organizacion(texto: Optional[str]) -> ResolucionResultado:
+        resultado_equipo = resolver_persona_en_equipo(db, usuario, proyecto_id, texto)
+        if resultado_equipo.resuelto:
+            return resultado_equipo
+        # No está en el equipo visible del proyecto — puede que la persona
+        # exista en la organización pero todavía no participe aquí (mismo
+        # caso que agregar_miembro). Pedirle al usuario "repite el nombre
+        # completo" nunca funciona si el nombre ya estaba bien dicho y lo
+        # único que falta es agregarlo, así que se intenta la búsqueda
+        # organización-wide antes de rendirse. Mismo gate de permisos que
+        # agregar_miembro, para no exponer el directorio completo a quien
+        # no puede agregar gente de todas formas.
+        rol_actual = requerir_participacion_en_proyecto(db, usuario, proyecto_id)
+        if rol_actual not in (RolEnum.N1, RolEnum.N2):
+            return resultado_equipo
+        return resolver_persona_organizacion(db, texto)
+
     persona_res = resolver_campo(
         "usuario_id", aclaraciones, parametros_llm.get("persona"),
-        lambda t: resolver_persona_en_equipo(db, usuario, proyecto_id, t),
+        _resolver_persona_con_fallback_organizacion,
     )
     if not persona_res.resuelto:
         return _pendiente("usuario_id", persona_res)
@@ -410,6 +428,7 @@ def _resolver_asignar_rol(
     persona = db.query(Usuario).filter(Usuario.id == persona_res.valor).first()
     nombre_persona = persona.nombre if persona else "esa persona"
     proyecto_obj = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
+    ya_en_equipo = any(m.usuario_id == persona_res.valor for m in listar_equipo_visible(db, usuario, proyecto_id))
 
     parametros = {
         "proyecto_id": proyecto_id,
@@ -417,7 +436,8 @@ def _resolver_asignar_rol(
         "rol": rol_res.valor.value,
         "supervisor_id": supervisor_id,
     }
-    resumen = f'Voy a asignar a {nombre_persona} como {rol_res.valor.value} en este proyecto. ¿Confirmas?'
+    verbo = "asignar" if ya_en_equipo else "agregar"
+    resumen = f'Voy a {verbo} a {nombre_persona} como {rol_res.valor.value} en este proyecto. ¿Confirmas?'
     preview = {
         "tipo": "miembro",
         "usuario_id": persona_res.valor,
