@@ -92,7 +92,8 @@ class MoverItemAgendaRequest(BaseModel):
 
 class AgendaItemOut(BaseModel):
     id: int
-    serie_id: int
+    serie_id: Optional[int] = None
+    reunion_id: Optional[int] = None
     tipo: TipoAgendaItem
     nombre: str  # resuelto: proyecto.nombre / entregable.nombre / acuerdo.descripcion / nota / texto
     detalle: Optional[str] = None

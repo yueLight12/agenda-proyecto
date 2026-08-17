@@ -79,6 +79,9 @@ export const reunionesApi = {
   // A quién se puede invitar -- más permisiva que proyectosApi.equipo, ver
   // services/reuniones.py::listar_invitables_reunion. proyectoId puede
   // omitirse (junta/reunión general).
+  agenda: async (reunionId) => (await api.get(`/reuniones/${reunionId}/agenda`)).data,
+  agregarItemAgenda: async (reunionId, datos) =>
+    (await api.post(`/reuniones/${reunionId}/agenda`, datos)).data,
   invitables: async (proyectoId) =>
     (await api.get("/reuniones/invitables", { params: { proyecto_id: proyectoId } })).data,
 };

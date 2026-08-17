@@ -3,6 +3,7 @@ import { reunionesApi } from "../api/endpoints";
 import { etiquetaRol } from "../utils/rolLabels";
 import ConfirmDialog from "./ConfirmDialog";
 import Modal from "./Modal";
+import SeccionAgendaChecklist from "./SeccionAgendaChecklist";
 import SeccionNotas from "./SeccionNotas";
 
 function aFechaYHora(fechaISO) {
@@ -195,6 +196,8 @@ export default function ModalReunion({
           <SeccionNotas reunionId={reunion.id} temaId={proyectoId} puedeAdministrar={puedeAdministrar} />
         </div>
       )}
+
+      {esEdicion && <SeccionAgendaChecklist reunionId={reunion.id} />}
 
       {confirmandoEliminar && (
         <ConfirmDialog

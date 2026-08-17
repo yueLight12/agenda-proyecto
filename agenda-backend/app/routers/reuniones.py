@@ -21,12 +21,18 @@ from app.models.reunion import Reunion
 from app.models.usuario import Usuario
 from app.schemas.reunion import ReunionActualizar, ReunionCrear, ReunionOut
 from app.schemas.proyecto import MiembroEquipoOut
+from app.schemas.serie_reunion import AgendaItemCrear, AgendaItemOut
 from app.services.reuniones import (
     actualizar_reunion as actualizar_reunion_servicio,
     crear_reunion as crear_reunion_servicio,
     eliminar_reunion as eliminar_reunion_servicio,
     listar_invitables_reunion as listar_invitables_reunion_servicio,
     reunion_a_out,
+)
+from app.services.series_reunion import (
+    agenda_actual_de_reunion,
+    agregar_item_agenda as agregar_item_agenda_servicio,
+    item_a_out,
 )
 
 router = APIRouter(tags=["Reuniones"])
@@ -126,6 +132,50 @@ def obtener_reunion(
     if not puede_ver_reunion(db, usuario, reunion):
         raise HTTPException(status_code=403, detail="No tienes acceso a esta reunión")
     return reunion_a_out(db, usuario, reunion)
+
+
+@router.get("/reuniones/{reunion_id}/agenda", response_model=list[AgendaItemOut])
+def obtener_agenda_reunion(
+    reunion_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Checklist propio de esta reunión suelta -- mismo concepto que la
+    agenda persistente de una junta recurrente (ver
+    /series-reuniones/{serie_id}/agenda), agregado 2026-08-17 para que
+    ambos tipos de reunión funcionen parecido."""
+    return agenda_actual_de_reunion(db, usuario, reunion_id)
+
+
+@router.post(
+    "/reuniones/{reunion_id}/agenda", response_model=AgendaItemOut, status_code=status.HTTP_201_CREATED
+)
+def agregar_item_agenda_reunion(
+    reunion_id: int,
+    datos: AgendaItemCrear,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    item = agregar_item_agenda_servicio(
+        db,
+        usuario,
+        None,
+        datos.tipo,
+        reunion_id=reunion_id,
+        proyecto_id=datos.proyecto_id,
+        entregable_id=datos.entregable_id,
+        acuerdo_id=datos.acuerdo_id,
+        nota_id=datos.nota_id,
+        nota_contenido=datos.nota_contenido,
+        pendiente_id=datos.pendiente_id,
+        pendiente_contenido=datos.pendiente_contenido,
+        texto=datos.texto,
+        detalle=datos.detalle,
+        seccion_proyecto_id=datos.seccion_proyecto_id,
+    )
+    db.commit()
+    db.refresh(item)
+    return item_a_out(item)
 
 
 @router.patch("/reuniones/{reunion_id}", response_model=ReunionOut)

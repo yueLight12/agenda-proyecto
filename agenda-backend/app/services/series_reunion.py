@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.core.permissions import (
     obtener_rol_en_proyecto,
     puede_editar_reunion,
+    puede_ver_reunion,
     query_reuniones_generales_visibles,
     query_reuniones_visibles,
     requerir_participacion_en_proyecto,
@@ -34,6 +35,7 @@ from app.schemas.serie_reunion import (
 )
 from app.services.notas import crear_nota
 from app.services.pendientes import crear_pendiente
+from app.services.reuniones import obtener_reunion_o_404
 
 
 def puede_editar_serie(db: Session, usuario: Usuario, serie: SerieReunion) -> bool:
@@ -79,6 +81,25 @@ def obtener_serie_o_404(db: Session, serie_id: int) -> SerieReunion:
     if not serie:
         raise HTTPException(status_code=404, detail="Serie de reuniones no encontrada")
     return serie
+
+
+def _verificar_puede_editar_item(db: Session, usuario: Usuario, item: AgendaItem) -> None:
+    """Un AgendaItem cuelga de una serie O de una reunión suelta (nunca
+    ambas, ver CheckConstraint en el modelo) -- resuelve cuál es su padre y
+    aplica el mismo criterio de permiso que ya existía por separado en
+    editar/mover/archivar_item_agenda."""
+    if item.serie_id is not None:
+        serie = obtener_serie_o_404(db, item.serie_id)
+        if not puede_editar_serie(db, usuario, serie):
+            raise HTTPException(
+                status_code=403, detail="No tienes permiso para editar la agenda de esta serie"
+            )
+    else:
+        reunion = obtener_reunion_o_404(db, item.reunion_id)
+        if not puede_editar_reunion(db, usuario, reunion):
+            raise HTTPException(
+                status_code=403, detail="No tienes permiso para editar la agenda de esta reunión"
+            )
 
 
 def crear_serie(
@@ -214,6 +235,7 @@ def item_a_out(item: AgendaItem) -> AgendaItemOut:
     return AgendaItemOut(
         id=item.id,
         serie_id=item.serie_id,
+        reunion_id=item.reunion_id,
         tipo=item.tipo,
         nombre=_nombre_agenda_item(item),
         detalle=item.detalle,
@@ -241,11 +263,29 @@ def agenda_actual_de_serie(db: Session, usuario: Usuario, serie_id: int) -> list
     return [item_a_out(i) for i in items]
 
 
+def agenda_actual_de_reunion(db: Session, usuario: Usuario, reunion_id: int) -> list[AgendaItemOut]:
+    """Hermana de agenda_actual_de_serie, para el checklist propio de una
+    reunión suelta -- usa puede_ver_reunion (más estricto que el chequeo
+    laxo que agenda_actual_de_serie ya tenía para series generales; no se
+    toca esa, solo no se repite la misma laxitud aquí)."""
+    reunion = obtener_reunion_o_404(db, reunion_id)
+    if not puede_ver_reunion(db, usuario, reunion):
+        raise HTTPException(status_code=403, detail="No tienes acceso a esta reunión")
+    items = (
+        db.query(AgendaItem)
+        .filter(AgendaItem.reunion_id == reunion_id, AgendaItem.activo.is_(True))
+        .order_by(AgendaItem.orden, AgendaItem.id)
+        .all()
+    )
+    return [item_a_out(i) for i in items]
+
+
 def agregar_item_agenda(
     db: Session,
     usuario: Usuario,
-    serie_id: int,
+    serie_id: int | None,
     tipo: TipoAgendaItem,
+    reunion_id: int | None = None,
     proyecto_id: int | None = None,
     entregable_id: int | None = None,
     acuerdo_id: int | None = None,
@@ -258,11 +298,22 @@ def agregar_item_agenda(
     seccion_proyecto_id: int | None = None,
     creado_en_reunion_id: int | None = None,
 ) -> AgendaItem:
-    serie = obtener_serie_o_404(db, serie_id)
-    if not puede_editar_serie(db, usuario, serie):
-        raise HTTPException(
-            status_code=403, detail="No tienes permiso para editar la agenda de esta serie"
-        )
+    # Exactamente uno de serie_id/reunion_id -- ver
+    # ck_agenda_item_serie_o_reunion en app/models/agenda_item.py.
+    if serie_id is not None:
+        serie = obtener_serie_o_404(db, serie_id)
+        if not puede_editar_serie(db, usuario, serie):
+            raise HTTPException(
+                status_code=403, detail="No tienes permiso para editar la agenda de esta serie"
+            )
+    elif reunion_id is not None:
+        reunion = obtener_reunion_o_404(db, reunion_id)
+        if not puede_editar_reunion(db, usuario, reunion):
+            raise HTTPException(
+                status_code=403, detail="No tienes permiso para editar la agenda de esta reunión"
+            )
+    else:
+        raise HTTPException(status_code=400, detail="Debes indicar serie_id o reunion_id")
 
     # tipo=tema: si no se manda sección explícita, el ítem se agrupa bajo sí
     # mismo (el tema que representa) -- el frontend normalmente ya manda
@@ -306,11 +357,12 @@ def agregar_item_agenda(
 
     max_orden = (
         db.query(AgendaItem)
-        .filter(AgendaItem.serie_id == serie_id)
+        .filter(AgendaItem.serie_id == serie_id, AgendaItem.reunion_id == reunion_id)
         .count()
     )
     item = AgendaItem(
         serie_id=serie_id,
+        reunion_id=reunion_id,
         tipo=tipo,
         proyecto_id=proyecto_id,
         entregable_id=entregable_id,
@@ -340,11 +392,7 @@ def editar_item_agenda(db: Session, usuario: Usuario, item_id: int, campos: dict
     item = db.query(AgendaItem).filter(AgendaItem.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Ítem de agenda no encontrado")
-    serie = obtener_serie_o_404(db, item.serie_id)
-    if not puede_editar_serie(db, usuario, serie):
-        raise HTTPException(
-            status_code=403, detail="No tienes permiso para editar la agenda de esta serie"
-        )
+    _verificar_puede_editar_item(db, usuario, item)
     for campo, valor in campos.items():
         setattr(item, campo, valor)
     return item
@@ -359,11 +407,7 @@ def mover_item_agenda(db: Session, usuario: Usuario, item_id: int, direccion: st
     item = db.query(AgendaItem).filter(AgendaItem.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Ítem de agenda no encontrado")
-    serie = obtener_serie_o_404(db, item.serie_id)
-    if not puede_editar_serie(db, usuario, serie):
-        raise HTTPException(
-            status_code=403, detail="No tienes permiso para editar la agenda de esta serie"
-        )
+    _verificar_puede_editar_item(db, usuario, item)
     if direccion not in ("arriba", "abajo"):
         raise HTTPException(status_code=400, detail="direccion debe ser 'arriba' o 'abajo'")
 
@@ -371,6 +415,7 @@ def mover_item_agenda(db: Session, usuario: Usuario, item_id: int, direccion: st
         db.query(AgendaItem)
         .filter(
             AgendaItem.serie_id == item.serie_id,
+            AgendaItem.reunion_id == item.reunion_id,
             AgendaItem.activo.is_(True),
             AgendaItem.seccion_proyecto_id == item.seccion_proyecto_id,
         )
@@ -393,9 +438,5 @@ def archivar_item_agenda(db: Session, usuario: Usuario, item_id: int) -> None:
     item = db.query(AgendaItem).filter(AgendaItem.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Ítem de agenda no encontrado")
-    serie = obtener_serie_o_404(db, item.serie_id)
-    if not puede_editar_serie(db, usuario, serie):
-        raise HTTPException(
-            status_code=403, detail="No tienes permiso para editar la agenda de esta serie"
-        )
+    _verificar_puede_editar_item(db, usuario, item)
     item.activo = False

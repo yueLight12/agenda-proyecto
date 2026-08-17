@@ -19,7 +19,7 @@ app/services/series_reunion.py.
 import enum
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, CheckConstraint, Column, DateTime, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -43,7 +43,16 @@ class AgendaItem(Base):
     __tablename__ = "agenda_items"
 
     id = Column(Integer, primary_key=True, index=True)
-    serie_id = Column(Integer, ForeignKey("series_reunion.id"), nullable=False)
+    # Exactamente uno de serie_id/reunion_id (ver CheckConstraint abajo):
+    # el checklist puede colgar de una junta RECURRENTE (serie_id, el caso
+    # original) o de una reunión SUELTA (reunion_id, agregado 2026-08-17 a
+    # petición de Yue para que ambos tipos de reunión funcionen parecido).
+    serie_id = Column(Integer, ForeignKey("series_reunion.id"), nullable=True)
+    # CASCADE (a diferencia de creado_en_reunion_id más abajo, que es SET
+    # NULL): un ítem que cuelga de una reunión suelta solo tiene sentido
+    # con ella -- no hay, como con la serie, una bitácora multi-ocurrencia
+    # que preservar si la reunión desaparece.
+    reunion_id = Column(Integer, ForeignKey("reuniones.id", ondelete="CASCADE"), nullable=True)
     tipo = Column(Enum(TipoAgendaItem), nullable=False)
     # Las 4 referencias de abajo usan ON DELETE SET NULL a propósito, única
     # excepción en este repo al patrón usual de "limpiar a mano en cada
@@ -97,6 +106,7 @@ class AgendaItem(Base):
     fecha_creacion = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     serie = relationship("SerieReunion", back_populates="agenda_items")
+    reunion = relationship("Reunion", foreign_keys=[reunion_id], back_populates="agenda_items")
     proyecto = relationship("Proyecto", foreign_keys=[proyecto_id])
     seccion = relationship("Proyecto", foreign_keys=[seccion_proyecto_id])
     entregable = relationship("Entregable")
@@ -106,6 +116,14 @@ class AgendaItem(Base):
     creado_en_reunion = relationship("Reunion", foreign_keys=[creado_en_reunion_id])
     revisiones = relationship(
         "AgendaItemRevision", back_populates="agenda_item", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "(CASE WHEN serie_id IS NOT NULL THEN 1 ELSE 0 END + "
+            "CASE WHEN reunion_id IS NOT NULL THEN 1 ELSE 0 END) = 1",
+            name="ck_agenda_item_serie_o_reunion",
+        ),
     )
 
 

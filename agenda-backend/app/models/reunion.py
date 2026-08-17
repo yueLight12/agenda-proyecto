@@ -62,6 +62,16 @@ class Reunion(Base):
     # formulario de reunión (ModalReunion.jsx) es el Column; esta relación es
     # el hilo de comentarios (SeccionNotas.jsx / tabla `notas`), otra cosa.
     notas_asociadas = relationship("Nota", back_populates="reunion", cascade="all, delete-orphan")
+    # Checklist propio de esta reunión suelta (2026-08-17, ver
+    # app/models/agenda_item.py) -- distinto de `creado_en_reunion_id` en
+    # AgendaItem (esa es solo trazabilidad de dónde surgió un pendiente
+    # dentro de una serie), por eso foreign_keys explícito en ambos lados.
+    agenda_items = relationship(
+        "AgendaItem",
+        foreign_keys="AgendaItem.reunion_id",
+        back_populates="reunion",
+        cascade="all, delete-orphan",
+    )
 
 
 class ReunionParticipante(Base):
