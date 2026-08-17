@@ -31,8 +31,14 @@ class Reunion(Base):
     duracion_minutos = Column(Integer, default=30, nullable=False)
     organizador_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
     fecha_creacion = Column(DateTime, default=datetime.utcnow, nullable=False)
+    # Ocurrencia materializada de una serie recurrente (2026-08-17, ver
+    # app/models/serie_reunion.py) -- None para una reunión suelta, sin
+    # cambio de comportamiento. La agenda persistente/checklist de la serie
+    # se resuelve por este id, no hay nada más que cambie aquí.
+    serie_id = Column(Integer, ForeignKey("series_reunion.id"), nullable=True)
 
     proyecto = relationship("Proyecto", back_populates="reuniones")
+    serie = relationship("SerieReunion", back_populates="ocurrencias")
     organizador = relationship("Usuario", foreign_keys=[organizador_id])
     participantes = relationship(
         "ReunionParticipante", back_populates="reunion", cascade="all, delete-orphan"
