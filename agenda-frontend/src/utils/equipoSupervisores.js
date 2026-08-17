@@ -32,6 +32,13 @@ export function agruparPorSupervisor(miembros) {
           // líder de "Cubo") — se usa para etiquetar los proyectos
           // agregados de su columna, ver proyectosAgregados().
           rolesPropios: new Map(info.proyectos.map((pp) => [pp.proyecto_id, pp.rol])),
+          // Proyectos DIRECTOS del supervisor (2026-08-17, corrige un bug
+          // real: un tema donde David no tiene NINGÚN subordinado -- ej.
+          // "Correo para Manuel Gonzales", donde David es N2 y Bernardo
+          // N1 -- nunca se colgaba de la columna "David" en la vista de
+          // Bernardo, porque esa columna solo se armaba agregando los
+          // proyectos de los REPORTES de David, nunca los suyos propios).
+          proyectosPropios: info.proyectos,
         });
       }
 
@@ -119,9 +126,12 @@ function proyectosAgregados(personas, rolesPropios) {
 //     encontrado en los datos, incluyendo al propio usuarioActualId si
 //     supervisa a alguien (ej. David supervisando a Ana/Iván/Juan) — en ese
 //     caso, `proyectosAgregados` junta los proyectos de TODOS sus reportes
-//     en una sola columna con el nombre del supervisor (ej. Bernardo ve una
-//     columna "David" con los proyectos Cubo/Suit/Agenda Inteligente, no
-//     los nombres de Ana/Iván/Juan).
+//     MÁS los proyectos DIRECTOS del propio supervisor (2026-08-17,
+//     incluye los que no tienen ningún subordinado abajo) en una sola
+//     columna con el nombre del supervisor (ej. Bernardo ve una columna
+//     "David" con Cubo/Suit/Agenda Inteligente Y también los temas donde
+//     David es N2 sin nadie más asignado, no solo los nombres de
+//     Ana/Iván/Juan).
 //   - Esa columna propia (la de quien ve la pantalla) NUNCA se muestra tal
 //     cual (nadie necesita verse a sí mismo como encabezado de columna): en
 //     vez de eso, cada uno de sus reportes se "promueve" a su propia
@@ -154,7 +164,11 @@ export function armarColumnasEquipo(miembros, usuarioActualId) {
       usuario_id: s.usuario_id,
       nombre: s.nombre,
       puesto: s.puesto,
-      proyectos: proyectosAgregados(s.reportes, s.rolesPropios),
+      // Los proyectos propios del supervisor se agregan como un "reporte"
+      // más para reusar la misma dedupe-por-proyecto_id de
+      // proyectosAgregados (ej. si David y Ana comparten "Cubo", no se
+      // duplica -- solo suma los que Ana/Iván/Juan no ya traían).
+      proyectos: proyectosAgregados([...s.reportes, { proyectos: s.proyectosPropios }], s.rolesPropios),
     }));
 
   // Cobertura de OTROS supervisores (nunca del propio grupo del viewer —
