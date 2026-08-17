@@ -9,6 +9,13 @@ de su propia plantilla "Mi equipo" (ver GET /mi-equipo, app/routers/equipos.py),
 decisión explícita de Yue el 2026-08-17. El frontend (ModalEquipo.jsx) ya
 refleja esto: para un N2 el selector de "agregar miembro" sale de
 GET /mi-equipo, no de este endpoint.
+
+Para dar de alta a alguien que TODAVÍA no tiene cuenta, un N2 ya no
+necesita pedirle a un N1 que la cree aquí: puede usar
+POST /mi-equipo/nueva-persona (app/routers/equipos.py, decisión de Yue
+2026-08-17), que crea la cuenta y la agrega a su plantilla en un solo
+paso -- restringido a colaborador interno/externo (N3/N4), nunca
+dirección/líder.
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session

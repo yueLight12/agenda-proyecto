@@ -14,10 +14,11 @@ from app.database import get_db
 from app.dependencies import obtener_usuario_actual
 from app.models.equipo_miembro import EquipoMiembro
 from app.models.usuario import Usuario
-from app.schemas.equipo import EquipoMiembroCrear, EquipoMiembroOut
+from app.schemas.equipo import EquipoMiembroCrear, EquipoMiembroOut, PersonaNuevaCrear
 from app.services.equipos import (
     agregar_a_mi_equipo as agregar_a_mi_equipo_servicio,
     aplicar_mi_equipo as aplicar_mi_equipo_servicio,
+    crear_persona_y_agregar_a_mi_equipo as crear_persona_y_agregar_a_mi_equipo_servicio,
     quitar_de_mi_equipo as quitar_de_mi_equipo_servicio,
 )
 
@@ -52,6 +53,26 @@ def agregar_a_mi_equipo(
 ):
     """Agrega (o reasigna el rol de) una persona en tu equipo guardado."""
     registro = agregar_a_mi_equipo_servicio(db, usuario, datos.usuario_id, datos.rol)
+    db.commit()
+    db.refresh(registro)
+    return _a_out(registro)
+
+
+@router.post(
+    "/mi-equipo/nueva-persona", response_model=EquipoMiembroOut, status_code=status.HTTP_201_CREATED
+)
+def agregar_persona_nueva_a_mi_equipo(
+    datos: PersonaNuevaCrear,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Da de alta una cuenta nueva (solo colaborador interno/externo) y la
+    agrega de una vez a tu equipo guardado -- para cuando quieres sumar a
+    alguien que todavía no tiene cuenta en el sistema, sin pedirle a un N1
+    que la cree por ti."""
+    registro = crear_persona_y_agregar_a_mi_equipo_servicio(
+        db, usuario, datos.nombre, datos.puesto, datos.email, datos.rol
+    )
     db.commit()
     db.refresh(registro)
     return _a_out(registro)

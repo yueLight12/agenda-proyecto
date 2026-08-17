@@ -9,10 +9,15 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.permissions import requerir_participacion_en_proyecto, requerir_rol_minimo
+from app.core.security import hash_password
 from app.models.equipo_miembro import EquipoMiembro
 from app.models.usuario import RolEnum, Usuario
 from app.models.usuario_proyecto_rol import UsuarioProyectoRol
 from app.schemas.equipo import EquipoMiembroOut
+
+# Misma contraseña por defecto que seed_usuarios_reales.py/reset_passwords_reales.py
+# -- la persona la cambia desde "Cambiar contraseña" en su primer login.
+PASSWORD_DEFECTO_PERSONA_NUEVA = "Demo1234!"
 
 
 def rol_default_para_nuevo_proyecto(db: Session, usuario: Usuario) -> tuple[RolEnum, Optional[int]]:
@@ -74,6 +79,35 @@ def agregar_a_mi_equipo(db: Session, usuario: Usuario, usuario_id: int, rol: Rol
     registro = EquipoMiembro(propietario_id=usuario.id, usuario_id=usuario_id, rol=rol)
     db.add(registro)
     return registro
+
+
+def crear_persona_y_agregar_a_mi_equipo(
+    db: Session, usuario: Usuario, nombre: str, puesto: Optional[str], email: str, rol: RolEnum
+) -> EquipoMiembro:
+    """Da de alta una cuenta nueva y la agrega de una vez a la plantilla
+    personal de `usuario` -- decisión de Yue (2026-08-17): un Líder (N2) no
+    debe tener que pedirle a un N1 que dé de alta a alguien que quiere sumar
+    a su equipo. Restringido a Colaborador/Externo (N3/N4): dar de alta a
+    otro N1/N2 sigue siendo exclusivo de Dirección vía POST /usuarios (ver
+    app/routers/usuarios.py)."""
+    if rol not in (RolEnum.N3, RolEnum.N4):
+        raise HTTPException(
+            status_code=400,
+            detail="Solo puedes dar de alta a alguien nuevo como colaborador interno o externo",
+        )
+    if db.query(Usuario).filter(Usuario.email == email).first():
+        raise HTTPException(status_code=400, detail="Ese email ya está registrado")
+
+    nuevo = Usuario(
+        nombre=nombre,
+        puesto=puesto,
+        email=email,
+        password_hash=hash_password(PASSWORD_DEFECTO_PERSONA_NUEVA),
+    )
+    db.add(nuevo)
+    db.flush()  # asigna nuevo.id sin cerrar la transacción del caller
+
+    return agregar_a_mi_equipo(db, usuario, nuevo.id, rol)
 
 
 def quitar_de_mi_equipo(db: Session, usuario: Usuario, usuario_id: int) -> None:

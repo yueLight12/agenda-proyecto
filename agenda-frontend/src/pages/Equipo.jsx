@@ -39,14 +39,19 @@ export default function Equipo() {
 function PlantillaEquipo() {
   const [miEquipo, setMiEquipo] = useState([]);
   const [usuariosDisponibles, setUsuariosDisponibles] = useState([]);
+  const [tieneDirectorioGlobal, setTieneDirectorioGlobal] = useState(true);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
-  const [errorListaUsuarios, setErrorListaUsuarios] = useState("");
 
+  const [personaNueva, setPersonaNueva] = useState(false);
   const [usuarioId, setUsuarioId] = useState("");
+  const [nombreNuevo, setNombreNuevo] = useState("");
+  const [puestoNuevo, setPuestoNuevo] = useState("");
+  const [emailNuevo, setEmailNuevo] = useState("");
   const [rol, setRol] = useState("N3");
   const [guardando, setGuardando] = useState(false);
   const [errorAgregar, setErrorAgregar] = useState("");
+  const [exitoPersonaNueva, setExitoPersonaNueva] = useState("");
   const [confirmandoQuitar, setConfirmandoQuitar] = useState(null);
   const [quitando, setQuitando] = useState(false);
   const [errorQuitar, setErrorQuitar] = useState("");
@@ -54,8 +59,13 @@ function PlantillaEquipo() {
   const cargar = () =>
     Promise.all([
       miEquipoApi.listar(),
+      // Un Líder (N2) no tiene acceso al directorio global (GET /usuarios es
+      // N1-únicamente, ver app/routers/usuarios.py) -- eso no es un error,
+      // solo significa que para agregar gente usa "Es una persona nueva" de
+      // abajo (o ya la tiene guardada). Un 403 aquí no debe mostrarse como
+      // falla, solo apaga el selector de directorio.
       usuariosApi.listar().catch(() => {
-        setErrorListaUsuarios("No se pudo cargar el listado de usuarios.");
+        setTieneDirectorioGlobal(false);
         return [];
       }),
     ])
@@ -70,17 +80,42 @@ function PlantillaEquipo() {
     cargar();
   }, []);
 
+  useEffect(() => {
+    // Sin directorio global (cualquier Líder/N2) no hay "usuario existente"
+    // que elegir -- la única vía es dar de alta a alguien nuevo.
+    if (!tieneDirectorioGlobal) setPersonaNueva(true);
+  }, [tieneDirectorioGlobal]);
+
   const handleAgregar = async (e) => {
     e.preventDefault();
     setErrorAgregar("");
+    setExitoPersonaNueva("");
     setGuardando(true);
     try {
-      await miEquipoApi.agregar({ usuario_id: Number(usuarioId), rol });
-      setUsuarioId("");
+      if (personaNueva) {
+        await miEquipoApi.agregarPersonaNueva({
+          nombre: nombreNuevo,
+          puesto: puestoNuevo || null,
+          email: emailNuevo,
+          rol,
+        });
+        setNombreNuevo("");
+        setPuestoNuevo("");
+        setEmailNuevo("");
+        setExitoPersonaNueva(
+          `Cuenta creada. Contraseña temporal: Demo1234! — pídele que la cambie en su primer inicio de sesión.`
+        );
+      } else {
+        await miEquipoApi.agregar({ usuario_id: Number(usuarioId), rol });
+        setUsuarioId("");
+      }
       setRol("N3");
       await cargar();
     } catch (err) {
-      setErrorAgregar(err.response?.data?.detail || "No se pudo agregar a tu equipo.");
+      setErrorAgregar(
+        err.response?.data?.detail ||
+          (personaNueva ? "No se pudo dar de alta a esta persona." : "No se pudo agregar a tu equipo.")
+      );
     } finally {
       setGuardando(false);
     }
@@ -148,40 +183,102 @@ function PlantillaEquipo() {
 
       <form className="stack card" onSubmit={handleAgregar} style={{ maxWidth: 420 }}>
         <h3 style={{ fontSize: "0.95rem", margin: 0 }}>Agregar persona a mi equipo</h3>
-        {errorListaUsuarios && <p className="error-text">{errorListaUsuarios}</p>}
-        <label className="stack" style={{ gap: 4 }}>
-          <span style={{ fontSize: "0.85rem" }}>Usuario</span>
-          <select
-            className="input"
-            value={usuarioId}
-            onChange={(e) => setUsuarioId(e.target.value)}
-            required
-            disabled={usuariosDisponibles.length === 0}
-          >
-            <option value="" disabled>
-              Selecciona un usuario
-            </option>
-            {usuariosDisponibles.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.nombre}
-                {u.puesto ? ` — ${u.puesto}` : ""} ({u.email})
+
+        {tieneDirectorioGlobal && (
+          <label className="list-inline" style={{ borderBottom: "none", gap: 8 }}>
+            <span style={{ fontSize: "0.85rem" }}>Es una persona nueva, todavía no tiene cuenta</span>
+            <input
+              type="checkbox"
+              checked={personaNueva}
+              onChange={(e) => setPersonaNueva(e.target.checked)}
+            />
+          </label>
+        )}
+
+        {personaNueva ? (
+          <>
+            {!tieneDirectorioGlobal && (
+              <p style={{ color: "var(--color-text-muted)", fontSize: "0.8rem" }}>
+                Da de alta su cuenta aquí mismo — queda como colaborador interno o externo, en tu
+                equipo guardado.
+              </p>
+            )}
+            <label className="stack" style={{ gap: 4 }}>
+              <span style={{ fontSize: "0.85rem" }}>Nombre</span>
+              <input
+                className="input"
+                type="text"
+                value={nombreNuevo}
+                onChange={(e) => setNombreNuevo(e.target.value)}
+                required
+              />
+            </label>
+            <label className="stack" style={{ gap: 4 }}>
+              <span style={{ fontSize: "0.85rem" }}>Puesto (opcional)</span>
+              <input
+                className="input"
+                type="text"
+                value={puestoNuevo}
+                onChange={(e) => setPuestoNuevo(e.target.value)}
+              />
+            </label>
+            <label className="stack" style={{ gap: 4 }}>
+              <span style={{ fontSize: "0.85rem" }}>Email</span>
+              <input
+                className="input"
+                type="email"
+                value={emailNuevo}
+                onChange={(e) => setEmailNuevo(e.target.value)}
+                required
+              />
+            </label>
+          </>
+        ) : (
+          <label className="stack" style={{ gap: 4 }}>
+            <span style={{ fontSize: "0.85rem" }}>Usuario</span>
+            <select
+              className="input"
+              value={usuarioId}
+              onChange={(e) => setUsuarioId(e.target.value)}
+              required
+              disabled={usuariosDisponibles.length === 0}
+            >
+              <option value="" disabled>
+                Selecciona un usuario
               </option>
-            ))}
-          </select>
-        </label>
+              {usuariosDisponibles.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.nombre}
+                  {u.puesto ? ` — ${u.puesto}` : ""} ({u.email})
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
         <label className="stack" style={{ gap: 4 }}>
-          <span style={{ fontSize: "0.85rem" }}>Rol por default al aplicar la plantilla</span>
+          <span style={{ fontSize: "0.85rem" }}>
+            {personaNueva ? "Rol" : "Rol por default al aplicar la plantilla"}
+          </span>
           <select className="input" value={rol} onChange={(e) => setRol(e.target.value)}>
-            {ROLES.map((r) => (
+            {(personaNueva ? ["N3", "N4"] : ROLES).map((r) => (
               <option key={r} value={r}>
                 {ROL_LABELS[r]}
               </option>
             ))}
           </select>
         </label>
+        {personaNueva && (
+          <p style={{ color: "var(--color-text-muted)", fontSize: "0.78rem" }}>
+            Solo colaborador interno o externo — dar de alta a alguien como dirección o líder
+            sigue siendo exclusivo de Dirección.
+          </p>
+        )}
+
+        {exitoPersonaNueva && <p style={{ color: "var(--color-success, green)" }}>{exitoPersonaNueva}</p>}
         {errorAgregar && <p className="error-text">{errorAgregar}</p>}
         <button className="btn btn--primary" type="submit" disabled={guardando}>
-          {guardando ? "Guardando..." : "Agregar a mi equipo"}
+          {guardando ? "Guardando..." : personaNueva ? "Dar de alta y agregar" : "Agregar a mi equipo"}
         </button>
       </form>
 

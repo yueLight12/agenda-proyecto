@@ -13,6 +13,13 @@ class EquipoMiembroCrear(BaseModel):
     rol: RolEnum
 
 
+class PersonaNuevaCrear(BaseModel):
+    nombre: str
+    puesto: Optional[str] = None
+    email: str
+    rol: RolEnum
+
+
 class EquipoMiembroOut(BaseModel):
     usuario_id: int
     nombre: str
