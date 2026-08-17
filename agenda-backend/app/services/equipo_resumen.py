@@ -100,6 +100,7 @@ def resumen_equipo_multiproyecto(db: Session, usuario: Usuario) -> list[MiembroR
                 entregables=entregables_de,
                 reuniones=reuniones_de,
                 viewer_puede_administrar=viewer_puede_administrar,
+                parent_id=proyecto.parent_id,
             )
 
             if miembro.usuario_id not in personas:

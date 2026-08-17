@@ -52,6 +52,7 @@ export function agruparPorSupervisor(miembros) {
         entregables: p.entregables,
         reuniones: p.reuniones,
         viewer_puede_administrar: p.viewer_puede_administrar,
+        parent_id: p.parent_id,
       });
     }
   }
@@ -83,6 +84,7 @@ function proyectosAgregados(personas, rolesPropios) {
           // proyecto (es el permiso del VIEWER sobre el proyecto, no de la
           // persona mostrada) -- basta con el primero que aparezca.
           viewerPuedeAdministrar: p.viewer_puede_administrar,
+          parentId: p.parent_id,
         });
       }
       const entrada = porProyecto.get(p.proyecto_id);
@@ -103,6 +105,7 @@ function proyectosAgregados(personas, rolesPropios) {
     entregables: e.entregables,
     reuniones: Array.from(e.reunionesPorId.values()),
     viewer_puede_administrar: e.viewerPuedeAdministrar,
+    parent_id: e.parentId,
   }));
 }
 

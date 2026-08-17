@@ -34,6 +34,7 @@ function EntregablesYReuniones({ proyectos, onAdministrar }) {
               <Link to={`/proyectos/${p.proyecto_id}`} style={{ color: "inherit" }}>
                 {p.proyecto_nombre}
               </Link>
+              {p.parent_id && <span style={{ fontWeight: 400 }}> (subtema)</span>}
               {p.rol && <span style={{ fontWeight: 400 }}> ({etiquetaRol(p.rol)})</span>}
             </span>
             {onAdministrar && p.viewer_puede_administrar && (

@@ -40,6 +40,10 @@ class ProyectoDeMiembroOut(BaseModel):
     # local o heredado) -- reemplaza el cálculo que hacía el frontend
     # cruzando usuario.roles_por_proyecto, que se rompe con herencia.
     viewer_puede_administrar: bool = False
+    # parent_id del nodo (2026-08-17): para que el frontend pueda marcar
+    # "(subtema)" y distinguirlo de un tema raíz en "Tu equipo"/"Equipo" --
+    # ver KanbanSupervisores.jsx. None si es un tema raíz.
+    parent_id: Optional[int] = None
 
 
 class MiembroResumenOut(BaseModel):
