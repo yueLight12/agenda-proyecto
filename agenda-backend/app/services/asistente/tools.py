@@ -336,10 +336,10 @@ def _resolver_crear_proyecto(
         if dueno:
             rol_dueno = RolEnum.N1 if rol == RolEnum.N2 else RolEnum.N2
             equipo.append({"usuario_id": dueno.id, "nombre": dueno.nombre, "rol": rol_dueno.value})
-            relacion = "dirección" if rol_dueno == RolEnum.N1 else "tu supervisor"
+            aclaracion = "" if rol_dueno == RolEnum.N1 else " (tu supervisor)"
             resumen = (
                 f'Voy a crear el tema "{nombre}". Quedarás como {_etiqueta_rol(rol)} y {dueno.nombre} '
-                f"como {_etiqueta_rol(rol_dueno)} ({relacion}). ¿Confirmas?"
+                f"como {_etiqueta_rol(rol_dueno)}{aclaracion}. ¿Confirmas?"
             )
         else:
             resumen = (
