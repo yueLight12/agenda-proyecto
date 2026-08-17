@@ -3,6 +3,7 @@ import { minutasApi } from "../api/endpoints";
 import { etiquetaRol } from "../utils/rolLabels";
 import ConfirmDialog from "./ConfirmDialog";
 import Modal from "./Modal";
+import SeccionAgendaSerie from "./SeccionAgendaSerie";
 import SeccionNotas from "./SeccionNotas";
 
 /**
@@ -128,6 +129,13 @@ export default function ModalMinuta({ reunion, miembros, puedeAdministrar = fals
         <p>Cargando minuta...</p>
       ) : (
         <div className="stack">
+          {reunion.serie_id && (
+            <div style={{ borderBottom: "1px solid var(--color-border)", paddingBottom: 16 }}>
+              <h3 style={{ fontSize: "0.9rem", margin: "0 0 8px" }}>Agenda de esta reunión</h3>
+              <SeccionAgendaSerie serieId={reunion.serie_id} reunionId={reunion.id} />
+            </div>
+          )}
+
           <form className="stack" onSubmit={handleGuardarContenido}>
             <label className="stack" style={{ gap: 4 }}>
               <span style={{ fontSize: "0.85rem" }}>Notas / acuerdos generales</span>

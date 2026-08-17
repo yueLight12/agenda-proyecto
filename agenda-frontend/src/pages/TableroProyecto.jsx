@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { entregablesApi, proyectosApi, reunionesApi } from "../api/endpoints";
+import { entregablesApi, proyectosApi, reunionesApi, seriesReunionApi } from "../api/endpoints";
 import EstatusBadge from "../components/EstatusBadge";
 import Breadcrumb from "../components/Breadcrumb";
 import CalendarioEntregables from "../components/CalendarioEntregables";
@@ -12,6 +12,7 @@ import ModalEquipo from "../components/ModalEquipo";
 import ModalHistorial from "../components/ModalHistorial";
 import ModalReunion from "../components/ModalReunion";
 import ModalMinuta from "../components/ModalMinuta";
+import ModalSerieReunion from "../components/ModalSerieReunion";
 import { etiquetaRol } from "../utils/rolLabels";
 import { useAuth } from "../context/AuthContext";
 
@@ -24,6 +25,7 @@ export default function TableroProyecto() {
   const [resumen, setResumen] = useState(null);
   const [entregables, setEntregables] = useState([]);
   const [reuniones, setReuniones] = useState([]);
+  const [series, setSeries] = useState([]);
   const [equipo, setEquipo] = useState([]);
   const [ancestros, setAncestros] = useState([]);
   const [subtemas, setSubtemas] = useState([]);
@@ -32,6 +34,7 @@ export default function TableroProyecto() {
   const [valorEdicion, setValorEdicion] = useState(0);
   const [modalEntregable, setModalEntregable] = useState(null); // null | "nuevo" | entregable a editar
   const [modalReunion, setModalReunion] = useState(null); // null | "nueva" | reunion a editar
+  const [modalSerie, setModalSerie] = useState(null); // null | "nueva" | serie a editar
   const [mostrarModalEquipo, setMostrarModalEquipo] = useState(false);
   const [modalSubtema, setModalSubtema] = useState(false);
   const [modalEditarTema, setModalEditarTema] = useState(false);
@@ -52,7 +55,7 @@ export default function TableroProyecto() {
   const puedeAdministrar = Boolean(proyecto?.puede_administrar);
 
   const cargarTodo = async () => {
-    const [p, r, e, eq, reu, anc, hijos] = await Promise.all([
+    const [p, r, e, eq, reu, anc, hijos, ser] = await Promise.all([
       proyectosApi.obtener(proyectoId),
       proyectosApi.resumen(proyectoId),
       entregablesApi.listarPorProyecto(proyectoId),
@@ -60,6 +63,7 @@ export default function TableroProyecto() {
       reunionesApi.listarPorProyecto(proyectoId),
       proyectosApi.ancestros(proyectoId),
       proyectosApi.hijos(proyectoId),
+      seriesReunionApi.listar(proyectoId),
     ]);
     setProyecto(p);
     setResumen(r);
@@ -68,6 +72,7 @@ export default function TableroProyecto() {
     setReuniones(reu);
     setAncestros(anc);
     setSubtemas(hijos);
+    setSeries(ser);
     return { entregables: e, reuniones: reu };
   };
 
@@ -208,6 +213,9 @@ export default function TableroProyecto() {
           <button className="btn btn--ghost" onClick={() => setModalReunion("nueva")}>
             Nueva reunión
           </button>
+          <button className="btn btn--ghost" onClick={() => setModalSerie("nueva")}>
+            Nueva junta recurrente
+          </button>
         </div>
       </div>
 
@@ -318,6 +326,32 @@ export default function TableroProyecto() {
             </div>
           ))}
       </div>
+
+      {series.length > 0 && (
+        <div className="card">
+          <div className="list-inline" style={{ borderBottom: "none", paddingBottom: 0 }}>
+            <h3 style={{ fontSize: "0.95rem", margin: 0 }}>Juntas recurrentes</h3>
+          </div>
+          {series.map((s) => (
+            <div
+              className="list-inline"
+              key={s.id}
+              style={{ cursor: "pointer" }}
+              onClick={() => setModalSerie(s)}
+            >
+              <div>
+                <strong>{s.titulo}</strong>{" "}
+                <span style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
+                  todos los{" "}
+                  {["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"][s.dia_semana]} a
+                  las {s.hora?.slice(0, 5)}
+                  {!s.activa && " — pausada"}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {vista === "calendario" && (
         <div className="card">
@@ -519,6 +553,16 @@ export default function TableroProyecto() {
             await cargarTodo();
           }}
           onCerrar={() => setModalReunion(null)}
+        />
+      )}
+
+      {modalSerie && (
+        <ModalSerieReunion
+          proyectoId={Number(proyectoId)}
+          serie={modalSerie === "nueva" ? null : modalSerie}
+          miembros={equipo}
+          onGuardado={cargarTodo}
+          onCerrar={() => setModalSerie(null)}
         />
       )}
 

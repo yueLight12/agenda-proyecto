@@ -98,6 +98,21 @@ export const minutasApi = {
   eliminarAcuerdo: async (acuerdoId) => api.delete(`/acuerdos/${acuerdoId}`),
   convertirAcuerdo: async (acuerdoId, datos) =>
     (await api.post(`/acuerdos/${acuerdoId}/convertir-a-entregable`, datos)).data,
+  registrarRevisionAgendaItem: async (reunionId, itemId, datos) =>
+    (await api.post(`/reuniones/${reunionId}/agenda-items/${itemId}/revision`, datos)).data,
+};
+
+export const seriesReunionApi = {
+  listar: async (proyectoId) =>
+    (await api.get("/series-reuniones", { params: { proyecto_id: proyectoId } })).data,
+  crear: async (datos) => (await api.post("/series-reuniones", datos)).data,
+  actualizar: async (serieId, datos) =>
+    (await api.patch(`/series-reuniones/${serieId}`, datos)).data,
+  eliminar: async (serieId) => api.delete(`/series-reuniones/${serieId}`),
+  agenda: async (serieId) => (await api.get(`/series-reuniones/${serieId}/agenda`)).data,
+  agregarItemAgenda: async (serieId, datos) =>
+    (await api.post(`/series-reuniones/${serieId}/agenda`, datos)).data,
+  archivarItemAgenda: async (itemId) => api.delete(`/series-reuniones/agenda-items/${itemId}`),
 };
 
 export const eventosEmpresaApi = {
