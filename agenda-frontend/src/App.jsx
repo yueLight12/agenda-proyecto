@@ -10,6 +10,7 @@ import Equipo from "./pages/Equipo";
 import MisPendientes from "./pages/MisPendientes";
 import CalendarioGlobal from "./pages/CalendarioGlobal";
 import Chatbot from "./pages/Chatbot";
+import Perfil from "./pages/Perfil";
 
 export default function App() {
   return (
@@ -32,6 +33,7 @@ export default function App() {
             <Route path="mis-pendientes" element={<MisPendientes />} />
             <Route path="calendario" element={<CalendarioGlobal />} />
             <Route path="chatbot" element={<Chatbot />} />
+            <Route path="perfil" element={<Perfil />} />
           </Route>
         </Routes>
       </AuthProvider>

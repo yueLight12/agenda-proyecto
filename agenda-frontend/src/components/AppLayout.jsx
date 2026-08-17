@@ -65,6 +65,7 @@ export default function AppLayout() {
           <NavLink to="/mis-pendientes">Mis pendientes</NavLink>
           <NavLink to="/calendario">Calendario</NavLink>
           <NavLink to="/chatbot">Asistente</NavLink>
+          <NavLink to="/perfil">Mi perfil</NavLink>
         </nav>
         <div style={{ marginTop: "auto", fontSize: "0.8rem", color: "#cfe0e3" }}>
           <div>{usuario?.nombre}</div>
