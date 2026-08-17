@@ -26,6 +26,7 @@ from app.services.entregables import actualizar_avance as actualizar_avance_serv
 from app.services.entregables import actualizar_entregable as actualizar_entregable_servicio
 from app.services.entregables import crear_entregable as crear_entregable_servicio
 from app.services.entregables import eliminar_entregable as eliminar_entregable_servicio
+from app.services.entregables import entregable_a_out
 
 router = APIRouter(tags=["Entregables"])
 
@@ -36,7 +37,8 @@ def listar_entregables(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(obtener_usuario_actual),
 ):
-    return query_entregables_visibles(db, usuario, proyecto_id).all()
+    entregables = query_entregables_visibles(db, usuario, proyecto_id).all()
+    return [entregable_a_out(db, usuario, e) for e in entregables]
 
 
 @router.post(
@@ -70,7 +72,7 @@ def crear_entregable(
     )
     db.commit()
     db.refresh(nuevo)
-    return nuevo
+    return entregable_a_out(db, usuario, nuevo)
 
 
 @router.get("/entregables/{entregable_id}", response_model=EntregableOut)
@@ -84,7 +86,7 @@ def obtener_entregable(
         raise HTTPException(status_code=404, detail="Entregable no encontrado")
     if not puede_ver_entregable(db, usuario, entregable):
         raise HTTPException(status_code=403, detail="No tienes acceso a este entregable")
-    return entregable
+    return entregable_a_out(db, usuario, entregable)
 
 
 @router.patch("/entregables/{entregable_id}", response_model=EntregableOut)
@@ -100,7 +102,7 @@ def actualizar_entregable(
     )
     db.commit()
     db.refresh(entregable)
-    return entregable
+    return entregable_a_out(db, usuario, entregable)
 
 
 @router.delete("/entregables/{entregable_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -131,7 +133,7 @@ def actualizar_avance(
     )
     db.commit()
     db.refresh(entregable)
-    return entregable
+    return entregable_a_out(db, usuario, entregable)
 
 
 @router.get(

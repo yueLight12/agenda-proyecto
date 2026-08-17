@@ -51,6 +51,11 @@ class EntregableOut(EntregableBase):
     estatus: EstatusEntregable
     creado_por: int
     fecha_creacion: datetime
+    # Calculado en servidor (2026-08-16, generalización a árbol de temas) --
+    # el frontend nunca debe recalcular permiso cruzando
+    # usuario.roles_por_proyecto, que se rompe con herencia. Ver
+    # app/services/entregables.py::entregable_a_out.
+    puede_editar: bool = False
 
     class Config:
         from_attributes = True

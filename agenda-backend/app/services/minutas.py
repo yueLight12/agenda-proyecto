@@ -122,6 +122,16 @@ def convertir_acuerdo_a_entregable(
     reunion = acuerdo.minuta.reunion
     if not puede_ver_reunion(db, usuario, reunion):
         raise HTTPException(status_code=403, detail="No tienes acceso a esta reunión")
+    if reunion.proyecto_id is None:
+        # Reunión "general" (sin tema/proyecto, 2026-08-16) -- un Entregable
+        # siempre necesita un proyecto_id real (NOT NULL), así que no hay
+        # dónde crearlo. Mensaje explícito en vez de dejar que
+        # requerir_participacion_en_proyecto truene con un 403 genérico.
+        raise HTTPException(
+            status_code=400,
+            detail="Esta reunión es general (sin tema/proyecto), no se puede convertir un acuerdo "
+            "suyo en entregable -- conviértelo desde una reunión ligada a un proyecto.",
+        )
 
     rol = requerir_participacion_en_proyecto(db, usuario, reunion.proyecto_id)
 

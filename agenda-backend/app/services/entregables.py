@@ -19,6 +19,24 @@ from app.models.minuta import AcuerdoMinuta
 from app.models.notificacion import Notificacion, TipoNotificacion
 from app.models.usuario import RolEnum, Usuario
 from app.models.usuario_proyecto_rol import UsuarioProyectoRol
+from app.schemas.entregable import EntregableOut
+
+
+def entregable_a_out(db: Session, usuario: Usuario, entregable: Entregable) -> EntregableOut:
+    return EntregableOut(
+        id=entregable.id,
+        proyecto_id=entregable.proyecto_id,
+        nombre=entregable.nombre,
+        descripcion=entregable.descripcion,
+        responsable_id=entregable.responsable_id,
+        fecha_entrega=entregable.fecha_entrega,
+        sensible=entregable.sensible,
+        porcentaje_avance=entregable.porcentaje_avance,
+        estatus=entregable.estatus,
+        creado_por=entregable.creado_por,
+        fecha_creacion=entregable.fecha_creacion,
+        puede_editar=puede_editar_entregable(db, usuario, entregable),
+    )
 
 
 def crear_entregable(

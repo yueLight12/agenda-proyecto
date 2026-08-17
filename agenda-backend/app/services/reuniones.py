@@ -14,7 +14,7 @@ from app.models.usuario import Usuario
 from app.schemas.reunion import ParticipanteOut, ReunionOut
 
 
-def reunion_a_out(reunion: Reunion) -> ReunionOut:
+def reunion_a_out(db: Session, usuario: Usuario, reunion: Reunion) -> ReunionOut:
     return ReunionOut(
         id=reunion.id,
         proyecto_id=reunion.proyecto_id,
@@ -28,6 +28,7 @@ def reunion_a_out(reunion: Reunion) -> ReunionOut:
             ParticipanteOut(usuario_id=p.usuario_id, nombre=p.usuario.nombre)
             for p in reunion.participantes
         ],
+        puede_editar=puede_editar_reunion(db, usuario, reunion),
     )
 
 
@@ -41,7 +42,7 @@ def obtener_reunion_o_404(db: Session, reunion_id: int) -> Reunion:
 def crear_reunion(
     db: Session,
     usuario: Usuario,
-    proyecto_id: int,
+    proyecto_id: int | None,
     titulo: str,
     notas: str | None,
     fecha_inicio,
@@ -55,8 +56,13 @@ def crear_reunion(
     Notifica in-app a cada invitado (tipo `otro`, mismo patrón que las notas —
     no hay un tipo de notificación dedicado a reuniones), excluyendo al
     organizador.
+
+    proyecto_id=None (2026-08-16): reunión "general", sin tema -- cualquier
+    usuario autenticado puede agendar una (no hay proyecto del que exigir
+    participación), visible solo para organizador + invitados.
     """
-    requerir_participacion_en_proyecto(db, usuario, proyecto_id)
+    if proyecto_id is not None:
+        requerir_participacion_en_proyecto(db, usuario, proyecto_id)
 
     nueva = Reunion(
         proyecto_id=proyecto_id,

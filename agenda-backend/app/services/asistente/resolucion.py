@@ -140,6 +140,13 @@ def resolver_campo(
 def resolver_proyecto(
     db: Session, usuario: Usuario, texto: Optional[str], proyecto_id_contexto: Optional[int]
 ) -> ResolucionResultado:
+    """Resuelve un proyecto/tema/subtema por nombre -- listar_proyectos_visibles
+    ya trae el árbol COMPLETO aplanado (2026-08-16, generalización a
+    jerarquía), no solo raíces, así que esto ya resuelve cualquier subtema
+    por nombre sin cambios aquí más que el matcher. Cambiado de substring
+    libre a _coincide_nombre (mismo motivo que resolver_persona_en_equipo:
+    con más nodos "proyecto" en juego al haber subtemas, el riesgo de falso
+    positivo por substring crudo crece)."""
     if proyecto_id_contexto:
         return ResolucionResultado(resuelto=True, valor=proyecto_id_contexto)
 
@@ -153,7 +160,7 @@ def resolver_proyecto(
 
     if texto:
         normalizado = _normalizar(texto)
-        candidatos = [p for p in proyectos if normalizado in _normalizar(p.nombre)]
+        candidatos = [p for p in proyectos if _coincide_nombre(normalizado, _normalizar(p.nombre))]
         if len(candidatos) == 1:
             return ResolucionResultado(resuelto=True, valor=candidatos[0].id)
         if len(candidatos) > 1:

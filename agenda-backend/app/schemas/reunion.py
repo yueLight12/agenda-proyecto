@@ -33,7 +33,7 @@ class ParticipanteOut(BaseModel):
 
 class ReunionOut(BaseModel):
     id: int
-    proyecto_id: int
+    proyecto_id: Optional[int] = None  # None = reunión "general", sin tema
     titulo: str
     notas: Optional[str] = None
     fecha_inicio: datetime
@@ -41,6 +41,8 @@ class ReunionOut(BaseModel):
     organizador_id: int
     organizador_nombre: str
     participantes: list[ParticipanteOut] = []
+    # Calculado en servidor (2026-08-16) -- ver puede_editar_reunion.
+    puede_editar: bool = False
 
     class Config:
         from_attributes = True

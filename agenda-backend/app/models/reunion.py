@@ -1,10 +1,16 @@
 """
 Modelo de Reunión: agendar reuniones u otros eventos dentro de un proyecto
-(distinto de un Entregable, no lleva avance ni fecha límite).
+(distinto de un Entregable, no lleva avance ni fecha límite), o reuniones
+"generales" sin proyecto (proyecto_id NULL, 2026-08-16 -- pendiente desde
+2026-08-10, ahora pedido explícitamente por el cliente).
 
 Visibilidad (ver app.core.permissions.query_reuniones_visibles):
-- N1 del proyecto ve TODAS las reuniones (igual que con entregables).
-- El resto solo ve las reuniones en las que participa (organizador o invitado).
+- N1 del proyecto (local o heredado del árbol de temas) ve TODAS las
+  reuniones de ese proyecto/subárbol (igual que con entregables).
+- El resto solo ve las reuniones en las que participa (organizador o
+  invitado) -- esta es también la regla completa para reuniones generales
+  (proyecto_id NULL): nadie es "N1 de nada" ahí, así que siempre aplica
+  organizador-o-invitado, sin excepción.
 """
 from datetime import datetime
 
@@ -18,7 +24,7 @@ class Reunion(Base):
     __tablename__ = "reuniones"
 
     id = Column(Integer, primary_key=True, index=True)
-    proyecto_id = Column(Integer, ForeignKey("proyectos.id"), nullable=False)
+    proyecto_id = Column(Integer, ForeignKey("proyectos.id"), nullable=True)
     titulo = Column(String(200), nullable=False)
     notas = Column(Text, nullable=True)
     fecha_inicio = Column(DateTime, nullable=False)

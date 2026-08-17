@@ -26,9 +26,13 @@ persona; si de verdad no tiene ninguno visible, quedan vacíos.
 """
 from sqlalchemy.orm import Session
 
-from app.core.permissions import query_entregables_visibles, query_reuniones_visibles
+from app.core.permissions import (
+    obtener_rol_en_proyecto,
+    query_entregables_visibles,
+    query_reuniones_visibles,
+)
 from app.models.equipo_miembro import EquipoMiembro
-from app.models.usuario import Usuario
+from app.models.usuario import RolEnum, Usuario
 from app.schemas.equipo_resumen import (
     EntregableResumenPersonaOut,
     MiembroResumenOut,
@@ -49,6 +53,15 @@ def resumen_equipo_multiproyecto(db: Session, usuario: Usuario) -> list[MiembroR
 
         entregables = query_entregables_visibles(db, usuario, proyecto.id).all()
         reuniones = query_reuniones_visibles(db, usuario, proyecto.id).all()
+
+        if usuario.es_super_admin:
+            viewer_puede_administrar = True
+        else:
+            rol_viewer = obtener_rol_en_proyecto(db, usuario.id, proyecto.id)
+            viewer_puede_administrar = rol_viewer is not None and rol_viewer.rol in (
+                RolEnum.N1,
+                RolEnum.N2,
+            )
 
         for miembro in equipo:
             entregables_de = [
@@ -86,6 +99,7 @@ def resumen_equipo_multiproyecto(db: Session, usuario: Usuario) -> list[MiembroR
                 supervisor_id=miembro.supervisor_id,
                 entregables=entregables_de,
                 reuniones=reuniones_de,
+                viewer_puede_administrar=viewer_puede_administrar,
             )
 
             if miembro.usuario_id not in personas:

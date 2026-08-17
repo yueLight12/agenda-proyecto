@@ -15,7 +15,7 @@ class ProyectoBase(BaseModel):
 
 
 class ProyectoCrear(ProyectoBase):
-    pass
+    parent_id: Optional[int] = None  # tema/subtema padre -- None = nodo raíz
 
 
 class ProyectoActualizar(BaseModel):
@@ -27,7 +27,15 @@ class ProyectoActualizar(BaseModel):
 class ProyectoOut(ProyectoBase):
     id: int
     activo: bool
+    parent_id: Optional[int] = None
     fecha_creacion: datetime
+    # Calculados en servidor por proyecto_a_out (2026-08-16, generalización a
+    # árbol de temas/subtemas) -- el frontend NUNCA debe recalcular permiso
+    # cruzando usuario.roles_por_proyecto, porque con herencia un permiso
+    # puede venir de un ancestro y ese cálculo local se rompe en silencio.
+    rol_efectivo: Optional[RolEnum] = None
+    puede_administrar: bool = False
+    tiene_hijos: bool = False
 
     class Config:
         from_attributes = True

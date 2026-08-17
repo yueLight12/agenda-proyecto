@@ -15,15 +15,14 @@ from app.database import get_db
 from app.dependencies import obtener_usuario_actual
 from app.models.entregable import EstatusEntregable
 from app.models.notificacion import Notificacion
-from app.models.proyecto import Proyecto
 from app.models.usuario import Usuario
-from app.models.usuario_proyecto_rol import UsuarioProyectoRol
 from app.schemas.dashboard import (
     DashboardOut,
     EntregableAtencionOut,
     ResumenPorProyectoOut,
     ReunionProximaOut,
 )
+from app.services.proyectos import listar_raices_visibles
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard ejecutivo"])
 
@@ -33,16 +32,14 @@ def resumen_dashboard(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(obtener_usuario_actual),
 ):
-    if usuario.es_super_admin:
-        proyectos = db.query(Proyecto).all()
-    else:
-        proyecto_ids = [
-            r.proyecto_id
-            for r in db.query(UsuarioProyectoRol)
-            .filter(UsuarioProyectoRol.usuario_id == usuario.id)
-            .all()
-        ]
-        proyectos = db.query(Proyecto).filter(Proyecto.id.in_(proyecto_ids)).all()
+    # Solo las raíces del subárbol visible -- query_entregables_visibles/
+    # query_reuniones_visibles ya cascadean solas a todo el subárbol de
+    # cada una, así que iterar raíces (en vez de aplanar todo el árbol
+    # aquí) trae automáticamente lo de los subtemas sin doble-contar
+    # (2026-08-16: antes este router duplicaba su propia query inline y
+    # quedaba ciego a subtemas -- ahora reutiliza el mismo servicio que
+    # GET /proyectos).
+    proyectos = listar_raices_visibles(db, usuario)
 
     hoy = date.today()
     limite_alerta = hoy + timedelta(days=settings.dias_alerta_entregable)
@@ -84,8 +81,12 @@ def resumen_dashboard(
             entregables_atencion.append(
                 EntregableAtencionOut(
                     id=e.id,
-                    proyecto_id=proyecto.id,
-                    proyecto_nombre=proyecto.nombre,
+                    # OJO: e.proyecto (el nodo real donde vive el
+                    # entregable), NO la variable `proyecto` del loop (la
+                    # raíz del subárbol) -- si viene de un subtema, debe
+                    # atribuirse a ESE subtema, no a la raíz.
+                    proyecto_id=e.proyecto.id,
+                    proyecto_nombre=e.proyecto.nombre,
                     nombre=e.nombre,
                     responsable_id=e.responsable_id,
                     responsable_nombre=e.responsable.nombre,
@@ -126,8 +127,8 @@ def resumen_dashboard(
                 reuniones_proximas.append(
                     ReunionProximaOut(
                         id=r.id,
-                        proyecto_id=proyecto.id,
-                        proyecto_nombre=proyecto.nombre,
+                        proyecto_id=r.proyecto.id,
+                        proyecto_nombre=r.proyecto.nombre,
                         titulo=r.titulo,
                         fecha_inicio=r.fecha_inicio,
                         organizador_nombre=r.organizador.nombre,

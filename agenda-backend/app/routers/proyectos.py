@@ -1,9 +1,11 @@
 """
-Router de proyectos: alta/edición de proyectos y asignación de roles por
-proyecto. Toda la lógica vive en app.services.proyectos — este router solo
-valida el schema de entrada y arma la respuesta.
+Router de proyectos: alta/edición de proyectos/temas (Proyecto anidable a
+cualquier profundidad, ver Proyecto.parent_id) y asignación de roles.
+Toda la lógica vive en app.services.proyectos — este router solo valida el
+schema de entrada y arma la respuesta.
 """
 from fastapi import APIRouter, Depends, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -21,21 +23,38 @@ from app.services.proyectos import (
     actualizar_proyecto as actualizar_proyecto_servicio,
     crear_proyecto as crear_proyecto_servicio,
     eliminar_proyecto as eliminar_proyecto_servicio,
+    listar_ancestros as listar_ancestros_servicio,
     listar_equipo_visible,
-    listar_proyectos_visibles,
+    listar_hijos_directos as listar_hijos_directos_servicio,
+    listar_raices_visibles,
+    mover_nodo as mover_nodo_servicio,
     obtener_proyecto_o_404,
+    proyecto_a_out,
     quitar_miembro_de_proyecto as quitar_miembro_de_proyecto_servicio,
+    resumen_subarbol as resumen_subarbol_servicio,
 )
 from app.core.permissions import requerir_participacion_en_proyecto
 
 router = APIRouter(prefix="/proyectos", tags=["Proyectos"])
 
 
+class MoverNodoRequest(BaseModel):
+    nuevo_parent_id: int
+
+
+class ResumenSubarbolOut(BaseModel):
+    total_subtemas: int
+    total_entregables: int
+    total_reuniones: int
+
+
 @router.get("", response_model=list[ProyectoOut])
 def listar_proyectos(
     db: Session = Depends(get_db), usuario: Usuario = Depends(obtener_usuario_actual)
 ):
-    return listar_proyectos_visibles(db, usuario)
+    """Solo los puntos de entrada (raíces del subárbol visible) -- para
+    explorar la profundidad, entrar a cada uno y ver sus /hijos."""
+    return [proyecto_a_out(db, usuario, p) for p in listar_raices_visibles(db, usuario)]
 
 
 @router.post("", response_model=ProyectoOut, status_code=status.HTTP_201_CREATED)
@@ -44,11 +63,13 @@ def crear_proyecto(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(obtener_usuario_actual),
 ):
-    """Cualquier usuario autenticado puede crear un proyecto; queda como N1 de él."""
-    nuevo = crear_proyecto_servicio(db, usuario, datos.nombre, datos.descripcion)
+    """Sin parent_id: cualquier usuario autenticado puede crear un proyecto
+    raíz, queda como N1 de él (o hereda de su plantilla "Mi equipo"). Con
+    parent_id: crea un subtema, requiere N1/N2 en el padre."""
+    nuevo = crear_proyecto_servicio(db, usuario, datos.nombre, datos.descripcion, datos.parent_id)
     db.commit()
     db.refresh(nuevo)
-    return nuevo
+    return proyecto_a_out(db, usuario, nuevo)
 
 
 @router.get("/{proyecto_id}", response_model=ProyectoOut)
@@ -58,7 +79,7 @@ def obtener_proyecto(
     usuario: Usuario = Depends(obtener_usuario_actual),
 ):
     requerir_participacion_en_proyecto(db, usuario, proyecto_id)
-    return obtener_proyecto_o_404(db, proyecto_id)
+    return proyecto_a_out(db, usuario, obtener_proyecto_o_404(db, proyecto_id))
 
 
 @router.patch("/{proyecto_id}", response_model=ProyectoOut)
@@ -71,7 +92,7 @@ def actualizar_proyecto(
     proyecto = actualizar_proyecto_servicio(db, usuario, proyecto_id, datos.model_dump())
     db.commit()
     db.refresh(proyecto)
-    return proyecto
+    return proyecto_a_out(db, usuario, proyecto)
 
 
 @router.delete("/{proyecto_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -80,9 +101,59 @@ def eliminar_proyecto(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(obtener_usuario_actual),
 ):
-    """Elimina el proyecto y todo lo que cuelga de él (equipo, entregables, reuniones). Requiere N1."""
+    """Elimina el proyecto/tema y TODO su subárbol (equipo, entregables,
+    reuniones, subtemas a cualquier profundidad). Requiere N1 o N2."""
     eliminar_proyecto_servicio(db, usuario, proyecto_id)
     db.commit()
+
+
+@router.get("/{proyecto_id}/hijos", response_model=list[ProyectoOut])
+def listar_hijos(
+    proyecto_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Subtemas directos de este nodo (un solo nivel) -- para la sección
+    "Subtemas" del tablero de un proyecto/tema."""
+    hijos = listar_hijos_directos_servicio(db, usuario, proyecto_id)
+    return [proyecto_a_out(db, usuario, h) for h in hijos]
+
+
+@router.get("/{proyecto_id}/ancestros", response_model=list[ProyectoOut])
+def listar_ancestros(
+    proyecto_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Cadena de ancestros (raíz primero) para armar el breadcrumb."""
+    ancestros = listar_ancestros_servicio(db, usuario, proyecto_id)
+    return [proyecto_a_out(db, usuario, a) for a in ancestros]
+
+
+@router.get("/{proyecto_id}/resumen-subarbol", response_model=ResumenSubarbolOut)
+def resumen_subarbol(
+    proyecto_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Conteo de subtemas/entregables/reuniones que se perderían al
+    eliminar este nodo -- para el aviso de confirmación antes de borrar."""
+    return resumen_subarbol_servicio(db, usuario, proyecto_id)
+
+
+@router.patch("/{proyecto_id}/mover", response_model=ProyectoOut)
+def mover_nodo(
+    proyecto_id: int,
+    datos: MoverNodoRequest,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Mueve un tema/subtema a otro padre. Requiere N1/N2 en el nodo que
+    se mueve y en el destino; rechaza mover dentro de su propio subárbol."""
+    proyecto = mover_nodo_servicio(db, usuario, proyecto_id, datos.nuevo_parent_id)
+    db.commit()
+    db.refresh(proyecto)
+    return proyecto_a_out(db, usuario, proyecto)
 
 
 @router.get("/{proyecto_id}/usuarios", response_model=list[MiembroEquipoOut])

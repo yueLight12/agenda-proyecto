@@ -35,6 +35,11 @@ class ProyectoDeMiembroOut(BaseModel):
     supervisor_id: Optional[int] = None
     entregables: list[EntregableResumenPersonaOut] = []
     reuniones: list[ReunionResumenPersonaOut] = []
+    # Calculado en servidor (2026-08-16, generalización a árbol de temas):
+    # si QUIEN VE la pantalla puede administrar este proyecto/tema (N1/N2,
+    # local o heredado) -- reemplaza el cálculo que hacía el frontend
+    # cruzando usuario.roles_por_proyecto, que se rompe con herencia.
+    viewer_puede_administrar: bool = False
 
 
 class MiembroResumenOut(BaseModel):

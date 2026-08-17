@@ -81,6 +81,9 @@ from app.services.proyectos import (
     crear_proyecto,
     eliminar_proyecto,
     listar_equipo_visible,
+    listar_hijos_directos,
+    mover_nodo,
+    resumen_subarbol,
 )
 from app.services.reuniones import actualizar_reunion, crear_reunion, eliminar_reunion
 from app.services.rol_labels import etiqueta_rol as _etiqueta_rol
@@ -296,7 +299,34 @@ def _resolver_crear_proyecto(
             listo=False, campo="nombre", pregunta="¿Cómo se llama el proyecto?", tipo_entrada="texto"
         )
 
-    parametros = {"nombre": nombre, "descripcion": parametros_llm.get("descripcion") or None}
+    # tema_padre es OPCIONAL -- si no se menciona, es un proyecto/tema raíz
+    # (comportamiento de siempre). Solo se resuelve si el LLM mandó texto o
+    # si ya se está respondiendo una aclaración pendiente de este campo.
+    texto_padre = parametros_llm.get("tema_padre") or ""
+    if texto_padre.strip() or "tema_padre_id" in aclaraciones:
+        padre_res = resolver_campo(
+            "tema_padre_id", aclaraciones, texto_padre,
+            lambda t: resolver_proyecto(db, usuario, t, None),
+        )
+        if not padre_res.resuelto:
+            return _pendiente("tema_padre_id", padre_res)
+        parent_id = padre_res.valor
+        padre = db.query(Proyecto).filter(Proyecto.id == parent_id).first()
+        parametros = {
+            "nombre": nombre,
+            "descripcion": parametros_llm.get("descripcion") or None,
+            "parent_id": parent_id,
+        }
+        resumen = f'Voy a crear el subtema "{nombre}" dentro de "{padre.nombre if padre else "ese tema"}". ¿Confirmas?'
+        preview = {
+            "tipo": "proyecto",
+            "nombre": nombre,
+            "descripcion": parametros["descripcion"],
+            "equipo": [],
+        }
+        return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen, preview=preview)
+
+    parametros = {"nombre": nombre, "descripcion": parametros_llm.get("descripcion") or None, "parent_id": None}
     rol, supervisor_id = rol_default_para_nuevo_proyecto(db, usuario)
     equipo = [{"usuario_id": usuario.id, "nombre": usuario.nombre, "rol": rol.value}]
     if rol == RolEnum.N1:
@@ -324,7 +354,9 @@ def _resolver_crear_proyecto(
 
 
 def _ejecutar_crear_proyecto(db: Session, usuario: Usuario, parametros: dict) -> dict:
-    nuevo = crear_proyecto(db, usuario, parametros["nombre"], parametros.get("descripcion"))
+    nuevo = crear_proyecto(
+        db, usuario, parametros["nombre"], parametros.get("descripcion"), parametros.get("parent_id")
+    )
     db.commit()
     db.refresh(nuevo)
     return {
@@ -1151,9 +1183,15 @@ def _resolver_eliminar_proyecto(
     nombre = proyecto_actual.nombre if proyecto_actual else "ese proyecto"
 
     parametros = {"proyecto_id": proyecto_res.valor}
+    aviso_subtemas = ""
+    resumen_arbol = resumen_subarbol(db, usuario, proyecto_res.valor)
+    if resumen_arbol["total_subtemas"] > 0:
+        aviso_subtemas = (
+            f' Esto incluye {resumen_arbol["total_subtemas"]} subtema(s) y todo su contenido.'
+        )
     resumen = (
         f'Voy a ELIMINAR el proyecto "{nombre}" y TODO lo que tiene (entregables, reuniones, '
-        "minutas, equipo). Esta acción no se puede deshacer. ¿Confirmas?"
+        f"minutas, equipo).{aviso_subtemas} Esta acción no se puede deshacer. ¿Confirmas?"
     )
     preview = {
         "tipo": "proyecto",
@@ -1168,6 +1206,71 @@ def _ejecutar_eliminar_proyecto(db: Session, usuario: Usuario, parametros: dict)
     eliminar_proyecto(db, usuario, parametros["proyecto_id"])
     db.commit()
     return {"mensaje": "Proyecto eliminado correctamente.", "resultado": None}
+
+
+# --- listar_subtemas (solo lectura, sin confirmación) ----------------------
+
+def _resolver_listar_subtemas(
+    db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
+) -> ResultadoInterpretacion:
+    proyecto_res = resolver_campo(
+        "proyecto_id", aclaraciones, parametros_llm.get("proyecto"),
+        lambda t: resolver_proyecto(db, usuario, t, proyecto_id_contexto),
+    )
+    if not proyecto_res.resuelto:
+        return _pendiente("proyecto_id", proyecto_res)
+
+    proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_res.valor).first()
+    nombre = proyecto.nombre if proyecto else "ese tema"
+    hijos = listar_hijos_directos(db, usuario, proyecto_res.valor)
+
+    if not hijos:
+        texto = f'"{nombre}" no tiene subtemas todavía.'
+    else:
+        lineas = [f"{i + 1}. {h.nombre}" for i, h in enumerate(hijos)]
+        texto = f'"{nombre}" tiene {len(hijos)} subtema(s):\n' + "\n".join(lineas)
+
+    return ResultadoInterpretacion(listo=True, parametros={}, resumen=texto)
+
+
+def _ejecutar_listar_subtemas(db: Session, usuario: Usuario, parametros: dict) -> dict:
+    # No debería llamarse nunca: requiere_confirmacion=False, ver leer_notificaciones.
+    return {"mensaje": "", "resultado": None}
+
+
+# --- mover_tema --------------------------------------------------------------
+
+def _resolver_mover_tema(
+    db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
+) -> ResultadoInterpretacion:
+    tema_res = resolver_campo(
+        "tema_id", aclaraciones, parametros_llm.get("tema"),
+        lambda t: resolver_proyecto(db, usuario, t, proyecto_id_contexto),
+    )
+    if not tema_res.resuelto:
+        return _pendiente("tema_id", tema_res)
+
+    destino_res = resolver_campo(
+        "nuevo_padre_id", aclaraciones, parametros_llm.get("nuevo_tema_padre"),
+        lambda t: resolver_proyecto(db, usuario, t, None),
+    )
+    if not destino_res.resuelto:
+        return _pendiente("nuevo_padre_id", destino_res)
+
+    tema = db.query(Proyecto).filter(Proyecto.id == tema_res.valor).first()
+    destino = db.query(Proyecto).filter(Proyecto.id == destino_res.valor).first()
+    parametros = {"proyecto_id": tema_res.valor, "nuevo_parent_id": destino_res.valor}
+    resumen = (
+        f'Voy a mover "{tema.nombre if tema else "ese tema"}" dentro de '
+        f'"{destino.nombre if destino else "ese otro tema"}". ¿Confirmas?'
+    )
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen)
+
+
+def _ejecutar_mover_tema(db: Session, usuario: Usuario, parametros: dict) -> dict:
+    proyecto = mover_nodo(db, usuario, parametros["proyecto_id"], parametros["nuevo_parent_id"])
+    db.commit()
+    return {"mensaje": f'"{proyecto.nombre}" se movió correctamente.', "resultado": {"id": proyecto.id}}
 
 
 # --- eliminar_reunion -----------------------------------------------------------
@@ -1588,15 +1691,26 @@ TOOLS: dict[str, ToolSpec] = {
     ),
     "crear_proyecto": ToolSpec(
         nombre="crear_proyecto",
-        descripcion="Crear un nuevo proyecto. Quien lo crea queda automáticamente como dirección (N1) de ese proyecto.",
+        descripcion=(
+            "Crear un nuevo proyecto/tema/subtema. Sin tema_padre, es un proyecto/tema raíz nuevo y "
+            "quien lo crea queda automáticamente como dirección (N1). Con tema_padre, crea un "
+            "subtema DENTRO de ese tema/proyecto ya existente (requiere ser dirección o líder del "
+            "padre) -- usar esto cuando digan 'crea un subtema/tema dentro de X' o 'agrega un tema "
+            "a X'."
+        ),
         parametros_llm={
-            "nombre": "nombre del proyecto",
+            "nombre": "nombre del proyecto/tema/subtema",
             "descripcion": "descripción opcional, o null si no se dijo",
+            "tema_padre": "nombre del tema/proyecto padre si se mencionó que va DENTRO de otro, si no dejar vacío",
         },
         ejemplos=[
             (
                 "crea un proyecto nuevo llamado Expansión Norte",
-                {"nombre": "Expansión Norte", "descripcion": None},
+                {"nombre": "Expansión Norte", "descripcion": None, "tema_padre": ""},
+            ),
+            (
+                "crea un subtema llamado Programas IA dentro de Innovación Digital",
+                {"nombre": "Programas IA", "descripcion": None, "tema_padre": "Innovación Digital"},
             ),
         ],
         resolver=_resolver_crear_proyecto,
@@ -1661,7 +1775,14 @@ TOOLS: dict[str, ToolSpec] = {
     ),
     "agregar_miembro": ToolSpec(
         nombre="agregar_miembro",
-        descripcion="Agregar a alguien que TODAVÍA NO participa en el proyecto, con un rol (dirección/líder/colaborador interno/externo). Si la persona ya participa en el proyecto y solo se le quiere cambiar el rol, usa asignar_rol en vez de esta. Requiere ser dirección o líder del proyecto.",
+        descripcion=(
+            "Agregar a alguien que TODAVÍA NO participa en el proyecto/tema/subtema, con un rol "
+            "(dirección/líder/colaborador interno/externo). Es también cómo se 'comparte' un "
+            "tema/subtema con alguien -- ej. 'comparte el subtema Agenda Inteligente con Juan José' "
+            "usa esta misma tool con rol dirección. Si la persona ya participa y solo se le quiere "
+            "cambiar el rol, usa asignar_rol en vez de esta. Requiere ser dirección o líder del "
+            "proyecto/tema."
+        ),
         parametros_llm={
             "persona": "nombre de la persona a agregar tal como se mencionó",
             "rol": "rol tal como se dijo (dirección, líder, colaborador interno, colaborador externo, N1-N4)",
@@ -1834,6 +1955,35 @@ TOOLS: dict[str, ToolSpec] = {
         ejemplos=[("elimina el proyecto Escuelas", {"proyecto": "Escuelas"})],
         resolver=_resolver_eliminar_proyecto,
         ejecutar=_ejecutar_eliminar_proyecto,
+    ),
+    "listar_subtemas": ToolSpec(
+        nombre="listar_subtemas",
+        descripcion="Solo lectura: decir qué subtemas tiene un proyecto/tema (un solo nivel, los hijos directos).",
+        parametros_llm={"proyecto": "nombre del proyecto/tema del que se quieren ver los subtemas, si no dejar vacío"},
+        ejemplos=[("qué subtemas tiene Cubo", {"proyecto": "Cubo"})],
+        resolver=_resolver_listar_subtemas,
+        ejecutar=_ejecutar_listar_subtemas,
+        requiere_confirmacion=False,
+    ),
+    "mover_tema": ToolSpec(
+        nombre="mover_tema",
+        descripcion=(
+            "Mover un tema/subtema/proyecto para que quede DENTRO de otro tema/proyecto (cambia su "
+            "padre en la jerarquía). Requiere ser dirección o líder tanto de lo que se mueve como "
+            "del destino."
+        ),
+        parametros_llm={
+            "tema": "nombre del tema/subtema/proyecto que se va a mover",
+            "nuevo_tema_padre": "nombre del tema/proyecto destino, dentro del cual va a quedar",
+        },
+        ejemplos=[
+            (
+                "mueve el subtema Agenda Inteligente dentro de Programas IA",
+                {"tema": "Agenda Inteligente", "nuevo_tema_padre": "Programas IA"},
+            ),
+        ],
+        resolver=_resolver_mover_tema,
+        ejecutar=_ejecutar_mover_tema,
     ),
     "eliminar_reunion": ToolSpec(
         nombre="eliminar_reunion",
