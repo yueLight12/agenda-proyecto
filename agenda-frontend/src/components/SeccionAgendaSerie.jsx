@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { minutasApi, seriesReunionApi } from "../api/endpoints";
+import { minutasApi, reunionesApi, seriesReunionApi } from "../api/endpoints";
 
 const ETIQUETAS_ESTADO = {
   revisado: "revisado",
@@ -93,12 +93,18 @@ function ItemAgenda({ item, reunionId, onCambio }) {
 }
 
 /**
- * Sección "Agenda de esta reunión" dentro de ModalMinuta -- solo aparece si
- * la reunión es una ocurrencia de una serie recurrente (reunion.serie_id).
- * Muestra la agenda persistente de la serie con el estado de cada ítem
- * (Fase 2/3, 2026-08-17): lo no revisado sigue apareciendo pendiente de
- * ocurrencia en ocurrencia -- no hay ningún "reseteo", el estado siempre es
- * el de la última vez que se marcó.
+ * Sección "Agenda de esta reunión" dentro de ModalMinuta -- muestra la
+ * agenda persistente (de la serie si es una ocurrencia recurrente, o de la
+ * propia reunión si es suelta, ver SeccionAgendaChecklist.jsx) con el
+ * estado de cada ítem (Fase 2/3, 2026-08-17): lo no revisado sigue
+ * apareciendo pendiente de ocurrencia en ocurrencia -- no hay ningún
+ * "reseteo", el estado siempre es el de la última vez que se marcó.
+ *
+ * `serieId` y `reunionId` (2026-08-17, reuniones sueltas): pasar
+ * `serieId` cuando la reunión es ocurrencia de una serie (carga la agenda
+ * persistente de la serie); si `serieId` es null, se asume reunión suelta
+ * y se carga su propia agenda vía `reunionesApi.agenda(reunionId)`.
+ * `reunionId` siempre se manda (es contra quién se registra la revisión).
  */
 export default function SeccionAgendaSerie({ serieId, reunionId }) {
   const [agenda, setAgenda] = useState([]);
@@ -106,16 +112,15 @@ export default function SeccionAgendaSerie({ serieId, reunionId }) {
   const [error, setError] = useState("");
 
   const cargar = () =>
-    seriesReunionApi
-      .agenda(serieId)
+    (serieId ? seriesReunionApi.agenda(serieId) : reunionesApi.agenda(reunionId))
       .then(setAgenda)
-      .catch(() => setError("No se pudo cargar la agenda de esta junta."))
+      .catch(() => setError("No se pudo cargar la agenda de esta reunión."))
       .finally(() => setCargando(false));
 
   useEffect(() => {
     cargar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serieId]);
+  }, [serieId, reunionId]);
 
   if (cargando) return <p style={{ fontSize: "0.85rem" }}>Cargando agenda...</p>;
   if (error) return <p className="error-text">{error}</p>;

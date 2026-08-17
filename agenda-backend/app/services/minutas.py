@@ -208,9 +208,18 @@ def registrar_revision_agenda_item(
     item = db.query(AgendaItem).filter(AgendaItem.id == agenda_item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Ítem de agenda no encontrado")
-    if item.serie_id != reunion.serie_id:
+    # Un AgendaItem cuelga de una serie O de una reunión suelta (nunca
+    # ambas) -- validar contra el padre que corresponda. Antes esto solo
+    # comparaba serie_id, que para una reunión suelta (ambos None) pasaba
+    # sin verificar de verdad que el ítem fuera de ESTA reunión.
+    if item.serie_id is not None:
+        if item.serie_id != reunion.serie_id:
+            raise HTTPException(
+                status_code=400, detail="Este ítem no pertenece a la serie de esta reunión"
+            )
+    elif item.reunion_id != reunion.id:
         raise HTTPException(
-            status_code=400, detail="Este ítem no pertenece a la serie de esta reunión"
+            status_code=400, detail="Este ítem no pertenece a esta reunión"
         )
 
     revision = AgendaItemRevision(
@@ -227,6 +236,7 @@ def registrar_revision_agenda_item(
     if nuevo_pendiente_texto:
         nuevo_item = AgendaItem(
             serie_id=item.serie_id,
+            reunion_id=item.reunion_id,
             tipo=TipoAgendaItem.pendiente,
             texto=nuevo_pendiente_texto,
             orden=item.orden + 1,
