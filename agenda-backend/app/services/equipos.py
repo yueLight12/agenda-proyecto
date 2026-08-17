@@ -18,11 +18,18 @@ from app.schemas.equipo import EquipoMiembroOut
 def rol_default_para_nuevo_proyecto(db: Session, usuario: Usuario) -> tuple[RolEnum, Optional[int]]:
     """N1 por default, salvo que alguien más ya tenga guardado a `usuario` en
     su plantilla de "mi equipo" (EquipoMiembro.usuario_id) -- en ese caso
-    hereda ese rol y a esa persona como supervisor, igual que si el dueño de
-    la plantilla la hubiera aplicado a mano (ver aplicar_mi_equipo). Usado
-    tanto al crear el proyecto de verdad (app/services/proyectos.py) como
-    para armar el resumen de confirmación del asistente de voz (tools.py)
-    antes de que se ejecute."""
+    hereda ese rol, igual que si el dueño de la plantilla la hubiera
+    aplicado a mano (ver aplicar_mi_equipo). El segundo valor devuelto es el
+    id del DUEÑO de esa plantilla, a agregar también al proyecto nuevo (ver
+    crear_proyecto): si `usuario` hereda N3/N4, el dueño queda como su
+    supervisor (N2); si hereda N2, el dueño queda como dirección (N1) --
+    sin esto, un N2 recién creado se queda sin nadie con permiso para
+    terminar de organizar su propio equipo (asignar roles requiere N1/N2),
+    y una instrucción compuesta tipo "crea el proyecto y pon a Fulano de
+    líder" se rompería justo ahí. Si hereda N1, no hay nadie que agregar --
+    ya tiene control total. Usado tanto al crear el proyecto de verdad
+    (app/services/proyectos.py) como para armar el resumen de confirmación
+    del asistente de voz (tools.py) antes de que se ejecute."""
     heredado = (
         db.query(EquipoMiembro)
         .filter(EquipoMiembro.usuario_id == usuario.id)
@@ -31,8 +38,8 @@ def rol_default_para_nuevo_proyecto(db: Session, usuario: Usuario) -> tuple[RolE
     )
     if not heredado:
         return RolEnum.N1, None
-    supervisor_id = heredado.propietario_id if heredado.rol in (RolEnum.N3, RolEnum.N4) else None
-    return heredado.rol, supervisor_id
+    dueno_id = heredado.propietario_id if heredado.rol in (RolEnum.N2, RolEnum.N3, RolEnum.N4) else None
+    return heredado.rol, dueno_id
 
 
 def equipo_miembro_a_out(registro: EquipoMiembro) -> EquipoMiembroOut:

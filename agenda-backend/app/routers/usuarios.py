@@ -1,9 +1,15 @@
 """
 Router de gestión de usuarios.
 
-Nota de diseño: dar de alta usuarios y verlos en general requiere ser N1 en
-AL MENOS un proyecto, o ser super admin global (`usuario.es_super_admin`,
-ver app.core.permissions).
+Nota de diseño: VER el directorio (GET) requiere ser N1 o N2 (dirección o
+líder) en AL MENOS un tema, o ser super admin global -- con la jerarquía de
+temas/subtemas (2026-08-16) cualquier líder de un tema/subtema necesita ver
+el directorio para poder agregar gente NUEVA a su equipo (no solo reasignar
+a quien ya está). CREAR o EDITAR una cuenta de usuario (POST/PATCH) es más
+sensible -- alta/baja/reseteo de contraseña de cualquiera en el sistema, no
+solo de "quién entra a mi equipo" -- y sigue exigiendo N1 (dirección)
+únicamente, sin cambio; hoy tampoco tiene UI en el frontend, solo se usa
+desde scripts (seed_usuarios_reales.py, etc.).
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -16,6 +22,28 @@ from app.models.usuario_proyecto_rol import UsuarioProyectoRol
 from app.schemas.usuario import UsuarioActualizar, UsuarioCrear, UsuarioOut
 
 router = APIRouter(prefix="/usuarios", tags=["Usuarios"])
+
+
+def _es_lider_en_algun_proyecto(db: Session, usuario: Usuario) -> bool:
+    return (
+        db.query(UsuarioProyectoRol)
+        .filter(
+            UsuarioProyectoRol.usuario_id == usuario.id,
+            UsuarioProyectoRol.rol.in_([RolEnum.N1, RolEnum.N2]),
+        )
+        .first()
+        is not None
+    )
+
+
+def _requerir_lider(db: Session, usuario: Usuario):
+    if usuario.es_super_admin:
+        return
+    if not _es_lider_en_algun_proyecto(db, usuario):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo un usuario con rol de dirección o líder puede realizar esta acción",
+        )
 
 
 def _es_n1_en_algun_proyecto(db: Session, usuario: Usuario) -> bool:
@@ -44,7 +72,7 @@ def _requerir_n1(db: Session, usuario: Usuario):
 def listar_usuarios(
     db: Session = Depends(get_db), usuario: Usuario = Depends(obtener_usuario_actual)
 ):
-    _requerir_n1(db, usuario)
+    _requerir_lider(db, usuario)
     return db.query(Usuario).all()
 
 

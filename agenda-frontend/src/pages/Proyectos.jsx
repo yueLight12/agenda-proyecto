@@ -3,6 +3,7 @@ import { proyectosApi } from "../api/endpoints";
 import ConfirmDialog from "../components/ConfirmDialog";
 import KanbanMisProyectos from "../components/KanbanMisProyectos";
 import ModalEditarProyecto from "../components/ModalEditarProyecto";
+import ModalEquipo from "../components/ModalEquipo";
 
 export default function Proyectos() {
   const [proyectos, setProyectos] = useState([]);
@@ -14,6 +15,13 @@ export default function Proyectos() {
   const [resumenEliminar, setResumenEliminar] = useState(null);
   const [eliminando, setEliminando] = useState(false);
   const [errorEliminar, setErrorEliminar] = useState("");
+  // Tema recién creado + su equipo inicial (el creador, y quien lo haya
+  // heredado como dirección/líder por la plantilla "Mi equipo") -- se abre
+  // solo para ofrecer agregar más gente ahora mismo, sin obligar a nada
+  // (Yue, 2026-08-17: "poder asignar al equipo al crear, o dejarlo para
+  // después"). Cerrar este modal sin hacer nada es una opción válida.
+  const [temaRecienCreado, setTemaRecienCreado] = useState(null);
+  const [equipoTemaRecienCreado, setEquipoTemaRecienCreado] = useState([]);
 
   const cargarProyectos = () =>
     proyectosApi
@@ -35,6 +43,14 @@ export default function Proyectos() {
     setErrorEliminar("");
     setResumenEliminar(proyecto.tiene_hijos ? await proyectosApi.resumenSubarbol(proyecto.id) : null);
     setConfirmandoEliminar(proyecto);
+  };
+
+  const abrirEquipoDeTemaRecienCreado = async (nuevo) => {
+    setModalProyecto(null);
+    await cargarProyectos();
+    const equipo = await proyectosApi.equipo(nuevo.id);
+    setEquipoTemaRecienCreado(equipo);
+    setTemaRecienCreado(nuevo);
   };
 
   const confirmarEliminar = async () => {
@@ -79,11 +95,25 @@ export default function Proyectos() {
       {modalProyecto && (
         <ModalEditarProyecto
           proyecto={modalProyecto === "nuevo" ? null : modalProyecto}
+          onCreado={abrirEquipoDeTemaRecienCreado}
           onGuardado={async () => {
             setModalProyecto(null);
             await cargarProyectos();
           }}
           onCerrar={() => setModalProyecto(null)}
+        />
+      )}
+
+      {temaRecienCreado && (
+        <ModalEquipo
+          proyectoId={temaRecienCreado.id}
+          miembros={equipoTemaRecienCreado}
+          titulo={`"${temaRecienCreado.nombre}" creado — agrega a tu equipo (opcional)`}
+          onCambio={async () => {
+            setEquipoTemaRecienCreado(await proyectosApi.equipo(temaRecienCreado.id));
+            await cargarProyectos();
+          }}
+          onCerrar={() => setTemaRecienCreado(null)}
         />
       )}
 

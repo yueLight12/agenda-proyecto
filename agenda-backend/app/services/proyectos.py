@@ -109,17 +109,17 @@ def crear_proyecto(
     """Sin parent_id (nodo raíz): cualquier usuario autenticado puede
     crear un proyecto. Por default queda como N1 (dirección) de él --
     salvo que alguien más ya lo tenga guardado en su plantilla de "mi
-    equipo", en cuyo caso hereda ese rol y ese supervisor (ver
-    rol_default_para_nuevo_proyecto).
+    equipo", en cuyo caso hereda ese rol (ver rol_default_para_nuevo_proyecto).
 
-    Si hereda N3/N4 (tiene supervisor), ese supervisor se agrega también al
-    proyecto como N2 -- si no, el creador queda sin nadie con permiso para
+    Si hereda N2/N3/N4, el dueño de esa plantilla se agrega también al
+    proyecto (como N1 si el creador hereda N2, o como N2/supervisor si
+    hereda N3/N4) -- si no, el creador queda sin nadie con permiso para
     terminar de organizar su propio equipo recién creado (asignar roles
     requiere N1/N2), y cualquier instrucción compuesta tipo "crea el
     proyecto y pon a Fulano de líder" se rompería justo ahí. Refleja la
-    jerarquía real: quien supervisa a alguien en la organización queda como
-    líder de los proyectos que esa persona crea, salvo que se reasigne
-    después.
+    jerarquía real: quien tiene guardado a alguien en su equipo queda como
+    dirección/líder de los proyectos que esa persona crea, salvo que se
+    reasigne después.
 
     Con parent_id (subtema, 2026-08-16): exige N1/N2 (local o heredado) en
     el padre -- quien lidera un tema puede crear subtemas dentro. El
@@ -148,16 +148,18 @@ def crear_proyecto(
     db.add(nuevo)
     db.flush()
 
-    rol, supervisor_id = rol_default_para_nuevo_proyecto(db, usuario)
+    rol, dueno_id = rol_default_para_nuevo_proyecto(db, usuario)
+    supervisor_id = dueno_id if rol in (RolEnum.N3, RolEnum.N4) else None
     db.add(
         UsuarioProyectoRol(
             usuario_id=usuario.id, proyecto_id=nuevo.id, rol=rol, supervisor_id=supervisor_id
         )
     )
-    if supervisor_id is not None:
+    if dueno_id is not None:
+        rol_dueno = RolEnum.N1 if rol == RolEnum.N2 else RolEnum.N2
         db.add(
             UsuarioProyectoRol(
-                usuario_id=supervisor_id, proyecto_id=nuevo.id, rol=RolEnum.N2, supervisor_id=None
+                usuario_id=dueno_id, proyecto_id=nuevo.id, rol=rol_dueno, supervisor_id=None
             )
         )
     return nuevo

@@ -327,17 +327,19 @@ def _resolver_crear_proyecto(
         return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen, preview=preview)
 
     parametros = {"nombre": nombre, "descripcion": parametros_llm.get("descripcion") or None, "parent_id": None}
-    rol, supervisor_id = rol_default_para_nuevo_proyecto(db, usuario)
+    rol, dueno_id = rol_default_para_nuevo_proyecto(db, usuario)
     equipo = [{"usuario_id": usuario.id, "nombre": usuario.nombre, "rol": rol.value}]
     if rol == RolEnum.N1:
         resumen = f'Voy a crear el tema "{nombre}". Quedarás como {_etiqueta_rol(rol)}. ¿Confirmas?'
     else:
-        supervisor = db.query(Usuario).filter(Usuario.id == supervisor_id).first() if supervisor_id else None
-        if supervisor:
-            equipo.append({"usuario_id": supervisor.id, "nombre": supervisor.nombre, "rol": RolEnum.N2.value})
+        dueno = db.query(Usuario).filter(Usuario.id == dueno_id).first() if dueno_id else None
+        if dueno:
+            rol_dueno = RolEnum.N1 if rol == RolEnum.N2 else RolEnum.N2
+            equipo.append({"usuario_id": dueno.id, "nombre": dueno.nombre, "rol": rol_dueno.value})
+            relacion = "dirección" if rol_dueno == RolEnum.N1 else "tu supervisor"
             resumen = (
-                f'Voy a crear el tema "{nombre}". Quedarás como {_etiqueta_rol(rol)} y {supervisor.nombre} '
-                f"como {_etiqueta_rol(RolEnum.N2)} (tu supervisor). ¿Confirmas?"
+                f'Voy a crear el tema "{nombre}". Quedarás como {_etiqueta_rol(rol)} y {dueno.nombre} '
+                f"como {_etiqueta_rol(rol_dueno)} ({relacion}). ¿Confirmas?"
             )
         else:
             resumen = (

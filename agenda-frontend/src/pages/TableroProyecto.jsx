@@ -34,6 +34,8 @@ export default function TableroProyecto() {
   const [modalReunion, setModalReunion] = useState(null); // null | "nueva" | reunion a editar
   const [mostrarModalEquipo, setMostrarModalEquipo] = useState(false);
   const [modalSubtema, setModalSubtema] = useState(false);
+  const [subtemaRecienCreado, setSubtemaRecienCreado] = useState(null);
+  const [equipoSubtemaRecienCreado, setEquipoSubtemaRecienCreado] = useState([]);
   const [modalEditarTema, setModalEditarTema] = useState(false);
   const [confirmandoEliminarTema, setConfirmandoEliminarTema] = useState(false);
   const [resumenEliminarTema, setResumenEliminarTema] = useState(null);
@@ -121,6 +123,14 @@ export default function TableroProyecto() {
     } catch {
       setErrorAvance("No se pudo mover el entregable. Intenta de nuevo.");
     }
+  };
+
+  const abrirEquipoDeSubtemaRecienCreado = async (nuevo) => {
+    setModalSubtema(false);
+    await cargarTodo();
+    const eq = await proyectosApi.equipo(nuevo.id);
+    setEquipoSubtemaRecienCreado(eq);
+    setSubtemaRecienCreado(nuevo);
   };
 
   const abrirConfirmarEliminarTema = async () => {
@@ -465,11 +475,25 @@ export default function TableroProyecto() {
       {modalSubtema && (
         <ModalEditarProyecto
           parentId={Number(proyectoId)}
+          onCreado={abrirEquipoDeSubtemaRecienCreado}
           onGuardado={async () => {
             setModalSubtema(false);
             await cargarTodo();
           }}
           onCerrar={() => setModalSubtema(false)}
+        />
+      )}
+
+      {subtemaRecienCreado && (
+        <ModalEquipo
+          proyectoId={subtemaRecienCreado.id}
+          miembros={equipoSubtemaRecienCreado}
+          titulo={`"${subtemaRecienCreado.nombre}" creado — agrega a tu equipo (opcional)`}
+          onCambio={async () => {
+            setEquipoSubtemaRecienCreado(await proyectosApi.equipo(subtemaRecienCreado.id));
+            await cargarTodo();
+          }}
+          onCerrar={() => setSubtemaRecienCreado(null)}
         />
       )}
 

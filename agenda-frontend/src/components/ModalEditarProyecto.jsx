@@ -7,7 +7,11 @@ import Modal from "./Modal";
 // era el único "crear" que usaba un acordeón inline en vez de un modal).
 // `parentId` (solo aplica en modo creación) crea un SUBTEMA dentro de ese
 // nodo en vez de un proyecto/tema raíz (ver Fase 1 de jerarquía, 2026-08-16).
-export default function ModalEditarProyecto({ proyecto = null, parentId = null, onGuardado, onCerrar }) {
+// `onCreado(nuevoTema)` es opcional y solo se llama al CREAR (no al editar)
+// -- permite que quien use este modal encadene un paso de "agrega a tu
+// equipo ahora, o hazlo después" justo después de crear (ver Proyectos.jsx
+// y TableroProyecto.jsx, pedido explícito de Yue el 2026-08-17).
+export default function ModalEditarProyecto({ proyecto = null, parentId = null, onCreado, onGuardado, onCerrar }) {
   const esEdicion = Boolean(proyecto);
   const [nombre, setNombre] = useState(proyecto?.nombre || "");
   const [descripcion, setDescripcion] = useState(proyecto?.descripcion || "");
@@ -26,10 +30,15 @@ export default function ModalEditarProyecto({ proyecto = null, parentId = null, 
           descripcion: descripcion || null,
           activo,
         });
+        await onGuardado();
       } else {
-        await proyectosApi.crear({ nombre, descripcion: descripcion || null, parent_id: parentId });
+        const nuevo = await proyectosApi.crear({ nombre, descripcion: descripcion || null, parent_id: parentId });
+        if (onCreado) {
+          await onCreado(nuevo);
+        } else {
+          await onGuardado();
+        }
       }
-      await onGuardado();
     } catch (err) {
       setError(err.response?.data?.detail || "No se pudo guardar el tema.");
     } finally {

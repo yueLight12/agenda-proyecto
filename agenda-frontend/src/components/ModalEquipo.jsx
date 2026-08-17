@@ -7,7 +7,15 @@ import Modal from "./Modal";
 
 const ROLES = ["N1", "N2", "N3", "N4"];
 
-export default function ModalEquipo({ proyectoId, miembros, entregables = [], reuniones = [], onCambio, onCerrar }) {
+export default function ModalEquipo({
+  proyectoId,
+  miembros,
+  entregables = [],
+  reuniones = [],
+  titulo = "Administrar equipo del tema",
+  onCambio,
+  onCerrar,
+}) {
   const [usuariosDisponibles, setUsuariosDisponibles] = useState([]);
   const [errorListaUsuarios, setErrorListaUsuarios] = useState("");
   const [usuarioId, setUsuarioId] = useState("");
@@ -89,7 +97,7 @@ export default function ModalEquipo({ proyectoId, miembros, entregables = [], re
   };
 
   return (
-    <Modal titulo="Administrar equipo del tema" onCerrar={onCerrar}>
+    <Modal titulo={titulo} onCerrar={onCerrar}>
       <div className="stack">
         <div className="list-inline" style={{ borderBottom: "none" }}>
           <span style={{ fontSize: "0.85rem", color: "var(--color-text-muted)" }}>
