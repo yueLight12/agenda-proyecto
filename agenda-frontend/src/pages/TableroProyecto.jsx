@@ -1,55 +1,73 @@
 import { useEffect, useState } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { entregablesApi, proyectosApi, reunionesApi } from "../api/endpoints";
 import EstatusBadge from "../components/EstatusBadge";
+import Breadcrumb from "../components/Breadcrumb";
 import CalendarioEntregables from "../components/CalendarioEntregables";
 import KanbanEntregables from "../components/KanbanEntregables";
+import ConfirmDialog from "../components/ConfirmDialog";
 import FormularioEntregable from "../components/FormularioEntregable";
+import ModalEditarProyecto from "../components/ModalEditarProyecto";
 import ModalEquipo from "../components/ModalEquipo";
 import ModalHistorial from "../components/ModalHistorial";
 import ModalReunion from "../components/ModalReunion";
 import ModalMinuta from "../components/ModalMinuta";
+import { etiquetaRol } from "../utils/rolLabels";
 import { useAuth } from "../context/AuthContext";
 
 export default function TableroProyecto() {
   const { proyectoId } = useParams();
   const { usuario } = useAuth();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [proyecto, setProyecto] = useState(null);
   const [resumen, setResumen] = useState(null);
   const [entregables, setEntregables] = useState([]);
   const [reuniones, setReuniones] = useState([]);
   const [equipo, setEquipo] = useState([]);
+  const [ancestros, setAncestros] = useState([]);
+  const [subtemas, setSubtemas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [editandoId, setEditandoId] = useState(null);
   const [valorEdicion, setValorEdicion] = useState(0);
   const [modalEntregable, setModalEntregable] = useState(null); // null | "nuevo" | entregable a editar
   const [modalReunion, setModalReunion] = useState(null); // null | "nueva" | reunion a editar
   const [mostrarModalEquipo, setMostrarModalEquipo] = useState(false);
+  const [modalSubtema, setModalSubtema] = useState(false);
+  const [modalEditarTema, setModalEditarTema] = useState(false);
+  const [confirmandoEliminarTema, setConfirmandoEliminarTema] = useState(false);
+  const [resumenEliminarTema, setResumenEliminarTema] = useState(null);
+  const [eliminandoTema, setEliminandoTema] = useState(false);
+  const [errorEliminarTema, setErrorEliminarTema] = useState("");
   const [reunionMinuta, setReunionMinuta] = useState(null);
   const [entregableHistorial, setEntregableHistorial] = useState(null);
   const [error, setError] = useState("");
   const [errorAvance, setErrorAvance] = useState("");
   const [vista, setVista] = useState("tabla"); // "tabla" | "calendario" | "kanban"
 
-  const rolEnProyecto = usuario?.es_super_admin
-    ? "N1"
-    : usuario?.roles_por_proyecto.find((r) => r.proyecto_id === Number(proyectoId))?.rol;
-  const puedeAdministrar = rolEnProyecto === "N1" || rolEnProyecto === "N2";
+  // Calculado en servidor (rol_efectivo/puede_administrar ya consideran
+  // herencia desde un ancestro -- ver Fase 1 de jerarquía, 2026-08-16).
+  // Nunca cruzar usuario.roles_por_proyecto aquí, se rompe en un subtema
+  // cuyo permiso viene heredado de un nodo padre.
+  const puedeAdministrar = Boolean(proyecto?.puede_administrar);
 
   const cargarTodo = async () => {
-    const [p, r, e, eq, reu] = await Promise.all([
+    const [p, r, e, eq, reu, anc, hijos] = await Promise.all([
       proyectosApi.obtener(proyectoId),
       proyectosApi.resumen(proyectoId),
       entregablesApi.listarPorProyecto(proyectoId),
       proyectosApi.equipo(proyectoId),
       reunionesApi.listarPorProyecto(proyectoId),
+      proyectosApi.ancestros(proyectoId),
+      proyectosApi.hijos(proyectoId),
     ]);
     setProyecto(p);
     setResumen(r);
     setEntregables(e);
     setEquipo(eq);
     setReuniones(reu);
+    setAncestros(anc);
+    setSubtemas(hijos);
     return { entregables: e, reuniones: reu };
   };
 
@@ -105,11 +123,38 @@ export default function TableroProyecto() {
     }
   };
 
+  const abrirConfirmarEliminarTema = async () => {
+    setErrorEliminarTema("");
+    try {
+      const r = subtemas.length > 0 ? await proyectosApi.resumenSubarbol(proyectoId) : null;
+      setResumenEliminarTema(r);
+      setConfirmandoEliminarTema(true);
+    } catch {
+      setErrorEliminarTema("No se pudo preparar la eliminación. Intenta de nuevo.");
+    }
+  };
+
+  const confirmarEliminarTema = async () => {
+    setEliminandoTema(true);
+    setErrorEliminarTema("");
+    try {
+      await proyectosApi.eliminar(proyectoId);
+      const destino = ancestros.length > 0 ? `/proyectos/${ancestros[ancestros.length - 1].id}` : "/proyectos";
+      navigate(destino);
+    } catch (err) {
+      setErrorEliminarTema(err.response?.data?.detail || "No se pudo eliminar este tema.");
+      setEliminandoTema(false);
+      setConfirmandoEliminarTema(false);
+    }
+  };
+
   if (cargando) return <p>Cargando proyecto...</p>;
   if (error) return <p className="error-text">{error}</p>;
 
   return (
     <div className="stack">
+      <Breadcrumb ancestros={ancestros} actual={proyecto?.nombre} />
+
       <div className="topbar">
         <h1>{proyecto?.nombre}</h1>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -138,6 +183,25 @@ export default function TableroProyecto() {
               Administrar equipo
             </button>
           )}
+          {puedeAdministrar && (
+            <button className="btn btn--ghost" onClick={() => setModalSubtema(true)}>
+              Nuevo subtema
+            </button>
+          )}
+          {puedeAdministrar && (
+            <button className="btn btn--ghost" onClick={() => setModalEditarTema(true)}>
+              Editar tema
+            </button>
+          )}
+          {puedeAdministrar && ancestros.length > 0 && (
+            <button
+              className="btn btn--ghost"
+              style={{ color: "var(--color-danger)" }}
+              onClick={abrirConfirmarEliminarTema}
+            >
+              Eliminar tema
+            </button>
+          )}
           <button className="btn btn--primary" onClick={() => setModalEntregable("nuevo")}>
             {puedeAdministrar ? "Nuevo entregable" : "Agregarme una tarea"}
           </button>
@@ -146,6 +210,56 @@ export default function TableroProyecto() {
           </button>
         </div>
       </div>
+
+      {errorEliminarTema && <p className="error-text">{errorEliminarTema}</p>}
+
+      {(subtemas.length > 0 || puedeAdministrar) && (
+        <div className="card">
+          <div className="list-inline" style={{ borderBottom: "none", paddingBottom: 0 }}>
+            <h3 style={{ fontSize: "0.95rem", margin: 0 }}>Subtemas</h3>
+          </div>
+          {subtemas.length === 0 && (
+            <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
+              Este tema todavía no tiene subtemas.
+            </p>
+          )}
+          {subtemas.length > 0 && (
+            <div className="kanban-responsive">
+              <div className="kanban-board">
+                {subtemas.map((s) => (
+                  <Link
+                    key={s.id}
+                    to={`/proyectos/${s.id}`}
+                    className="kanban-column"
+                    style={{ color: "inherit", textDecoration: "none" }}
+                  >
+                    <div className="kanban-column__header">
+                      <span>{s.nombre}</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      {s.rol_efectivo && (
+                        <span className="kanban-column__contador" style={{ fontSize: "0.7rem" }}>
+                          {etiquetaRol(s.rol_efectivo)}
+                        </span>
+                      )}
+                      {s.tiene_hijos && (
+                        <span style={{ fontSize: "0.7rem", color: "var(--color-text-muted)" }}>
+                          tiene subtemas
+                        </span>
+                      )}
+                    </div>
+                    {s.descripcion && (
+                      <p style={{ fontSize: "0.8rem", color: "var(--color-text-muted)", margin: 0 }}>
+                        {s.descripcion}
+                      </p>
+                    )}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {resumen && (
         <div className="grid-summary">
@@ -345,6 +459,42 @@ export default function TableroProyecto() {
           reuniones={reuniones}
           onCambio={cargarTodo}
           onCerrar={() => setMostrarModalEquipo(false)}
+        />
+      )}
+
+      {modalSubtema && (
+        <ModalEditarProyecto
+          parentId={Number(proyectoId)}
+          onGuardado={async () => {
+            setModalSubtema(false);
+            await cargarTodo();
+          }}
+          onCerrar={() => setModalSubtema(false)}
+        />
+      )}
+
+      {modalEditarTema && (
+        <ModalEditarProyecto
+          proyecto={proyecto}
+          onGuardado={async () => {
+            setModalEditarTema(false);
+            await cargarTodo();
+          }}
+          onCerrar={() => setModalEditarTema(false)}
+        />
+      )}
+
+      {confirmandoEliminarTema && (
+        <ConfirmDialog
+          titulo="Eliminar tema"
+          mensaje={
+            resumenEliminarTema && resumenEliminarTema.total_subtemas > 0
+              ? `¿Eliminar "${proyecto?.nombre}"? Esto también borra ${resumenEliminarTema.total_subtemas} subtema(s), ${resumenEliminarTema.total_entregables} entregable(s) y ${resumenEliminarTema.total_reuniones} reunión(es) de todo su subárbol. Esta acción no se puede deshacer.`
+              : `¿Eliminar el tema "${proyecto?.nombre}"? Esto borra también su equipo, entregables y reuniones. Esta acción no se puede deshacer.`
+          }
+          textoConfirmar={eliminandoTema ? "Eliminando..." : "Eliminar"}
+          onConfirmar={confirmarEliminarTema}
+          onCancelar={() => setConfirmandoEliminarTema(false)}
         />
       )}
 

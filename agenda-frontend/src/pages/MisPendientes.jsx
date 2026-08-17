@@ -14,12 +14,6 @@ export default function MisPendientes() {
   const [miembrosProyecto, setMiembrosProyecto] = useState([]);
   const [errorAbrir, setErrorAbrir] = useState("");
 
-  const puedeAsignarAOtros = (proyectoId) =>
-    usuario?.es_super_admin ||
-    ["N1", "N2"].includes(
-      usuario?.roles_por_proyecto.find((r) => r.proyecto_id === proyectoId)?.rol
-    );
-
   const cargar = async () => {
     const proyectos = await proyectosApi.listar();
     const listas = await Promise.all(
@@ -101,7 +95,7 @@ export default function MisPendientes() {
           proyectoId={entregableAbierto.proyecto_id}
           entregable={entregableAbierto}
           miembros={miembrosProyecto}
-          puedeAsignarAOtros={puedeAsignarAOtros(entregableAbierto.proyecto_id)}
+          puedeAsignarAOtros={entregableAbierto.puede_editar}
           usuarioActualId={usuario?.id}
           onGuardado={async () => {
             setEntregableAbierto(null);

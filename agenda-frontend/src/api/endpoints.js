@@ -34,6 +34,11 @@ export const proyectosApi = {
     (await api.post(`/proyectos/${proyectoId}/usuarios`, datos)).data,
   quitarMiembro: async (proyectoId, usuarioId) =>
     api.delete(`/proyectos/${proyectoId}/usuarios/${usuarioId}`),
+  hijos: async (id) => (await api.get(`/proyectos/${id}/hijos`)).data,
+  ancestros: async (id) => (await api.get(`/proyectos/${id}/ancestros`)).data,
+  resumenSubarbol: async (id) => (await api.get(`/proyectos/${id}/resumen-subarbol`)).data,
+  mover: async (id, nuevoParentId) =>
+    (await api.patch(`/proyectos/${id}/mover`, { nuevo_parent_id: nuevoParentId })).data,
 };
 
 export const entregablesApi = {
@@ -61,9 +66,12 @@ export const equipoResumenApi = {
 export const reunionesApi = {
   listarPorProyecto: async (proyectoId) =>
     (await api.get(`/proyectos/${proyectoId}/reuniones`)).data,
+  listarGenerales: async () => (await api.get("/reuniones")).data,
   obtener: async (reunionId) => (await api.get(`/reuniones/${reunionId}`)).data,
   crear: async (proyectoId, datos) =>
-    (await api.post(`/proyectos/${proyectoId}/reuniones`, datos)).data,
+    proyectoId
+      ? (await api.post(`/proyectos/${proyectoId}/reuniones`, datos)).data
+      : (await api.post("/reuniones", datos)).data,
   actualizar: async (reunionId, datos) =>
     (await api.patch(`/reuniones/${reunionId}`, datos)).data,
   eliminar: async (reunionId) => api.delete(`/reuniones/${reunionId}`),

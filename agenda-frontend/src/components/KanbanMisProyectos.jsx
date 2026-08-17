@@ -98,7 +98,9 @@ function TarjetaMiembro({ miembro, entregables, reuniones }) {
   );
 }
 
-function TarjetaProyecto({ proyecto, rol, puedeAdministrar, onEditar, onEliminar }) {
+function TarjetaProyecto({ proyecto, onEditar, onEliminar }) {
+  const rol = proyecto.rol_efectivo;
+  const puedeAdministrar = proyecto.puede_administrar;
   const [abierto, setAbierto] = useState(false);
   const [cargado, setCargado] = useState(false);
   const [cargando, setCargando] = useState(false);
@@ -170,6 +172,9 @@ function TarjetaProyecto({ proyecto, rol, puedeAdministrar, onEditar, onEliminar
             Inactivo
           </span>
         )}
+        {proyecto.tiene_hijos && (
+          <span style={{ fontSize: "0.7rem", color: "var(--color-text-muted)" }}>tiene subtemas</span>
+        )}
       </div>
 
       {proyecto.descripcion && (
@@ -210,7 +215,7 @@ function TarjetaProyecto({ proyecto, rol, puedeAdministrar, onEditar, onEliminar
   );
 }
 
-export default function KanbanMisProyectos({ proyectos, rolDeProyecto, puedeAdministrarProyecto, onEditar, onEliminar }) {
+export default function KanbanMisProyectos({ proyectos, onEditar, onEliminar }) {
   if (proyectos.length === 0) {
     return (
       <p style={{ color: "var(--color-text-muted)" }}>No tienes proyectos asignados todavía.</p>
@@ -221,14 +226,7 @@ export default function KanbanMisProyectos({ proyectos, rolDeProyecto, puedeAdmi
     <div className="kanban-responsive">
       <div className="kanban-board">
         {proyectos.map((p) => (
-          <TarjetaProyecto
-            key={p.id}
-            proyecto={p}
-            rol={rolDeProyecto(p.id)}
-            puedeAdministrar={puedeAdministrarProyecto(p.id)}
-            onEditar={onEditar}
-            onEliminar={onEliminar}
-          />
+          <TarjetaProyecto key={p.id} proyecto={p} onEditar={onEditar} onEliminar={onEliminar} />
         ))}
       </div>
     </div>

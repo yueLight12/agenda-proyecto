@@ -3,7 +3,13 @@ import CalendarioEntregables from "../components/CalendarioEntregables";
 import FormularioEntregable from "../components/FormularioEntregable";
 import ModalEventoEmpresa from "../components/ModalEventoEmpresa";
 import ModalReunion from "../components/ModalReunion";
-import { entregablesApi, eventosEmpresaApi, proyectosApi, reunionesApi } from "../api/endpoints";
+import {
+  entregablesApi,
+  eventosEmpresaApi,
+  miEquipoApi,
+  proyectosApi,
+  reunionesApi,
+} from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
 
 export default function CalendarioGlobal() {
@@ -18,31 +24,59 @@ export default function CalendarioGlobal() {
   const [modalEventoEmpresa, setModalEventoEmpresa] = useState(null);
   const [modo, setModo] = useState("general"); // "personal" | "general" | "empresa"
   const [eventosEmpresa, setEventosEmpresa] = useState([]);
+  const [miEquipo, setMiEquipo] = useState([]);
 
   const cargarTodo = async () => {
-    const proyectos = await proyectosApi.listar();
+    const raices = await proyectosApi.listar();
+    // Cada raíz trae, en cascada, los entregables/reuniones de todo su
+    // subárbol de subtemas (query generalizada en el backend, ver Fase 1 de
+    // jerarquía 2026-08-16) -- pero cada ítem trae su proyecto_id REAL (el
+    // del subtema exacto, no el de la raíz), así que el nombre y el equipo
+    // se resuelven por ese id propio, no por el de la raíz que disparó el fetch.
     const listasEntregables = await Promise.all(
-      proyectos.map((p) =>
-        entregablesApi
-          .listarPorProyecto(p.id)
-          .then((es) => es.map((e) => ({ ...e, proyecto_nombre: p.nombre, proyecto_id: p.id })))
-      )
+      raices.map((p) => entregablesApi.listarPorProyecto(p.id))
     );
     const listasReuniones = await Promise.all(
-      proyectos.map((p) =>
-        reunionesApi
-          .listarPorProyecto(p.id)
-          .then((rs) => rs.map((r) => ({ ...r, proyecto_nombre: p.nombre })))
-      )
+      raices.map((p) => reunionesApi.listarPorProyecto(p.id))
     );
-    const equipos = await Promise.all(proyectos.map((p) => proyectosApi.equipo(p.id)));
-    const mapaEquipos = {};
-    proyectos.forEach((p, i) => {
-      mapaEquipos[p.id] = equipos[i];
+    const reunionesGenerales = await reunionesApi.listarGenerales();
+    const todosEntregables = listasEntregables.flat();
+    const todosReuniones = [...listasReuniones.flat(), ...reunionesGenerales];
+
+    const idsProyectos = new Set([
+      ...raices.map((p) => p.id),
+      ...todosEntregables.map((e) => e.proyecto_id),
+      ...todosReuniones.filter((r) => r.proyecto_id).map((r) => r.proyecto_id),
+    ]);
+    const nombresPorId = {};
+    raices.forEach((p) => {
+      nombresPorId[p.id] = p.nombre;
     });
+    // Para subtemas (proyecto_id distinto de cualquier raíz) hace falta
+    // pedir el nombre propio del nodo -- no viene en la lista de raíces.
+    await Promise.all(
+      [...idsProyectos]
+        .filter((id) => !(id in nombresPorId))
+        .map((id) => proyectosApi.obtener(id).then((p) => (nombresPorId[id] = p.nombre)))
+    );
+
+    const equiposEntries = await Promise.all(
+      [...idsProyectos].map((id) => proyectosApi.equipo(id).then((eq) => [id, eq]))
+    );
+    const mapaEquipos = Object.fromEntries(equiposEntries);
+
     const eventos = await eventosEmpresaApi.listar();
-    setEntregables(listasEntregables.flat());
-    setReuniones(listasReuniones.flat());
+    const plantilla = await miEquipoApi.listar();
+    setMiEquipo(plantilla);
+    setEntregables(
+      todosEntregables.map((e) => ({ ...e, proyecto_nombre: nombresPorId[e.proyecto_id] }))
+    );
+    setReuniones(
+      todosReuniones.map((r) => ({
+        ...r,
+        proyecto_nombre: r.proyecto_id ? nombresPorId[r.proyecto_id] : "General",
+      }))
+    );
     setEquiposPorProyecto(mapaEquipos);
     setEventosEmpresa(eventos);
   };
@@ -55,13 +89,10 @@ export default function CalendarioGlobal() {
       .finally(() => setCargando(false));
   }, []);
 
-  const puedeEditar = (entregable) => {
-    if (usuario?.es_super_admin) return true;
-    const rol = usuario?.roles_por_proyecto.find(
-      (r) => r.proyecto_id === entregable.proyecto_id
-    )?.rol;
-    return rol === "N1" || rol === "N2";
-  };
+  // Calculado en servidor (entregable.puede_editar / reunion.puede_editar) --
+  // nunca cruzar usuario.roles_por_proyecto aquí, se rompe con herencia de
+  // subtemas (ver Fase 1 de jerarquía, 2026-08-16).
+  const puedeEditar = (item) => Boolean(item.puede_editar);
 
   const reprogramarEntregable = async (entregable, nuevaFecha) => {
     await entregablesApi.actualizar(entregable.id, { fecha_entrega: nuevaFecha });
@@ -113,6 +144,9 @@ export default function CalendarioGlobal() {
             Empresa
           </button>
         </div>
+        <button className="btn btn--ghost" onClick={() => setModalReunion("nueva-general")}>
+          Nueva reunión general
+        </button>
       </div>
       {modo !== "empresa" && entregablesMostrados.length === 0 && reunionesMostradas.length === 0 && (
         <p style={{ color: "var(--color-text-muted)" }}>
@@ -159,13 +193,28 @@ export default function CalendarioGlobal() {
         <ModalEventoEmpresa evento={modalEventoEmpresa} onCerrar={() => setModalEventoEmpresa(null)} />
       )}
 
-      {modalReunion && (
+      {modalReunion && modalReunion !== "nueva-general" && (
         <ModalReunion
           proyectoId={modalReunion.proyecto_id}
           reunion={modalReunion}
           miembros={equiposPorProyecto[modalReunion.proyecto_id] || []}
           organizadorId={modalReunion.organizador_id}
-          puedeAdministrar={puedeEditar({ proyecto_id: modalReunion.proyecto_id })}
+          puedeAdministrar={puedeEditar(modalReunion)}
+          onGuardado={async () => {
+            setModalReunion(null);
+            await cargarTodo();
+          }}
+          onCerrar={() => setModalReunion(null)}
+        />
+      )}
+
+      {modalReunion === "nueva-general" && (
+        <ModalReunion
+          proyectoId={null}
+          reunion={null}
+          miembros={miEquipo}
+          organizadorId={usuario?.id}
+          puedeAdministrar
           onGuardado={async () => {
             setModalReunion(null);
             await cargarTodo();

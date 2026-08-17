@@ -15,11 +15,14 @@ import EstatusBadge from "./EstatusBadge";
 // jerarquía, sin ramas especiales por rol — se ajusta sola conforme
 // cambien personas o proyectos.
 //
-// `onAdministrar`/`puedeAdministrar` son opcionales: cuando se pasan (uso
-// desde ResumenEquipo.jsx en /equipo), cada proyecto muestra un botón
-// "Administrar" que abre ModalEquipo — el Dashboard ("Tu equipo") no los
+// `onAdministrar` es opcional: cuando se pasa (uso desde ResumenEquipo.jsx
+// en /equipo), cada proyecto donde el viewer puede administrar (campo
+// calculado en servidor `viewer_puede_administrar`, ver Fase 1 de
+// jerarquía 2026-08-16 -- nunca se recalcula cruzando
+// usuario.roles_por_proyecto, se rompe con herencia) muestra un botón
+// "Administrar" que abre ModalEquipo — el Dashboard ("Tu equipo") no lo
 // pasa y por tanto no muestra ese botón, sin cambio de comportamiento ahí.
-function EntregablesYReuniones({ proyectos, onAdministrar, puedeAdministrar }) {
+function EntregablesYReuniones({ proyectos, onAdministrar }) {
   const hoyIso = new Date().toISOString().slice(0, 10);
 
   return (
@@ -33,7 +36,7 @@ function EntregablesYReuniones({ proyectos, onAdministrar, puedeAdministrar }) {
               </Link>
               {p.rol && <span style={{ fontWeight: 400 }}> ({etiquetaRol(p.rol)})</span>}
             </span>
-            {onAdministrar && puedeAdministrar?.(p.proyecto_id) && (
+            {onAdministrar && p.viewer_puede_administrar && (
               <button
                 className="btn btn--ghost"
                 type="button"
@@ -106,7 +109,7 @@ function EntregablesYReuniones({ proyectos, onAdministrar, puedeAdministrar }) {
   );
 }
 
-function TarjetaColumna({ columna, onAdministrar, puedeAdministrar }) {
+function TarjetaColumna({ columna, onAdministrar }) {
   const hoyIso = new Date().toISOString().slice(0, 10);
   const vencidos = columna.proyectos.reduce(
     (acc, p) => acc + p.entregables.filter((e) => e.estatus !== "cumplido" && e.fecha_entrega < hoyIso).length,
@@ -130,18 +133,14 @@ function TarjetaColumna({ columna, onAdministrar, puedeAdministrar }) {
             Sin proyectos asignados todavía.
           </p>
         ) : (
-          <EntregablesYReuniones
-            proyectos={columna.proyectos}
-            onAdministrar={onAdministrar}
-            puedeAdministrar={puedeAdministrar}
-          />
+          <EntregablesYReuniones proyectos={columna.proyectos} onAdministrar={onAdministrar} />
         )}
       </div>
     </div>
   );
 }
 
-export default function KanbanSupervisores({ miembros, onAdministrar, puedeAdministrar, usuarioActualId }) {
+export default function KanbanSupervisores({ miembros, onAdministrar, usuarioActualId }) {
   const columnas = armarColumnasEquipo(miembros, usuarioActualId);
 
   if (columnas.length === 0) {
@@ -156,12 +155,7 @@ export default function KanbanSupervisores({ miembros, onAdministrar, puedeAdmin
     <div className="kanban-responsive">
       <div className="kanban-board">
         {columnas.map((c) => (
-          <TarjetaColumna
-            key={c.usuario_id}
-            columna={c}
-            onAdministrar={onAdministrar}
-            puedeAdministrar={puedeAdministrar}
-          />
+          <TarjetaColumna key={c.usuario_id} columna={c} onAdministrar={onAdministrar} />
         ))}
       </div>
     </div>

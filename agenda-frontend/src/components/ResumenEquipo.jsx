@@ -24,15 +24,6 @@ export default function ResumenEquipo() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Rol del usuario QUE ESTÁ VIENDO la pantalla en ese proyecto (no el rol
-  // de la persona que se está mostrando) — mismo patrón que
-  // TableroProyecto.jsx usa para decidir quién puede administrar.
-  const rolDelViewerEnProyecto = (proyectoId) =>
-    usuario?.es_super_admin
-      ? "N1"
-      : usuario?.roles_por_proyecto.find((r) => r.proyecto_id === proyectoId)?.rol;
-  const puedeAdministrar = (proyectoId) => ["N1", "N2"].includes(rolDelViewerEnProyecto(proyectoId));
-
   const abrirAdministrar = async (proyectoId, proyectoNombre) => {
     const equipo = await proyectosApi.equipo(proyectoId);
     setMiembrosModal(equipo);
@@ -58,7 +49,6 @@ export default function ResumenEquipo() {
       <KanbanSupervisores
         miembros={miembros}
         onAdministrar={abrirAdministrar}
-        puedeAdministrar={puedeAdministrar}
         usuarioActualId={usuario?.id}
       />
 

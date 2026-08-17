@@ -1,18 +1,17 @@
 import { useEffect, useState } from "react";
 import { proyectosApi } from "../api/endpoints";
-import { useAuth } from "../context/AuthContext";
 import ConfirmDialog from "../components/ConfirmDialog";
 import KanbanMisProyectos from "../components/KanbanMisProyectos";
 import ModalEditarProyecto from "../components/ModalEditarProyecto";
 
 export default function Proyectos() {
-  const { usuario } = useAuth();
   const [proyectos, setProyectos] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
 
   const [modalProyecto, setModalProyecto] = useState(null); // null | "nuevo" | proyecto a editar
   const [confirmandoEliminar, setConfirmandoEliminar] = useState(null); // proyecto a eliminar, o null
+  const [resumenEliminar, setResumenEliminar] = useState(null);
   const [eliminando, setEliminando] = useState(false);
   const [errorEliminar, setErrorEliminar] = useState("");
 
@@ -27,20 +26,16 @@ export default function Proyectos() {
     cargarProyectos();
   }, []);
 
-  // Editar y eliminar proyecto son ambos N1 o N2 (líder) -- decisión
-  // explícita de Yue, 2026-08-16: un líder puede administrar por completo
-  // los proyectos que lidera, aunque no los haya creado él.
-  const puedeAdministrarProyecto = (proyectoId) => {
-    if (usuario?.es_super_admin) return true;
-    return usuario?.roles_por_proyecto.some(
-      (r) => r.proyecto_id === proyectoId && (r.rol === "N1" || r.rol === "N2")
-    );
+  // Editar y eliminar proyecto se calculan en servidor (proyecto.puede_administrar,
+  // ver ProyectoOut) -- N1 o N2, local o heredado (decisión explícita de
+  // Yue, 2026-08-16: un líder puede administrar por completo los proyectos
+  // que lidera, aunque no los haya creado él). Nunca recalcular aquí
+  // cruzando usuario.roles_por_proyecto.
+  const abrirConfirmarEliminar = async (proyecto) => {
+    setErrorEliminar("");
+    setResumenEliminar(proyecto.tiene_hijos ? await proyectosApi.resumenSubarbol(proyecto.id) : null);
+    setConfirmandoEliminar(proyecto);
   };
-
-  const rolDelViewer = (proyectoId) =>
-    usuario?.es_super_admin
-      ? "N1"
-      : usuario?.roles_por_proyecto.find((r) => r.proyecto_id === proyectoId)?.rol;
 
   const confirmarEliminar = async () => {
     setEliminando(true);
@@ -77,10 +72,8 @@ export default function Proyectos() {
       )}
       <KanbanMisProyectos
         proyectos={proyectos}
-        rolDeProyecto={rolDelViewer}
-        puedeAdministrarProyecto={puedeAdministrarProyecto}
         onEditar={setModalProyecto}
-        onEliminar={setConfirmandoEliminar}
+        onEliminar={abrirConfirmarEliminar}
       />
 
       {modalProyecto && (
@@ -97,7 +90,11 @@ export default function Proyectos() {
       {confirmandoEliminar && (
         <ConfirmDialog
           titulo="Eliminar proyecto"
-          mensaje={`¿Eliminar el proyecto "${confirmandoEliminar.nombre}"? Esto borra también su equipo, entregables y reuniones. Esta acción no se puede deshacer.`}
+          mensaje={
+            resumenEliminar && resumenEliminar.total_subtemas > 0
+              ? `¿Eliminar "${confirmandoEliminar.nombre}"? Esto también borra ${resumenEliminar.total_subtemas} subtema(s), ${resumenEliminar.total_entregables} entregable(s) y ${resumenEliminar.total_reuniones} reunión(es) de todo su subárbol. Esta acción no se puede deshacer.`
+              : `¿Eliminar el proyecto "${confirmandoEliminar.nombre}"? Esto borra también su equipo, entregables y reuniones. Esta acción no se puede deshacer.`
+          }
           textoConfirmar={eliminando ? "Eliminando..." : "Eliminar"}
           onConfirmar={confirmarEliminar}
           onCancelar={() => setConfirmandoEliminar(null)}

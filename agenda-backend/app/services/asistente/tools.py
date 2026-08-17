@@ -367,16 +367,35 @@ def _ejecutar_crear_proyecto(db: Session, usuario: Usuario, parametros: dict) ->
 
 # --- agendar_reunion ------------------------------------------------------
 
+_PALABRAS_REUNION_GENERAL = ("general", "sin proyecto", "sin tema", "ninguno", "ninguna")
+
+
+def _es_reunion_general(texto: Optional[str]) -> bool:
+    """"agenda una reunión general/sin proyecto/sin tema..." -- reunión no
+    ligada a ningún tema (2026-08-16, ver Reunion.proyecto_id nullable)."""
+    if not texto:
+        return False
+    normalizado = texto.strip().lower()
+    return any(palabra in normalizado for palabra in _PALABRAS_REUNION_GENERAL)
+
+
 def _resolver_agendar_reunion(
     db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
 ) -> ResultadoInterpretacion:
-    proyecto_res = resolver_campo(
-        "proyecto_id", aclaraciones, parametros_llm.get("proyecto"),
-        lambda t: resolver_proyecto(db, usuario, t, proyecto_id_contexto),
-    )
-    if not proyecto_res.resuelto:
-        return _pendiente("proyecto_id", proyecto_res)
-    proyecto_id = proyecto_res.valor
+    texto_proyecto = parametros_llm.get("proyecto")
+    aclaracion_proyecto = aclaraciones.get("proyecto_id")
+    texto_para_general = aclaracion_proyecto if isinstance(aclaracion_proyecto, str) else texto_proyecto
+
+    if not proyecto_id_contexto and _es_reunion_general(texto_para_general):
+        proyecto_id = None
+    else:
+        proyecto_res = resolver_campo(
+            "proyecto_id", aclaraciones, texto_proyecto,
+            lambda t: resolver_proyecto(db, usuario, t, proyecto_id_contexto),
+        )
+        if not proyecto_res.resuelto:
+            return _pendiente("proyecto_id", proyecto_res)
+        proyecto_id = proyecto_res.valor
 
     titulo = (
         aclaraciones.get("titulo") if isinstance(aclaraciones.get("titulo"), str) else parametros_llm.get("titulo")
@@ -1718,13 +1737,15 @@ TOOLS: dict[str, ToolSpec] = {
     ),
     "agendar_reunion": ToolSpec(
         nombre="agendar_reunion",
-        descripcion="Agendar una reunión dentro de un proyecto, con título, fecha/hora y participantes opcionales.",
+        descripcion="Agendar una reunión dentro de un proyecto/tema, o una reunión general sin proyecto, "
+        "con título, fecha/hora y participantes opcionales.",
         parametros_llm={
             "titulo": "tema o título de la reunión",
             "fecha_inicio": "fecha y hora tal como se dijo (ej. 'el jueves a las 3pm', 'mañana a las 10 de la mañana')",
             "duracion_minutos": "número de minutos que dura, o null si no se dijo (por defecto 30)",
             "participantes": "nombres de los invitados tal como se mencionaron, separados por 'y'; vacío si no se dijo",
-            "proyecto": "nombre del proyecto si se mencionó, si no dejar vacío",
+            "proyecto": "nombre del proyecto/tema si se mencionó; 'general' si se dijo explícitamente que es "
+            "una reunión general/sin proyecto; vacío si no se dijo nada",
         },
         ejemplos=[
             (
@@ -1745,6 +1766,16 @@ TOOLS: dict[str, ToolSpec] = {
                     "duracion_minutos": 30,
                     "participantes": "",
                     "proyecto": "",
+                },
+            ),
+            (
+                "agenda una reunión general con Sofía el viernes a las 9am para ver temas varios",
+                {
+                    "titulo": "temas varios",
+                    "fecha_inicio": "el viernes a las 9am",
+                    "duracion_minutos": None,
+                    "participantes": "Sofía",
+                    "proyecto": "general",
                 },
             ),
         ],
