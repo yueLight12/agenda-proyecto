@@ -31,6 +31,7 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.permissions import requerir_participacion_en_proyecto, requerir_rol_minimo
+from app.models.agenda_item import EstadoRevision
 from app.models.entregable import Entregable
 from app.models.equipo_miembro import EquipoMiembro
 from app.models.minuta import AcuerdoMinuta, Minuta
@@ -47,13 +48,16 @@ from app.services.asistente.resolucion import (
     resolver_entregable,
     resolver_fecha,
     resolver_fecha_hora,
+    resolver_item_agenda,
     resolver_miembro_mi_equipo,
     resolver_persona_en_equipo,
     resolver_persona_organizacion,
     resolver_personas_organizacion,
     resolver_proyecto,
+    resolver_recurrencia_semanal,
     resolver_reunion,
     resolver_rol,
+    resolver_serie_reunion,
 )
 from app.services.chatbot import responder_pregunta
 from app.services.entregables import (
@@ -73,6 +77,7 @@ from app.services.minutas import (
     convertir_acuerdo_a_entregable,
     crear_o_actualizar_minuta,
     eliminar_acuerdo,
+    registrar_revision_agenda_item,
 )
 from app.services.notas import crear_nota
 from app.services.proyectos import (
@@ -87,6 +92,7 @@ from app.services.proyectos import (
 )
 from app.services.reuniones import actualizar_reunion, crear_reunion, eliminar_reunion
 from app.services.rol_labels import etiqueta_rol as _etiqueta_rol
+from app.services.series_reunion import agenda_actual_de_serie, crear_serie
 
 
 @dataclass
@@ -1650,6 +1656,227 @@ def _ejecutar_consultar_agenda(db: Session, usuario: Usuario, parametros: dict) 
     return {"mensaje": "", "resultado": None}
 
 
+# --- crear_serie_reunion (Fase 2/3, 2026-08-17) -----------------------------
+
+_DIAS_ES = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+
+
+def _resolver_crear_serie_reunion(
+    db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
+) -> ResultadoInterpretacion:
+    proyecto_res = resolver_campo(
+        "proyecto_id", aclaraciones, parametros_llm.get("proyecto"),
+        lambda t: resolver_proyecto(db, usuario, t, proyecto_id_contexto),
+    )
+    if not proyecto_res.resuelto:
+        return _pendiente("proyecto_id", proyecto_res)
+    proyecto_id = proyecto_res.valor
+
+    titulo = (
+        aclaraciones.get("titulo") if isinstance(aclaraciones.get("titulo"), str) else parametros_llm.get("titulo")
+    )
+    titulo = (titulo or "").strip()
+    if not titulo:
+        return ResultadoInterpretacion(
+            listo=False, campo="titulo",
+            pregunta="¿Cuál es el tema o título de esta junta recurrente?", tipo_entrada="texto",
+        )
+
+    recurrencia_res = resolver_campo(
+        "recurrencia", aclaraciones, parametros_llm.get("recurrencia"),
+        resolver_recurrencia_semanal,
+    )
+    if not recurrencia_res.resuelto:
+        return _pendiente("recurrencia", recurrencia_res)
+    dia_semana, hora = recurrencia_res.valor
+
+    participantes_res = resolver_campo(
+        "participantes_ids", aclaraciones, parametros_llm.get("participantes"),
+        lambda t: resolver_personas_organizacion(db, usuario, t),
+    )
+    if not participantes_res.resuelto:
+        return _pendiente("participantes_ids", participantes_res)
+
+    try:
+        duracion = int(parametros_llm.get("duracion_minutos") or 30)
+    except (TypeError, ValueError):
+        duracion = 30
+
+    from datetime import date as _date
+
+    parametros = {
+        "proyecto_id": proyecto_id,
+        "titulo": titulo,
+        "dia_semana": dia_semana,
+        "hora": hora.isoformat(),
+        "duracion_minutos": duracion,
+        "participantes_ids": participantes_res.valor,
+        "fecha_inicio": _date.today().isoformat(),
+    }
+    resumen = (
+        f'Voy a crear la junta recurrente "{titulo}", todos los {_DIAS_ES[dia_semana]} a las '
+        f'{hora.strftime("%H:%M")}. ¿Confirmas?'
+    )
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen)
+
+
+def _ejecutar_crear_serie_reunion(db: Session, usuario: Usuario, parametros: dict) -> dict:
+    from datetime import date as _date, time as _time
+
+    nueva = crear_serie(
+        db, usuario,
+        parametros["proyecto_id"], parametros["titulo"],
+        parametros["dia_semana"], _time.fromisoformat(parametros["hora"]),
+        parametros["duracion_minutos"], parametros["participantes_ids"],
+        _date.fromisoformat(parametros["fecha_inicio"]), None,
+    )
+    db.commit()
+    db.refresh(nueva)
+    return {
+        "mensaje": f'Junta recurrente "{nueva.titulo}" creada correctamente. '
+        "Sus próximas ocurrencias se agendarán solas.",
+        "resultado": {"id": nueva.id, "titulo": nueva.titulo},
+    }
+
+
+# --- listar_agenda_serie (solo lectura, sin confirmación) -------------------
+
+_ETIQUETAS_ESTADO_REVISION = {
+    "revisado": "revisado",
+    "pendiente": "pendiente",
+    "revisado_con_pendientes": "revisado, con pendientes nuevos",
+}
+
+
+def _resolver_listar_agenda_serie(
+    db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
+) -> ResultadoInterpretacion:
+    proyecto_res = resolver_campo(
+        "proyecto_id", aclaraciones, parametros_llm.get("proyecto"),
+        lambda t: resolver_proyecto(db, usuario, t, proyecto_id_contexto),
+    )
+    if not proyecto_res.resuelto:
+        return _pendiente("proyecto_id", proyecto_res)
+
+    serie_res = resolver_campo(
+        "serie_id", aclaraciones, parametros_llm.get("serie"),
+        lambda t: resolver_serie_reunion(db, usuario, proyecto_res.valor, t),
+    )
+    if not serie_res.resuelto:
+        return _pendiente("serie_id", serie_res)
+
+    items = agenda_actual_de_serie(db, usuario, serie_res.valor)
+    if not items:
+        texto = "Esa serie todavía no tiene ítems en su agenda."
+    else:
+        lineas = [
+            f"{i + 1}. {it.nombre} — {_ETIQUETAS_ESTADO_REVISION.get(it.estado_actual.value, it.estado_actual.value)}"
+            for i, it in enumerate(items)
+        ]
+        texto = "Agenda:\n" + "\n".join(lineas)
+
+    return ResultadoInterpretacion(listo=True, parametros={}, resumen=texto)
+
+
+def _ejecutar_listar_agenda_serie(db: Session, usuario: Usuario, parametros: dict) -> dict:
+    # No debería llamarse nunca: requiere_confirmacion=False, mismo patrón
+    # que consultar_agenda/leer_notificaciones.
+    return {"mensaje": "", "resultado": None}
+
+
+# --- marcar_revision_agenda --------------------------------------------------
+
+def _resolver_estado_revision(texto: Optional[str]) -> Optional[EstadoRevision]:
+    if not texto:
+        return None
+    normalizado = texto.strip().lower()
+    if "pendiente" in normalizado and any(p in normalizado for p in ("nuevo", "surgi", "salio", "salió")):
+        return EstadoRevision.revisado_con_pendientes
+    if any(p in normalizado for p in ("revisad", "listo", "complet", "toc")):
+        return EstadoRevision.revisado
+    if "pendiente" in normalizado:
+        return EstadoRevision.pendiente
+    return None
+
+
+def _resolver_marcar_revision_agenda(
+    db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
+) -> ResultadoInterpretacion:
+    proyecto_res = resolver_campo(
+        "proyecto_id", aclaraciones, parametros_llm.get("proyecto"),
+        lambda t: resolver_proyecto(db, usuario, t, proyecto_id_contexto),
+    )
+    if not proyecto_res.resuelto:
+        return _pendiente("proyecto_id", proyecto_res)
+    proyecto_id = proyecto_res.valor
+
+    serie_res = resolver_campo(
+        "serie_id", aclaraciones, parametros_llm.get("serie"),
+        lambda t: resolver_serie_reunion(db, usuario, proyecto_id, t),
+    )
+    if not serie_res.resuelto:
+        return _pendiente("serie_id", serie_res)
+    serie_id = serie_res.valor
+
+    item_res = resolver_campo(
+        "agenda_item_id", aclaraciones, parametros_llm.get("item"),
+        lambda t: resolver_item_agenda(db, usuario, serie_id, t),
+    )
+    if not item_res.resuelto:
+        return _pendiente("agenda_item_id", item_res)
+
+    estado_texto = (
+        aclaraciones.get("estado") if isinstance(aclaraciones.get("estado"), str) else parametros_llm.get("estado")
+    )
+    estado = _resolver_estado_revision(estado_texto)
+    if estado is None:
+        return ResultadoInterpretacion(
+            listo=False, campo="estado",
+            pregunta="¿Cómo quedó: revisado, pendiente, o revisado pero con pendientes nuevos?",
+            tipo_entrada="texto",
+        )
+
+    from datetime import date as _date
+
+    ocurrencias = db.query(Reunion).filter(Reunion.serie_id == serie_id).all()
+    if not ocurrencias:
+        return ResultadoInterpretacion(
+            listo=False, campo="reunion_id",
+            pregunta="Todavía no hay ninguna reunión materializada de esta serie.",
+            tipo_entrada="texto",
+        )
+    hoy = _date.today()
+    # La ocurrencia más cercana a hoy -- este comando se dice durante o justo
+    # después de la junta, nunca sobre una ocurrencia lejana.
+    ocurrencia = min(ocurrencias, key=lambda r: abs((r.fecha_inicio.date() - hoy).days))
+
+    nota = aclaraciones.get("nota") if isinstance(aclaraciones.get("nota"), str) else parametros_llm.get("nota")
+    nuevo_pendiente = (
+        aclaraciones.get("nuevo_pendiente")
+        if isinstance(aclaraciones.get("nuevo_pendiente"), str)
+        else parametros_llm.get("nuevo_pendiente")
+    )
+
+    parametros = {
+        "reunion_id": ocurrencia.id,
+        "agenda_item_id": item_res.valor,
+        "estado": estado.value,
+        "nota": nota or None,
+        "nuevo_pendiente_texto": nuevo_pendiente or None,
+    }
+    resumen = f"Voy a marcar este ítem como {_ETIQUETAS_ESTADO_REVISION[estado.value]}. ¿Confirmas?"
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen)
+
+
+def _ejecutar_marcar_revision_agenda(db: Session, usuario: Usuario, parametros: dict) -> dict:
+    resultado = registrar_revision_agenda_item(
+        db, usuario, parametros["reunion_id"], parametros["agenda_item_id"],
+        EstadoRevision(parametros["estado"]), parametros["nota"], parametros["nuevo_pendiente_texto"],
+    )
+    db.commit()
+    return {"mensaje": "Quedó registrado en la agenda.", "resultado": {"id": resultado.id}}
+
+
 TOOLS: dict[str, ToolSpec] = {
     "crear_entregable": ToolSpec(
         nombre="crear_entregable",
@@ -2128,5 +2355,93 @@ TOOLS: dict[str, ToolSpec] = {
         resolver=_resolver_consultar_agenda,
         ejecutar=_ejecutar_consultar_agenda,
         requiere_confirmacion=False,
+    ),
+    "crear_serie_reunion": ToolSpec(
+        nombre="crear_serie_reunion",
+        descripcion=(
+            "Crear una reunión RECURRENTE (una junta que se repite cada semana el mismo día y hora, "
+            "ej. 'todos los lunes a las 10am') dentro de un tema. Sus próximas ocurrencias se "
+            "agendan solas. Para una reunión de una sola vez usa agendar_reunion, no esta."
+        ),
+        parametros_llm={
+            "titulo": "tema o título de la junta recurrente",
+            "recurrencia": "el día de la semana y la hora tal como se dijo (ej. 'los lunes a las 10am')",
+            "duracion_minutos": "número de minutos que dura, o null si no se dijo (por defecto 30)",
+            "participantes": "nombres de los invitados tal como se mencionaron, separados por 'y'; vacío si no se dijo",
+            "proyecto": "nombre del proyecto/tema si se mencionó, si no dejar vacío",
+        },
+        ejemplos=[
+            (
+                "agenda una junta semanal con Sofía los lunes a las 10am para revisar Cubo",
+                {
+                    "titulo": "revisar Cubo",
+                    "recurrencia": "los lunes a las 10am",
+                    "duracion_minutos": None,
+                    "participantes": "Sofía",
+                    "proyecto": "Cubo",
+                },
+            ),
+        ],
+        resolver=_resolver_crear_serie_reunion,
+        ejecutar=_ejecutar_crear_serie_reunion,
+    ),
+    "listar_agenda_serie": ToolSpec(
+        nombre="listar_agenda_serie",
+        descripcion=(
+            "Solo lectura: decir qué tiene pendiente/revisado la agenda de una junta recurrente "
+            "(serie de reuniones)."
+        ),
+        parametros_llm={
+            "proyecto": "nombre del proyecto/tema si se mencionó, si no dejar vacío",
+            "serie": "título de la junta recurrente si se mencionó, si no dejar vacío",
+        },
+        ejemplos=[
+            ("qué le falta revisar a la junta semanal de Cubo", {"proyecto": "Cubo", "serie": ""}),
+        ],
+        resolver=_resolver_listar_agenda_serie,
+        ejecutar=_ejecutar_listar_agenda_serie,
+        requiere_confirmacion=False,
+    ),
+    "marcar_revision_agenda": ToolSpec(
+        nombre="marcar_revision_agenda",
+        descripcion=(
+            "Marcar el estado de un ítem (tema, subtema, entregable, acuerdo o pendiente) en la "
+            "agenda de una junta recurrente: revisado, pendiente, o revisado pero con pendientes "
+            "nuevos que surgieron en la plática (en ese caso, describe también el pendiente nuevo)."
+        ),
+        parametros_llm={
+            "proyecto": "nombre del proyecto/tema si se mencionó, si no dejar vacío",
+            "serie": "título de la junta recurrente si se mencionó, si no dejar vacío",
+            "item": "nombre del tema/entregable/pendiente que se está marcando, tal como se mencionó",
+            "estado": "cómo quedó: 'revisado', 'pendiente', o 'revisado con pendientes nuevos'",
+            "nota": "nota corta de lo que se habló, o null si no se dijo",
+            "nuevo_pendiente": "si surgió algo nuevo que hay que revisar la próxima vez, descríbelo aquí; si no, dejar vacío",
+        },
+        ejemplos=[
+            (
+                "marca como revisado el tema Arte",
+                {
+                    "proyecto": "",
+                    "serie": "",
+                    "item": "Arte",
+                    "estado": "revisado",
+                    "nota": None,
+                    "nuevo_pendiente": "",
+                },
+            ),
+            (
+                "el subtema presupuesto se revisó pero salió un pendiente nuevo de confirmar con el proveedor",
+                {
+                    "proyecto": "",
+                    "serie": "",
+                    "item": "presupuesto",
+                    "estado": "revisado con pendientes nuevos",
+                    "nota": None,
+                    "nuevo_pendiente": "confirmar con el proveedor",
+                },
+            ),
+        ],
+        resolver=_resolver_marcar_revision_agenda,
+        ejecutar=_ejecutar_marcar_revision_agenda,
     ),
 }

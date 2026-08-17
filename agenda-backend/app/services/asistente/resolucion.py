@@ -398,6 +398,48 @@ def resolver_fecha_hora(texto: Optional[str]) -> ResolucionResultado:
     return ResolucionResultado(resuelto=True, valor=datetime.combine(fecha_res.valor, time(hour=hora, minute=minuto)))
 
 
+_DIAS_SEMANA = {
+    "lunes": 0,
+    "martes": 1,
+    "miercoles": 2,
+    "jueves": 3,
+    "viernes": 4,
+    "sabado": 5,
+    "domingo": 6,
+}
+
+
+def resolver_recurrencia_semanal(texto: Optional[str]) -> ResolucionResultado:
+    """Para crear_serie_reunion (2026-08-17, Fase 2/3): extrae "qué día de
+    la semana y a qué hora" de una frase como "todos los lunes a las
+    10am" -- reutiliza _extraer_hora (mismo motivo que resolver_fecha_hora:
+    no confiarle esto a dateparser, que no tiene noción de "día de la
+    semana recurrente", solo de fechas puntuales). Si no hay hora
+    explícita, asume 9:00am, igual que resolver_fecha_hora. Devuelve
+    `valor = (dia_semana, time)`."""
+    if not texto:
+        return ResolucionResultado(
+            resuelto=False, pregunta="¿Qué día de la semana y a qué hora?", tipo_entrada="texto"
+        )
+
+    normalizado = _normalizar(texto)
+    dia_semana = None
+    for nombre, numero in _DIAS_SEMANA.items():
+        if nombre in normalizado:
+            dia_semana = numero
+            break
+    if dia_semana is None:
+        return ResolucionResultado(
+            resuelto=False,
+            pregunta=f'No reconocí el día de la semana en "{texto}". ¿Qué día (lunes a domingo)?',
+            tipo_entrada="texto",
+        )
+
+    hora_extraida, _ = _extraer_hora(texto)
+    hora, minuto = hora_extraida if hora_extraida else (9, 0)
+    return ResolucionResultado(resuelto=True, valor=(dia_semana, time(hour=hora, minute=minuto)))
+
+
 def resolver_rol(texto: Optional[str]) -> ResolucionResultado:
     if not texto:
         return ResolucionResultado(
@@ -490,6 +532,88 @@ def resolver_acuerdo(
         pregunta=f'Encontré varios acuerdos parecidos a "{texto}", ¿cuál es?',
         tipo_entrada="opciones",
         opciones=[OpcionResolucion(a.id, a.descripcion) for a in candidatos],
+    )
+
+
+def resolver_serie_reunion(
+    db: Session, usuario: Usuario, proyecto_id: int, texto: Optional[str]
+) -> ResolucionResultado:
+    """Resuelve una serie de reuniones recurrentes ACTIVA por nombre, dentro
+    de un tema ya resuelto (2026-08-17, Fase 2/3) -- mismo patrón que
+    resolver_reunion, sobre SerieReunion.titulo en vez de Reunion.titulo."""
+    from app.services.series_reunion import listar_series_visibles
+
+    series = [s for s in listar_series_visibles(db, usuario, proyecto_id) if s.activa]
+    if not series:
+        return ResolucionResultado(
+            resuelto=False,
+            pregunta="No encontré ninguna serie de reuniones recurrentes activa en este tema.",
+            tipo_entrada="texto",
+        )
+
+    if texto:
+        normalizado = _normalizar(texto)
+        candidatos = [s for s in series if _coincide_nombre(normalizado, _normalizar(s.titulo))]
+        if len(candidatos) == 1:
+            return ResolucionResultado(resuelto=True, valor=candidatos[0].id)
+        if candidatos:
+            return ResolucionResultado(
+                resuelto=False,
+                pregunta=f'Encontré varias series parecidas a "{texto}", ¿cuál es?',
+                tipo_entrada="opciones",
+                opciones=[OpcionResolucion(s.id, s.titulo) for s in candidatos],
+            )
+
+    if len(series) == 1:
+        return ResolucionResultado(resuelto=True, valor=series[0].id)
+    return ResolucionResultado(
+        resuelto=False,
+        pregunta="¿Cuál serie de reuniones recurrentes?",
+        tipo_entrada="opciones",
+        opciones=[OpcionResolucion(s.id, s.titulo) for s in series],
+    )
+
+
+def resolver_item_agenda(
+    db: Session, usuario: Usuario, serie_id: int, texto: Optional[str]
+) -> ResolucionResultado:
+    """Resuelve un ítem de la agenda persistente de una serie ya resuelta
+    (tema, entregable, acuerdo o pendiente libre) por su nombre visible
+    (AgendaItemOut.nombre, ya resuelto por tipo -- ver
+    services/series_reunion.py::_nombre_agenda_item)."""
+    from app.services.series_reunion import agenda_actual_de_serie
+
+    items = agenda_actual_de_serie(db, usuario, serie_id)
+    if not items:
+        return ResolucionResultado(
+            resuelto=False,
+            pregunta="Esta serie todavía no tiene ítems en su agenda.",
+            tipo_entrada="texto",
+        )
+    if not texto:
+        return ResolucionResultado(
+            resuelto=False,
+            pregunta="¿Qué ítem de la agenda?",
+            tipo_entrada="opciones",
+            opciones=[OpcionResolucion(i.id, i.nombre) for i in items],
+        )
+
+    normalizado = _normalizar(texto)
+    candidatos = [i for i in items if _coincide_nombre(normalizado, _normalizar(i.nombre))]
+    if len(candidatos) == 1:
+        return ResolucionResultado(resuelto=True, valor=candidatos[0].id)
+    if not candidatos:
+        return ResolucionResultado(
+            resuelto=False,
+            pregunta=f'No encontré ningún ítem de agenda parecido a "{texto}". ¿Cuál es?',
+            tipo_entrada="opciones",
+            opciones=[OpcionResolucion(i.id, i.nombre) for i in items],
+        )
+    return ResolucionResultado(
+        resuelto=False,
+        pregunta=f'Encontré varios ítems parecidos a "{texto}", ¿cuál es?',
+        tipo_entrada="opciones",
+        opciones=[OpcionResolucion(c.id, c.nombre) for c in candidatos],
     )
 
 
