@@ -26,8 +26,10 @@ from app.routers import (
     proyectos,
     resumen,
     reuniones,
+    series_reunion,
     usuarios,
 )
+from app.services.materializar_series import materializar_ocurrencias
 from app.services.recordatorios import (
     generar_recordatorios,
     generar_recordatorios_cumpleanos,
@@ -75,6 +77,7 @@ app.include_router(eventos_empresa.router)
 app.include_router(admin.router)
 app.include_router(chatbot.router)
 app.include_router(asistente.router)
+app.include_router(series_reunion.router)
 
 
 def _ejecutar_barrido_recordatorios():
@@ -84,6 +87,7 @@ def _ejecutar_barrido_recordatorios():
         generar_recordatorios(db)
         generar_recordatorios_cumpleanos(db)
         generar_recordatorios_reuniones_hoy(db)
+        materializar_ocurrencias(db)
     finally:
         db.close()
 

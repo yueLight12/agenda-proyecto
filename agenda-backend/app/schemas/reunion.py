@@ -43,6 +43,11 @@ class ReunionOut(BaseModel):
     participantes: list[ParticipanteOut] = []
     # Calculado en servidor (2026-08-16) -- ver puede_editar_reunion.
     puede_editar: bool = False
+    # None = ocurrencia suelta, sin cambio. Si tiene valor, es una
+    # ocurrencia materializada de una SerieReunion (2026-08-17) -- el
+    # frontend lo usa para mostrar la sección "Agenda de esta reunión" en
+    # ModalMinuta.jsx.
+    serie_id: Optional[int] = None
 
     class Config:
         from_attributes = True

@@ -29,6 +29,7 @@ def reunion_a_out(db: Session, usuario: Usuario, reunion: Reunion) -> ReunionOut
             for p in reunion.participantes
         ],
         puede_editar=puede_editar_reunion(db, usuario, reunion),
+        serie_id=reunion.serie_id,
     )
 
 

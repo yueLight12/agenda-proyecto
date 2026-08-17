@@ -19,6 +19,7 @@ from app.schemas.minuta import (
     MinutaCrear,
     MinutaOut,
 )
+from app.schemas.serie_reunion import RevisionAgendaItemOut, RevisionAgendaItemRequest
 from app.services.minutas import (
     acuerdo_a_out,
     agregar_acuerdo as agregar_acuerdo_servicio,
@@ -26,6 +27,7 @@ from app.services.minutas import (
     crear_o_actualizar_minuta as crear_o_actualizar_minuta_servicio,
     eliminar_acuerdo as eliminar_acuerdo_servicio,
     minuta_a_out,
+    registrar_revision_agenda_item as registrar_revision_agenda_item_servicio,
 )
 from app.services.reuniones import obtener_reunion_o_404
 
@@ -108,3 +110,25 @@ def convertir_acuerdo_a_entregable(
     db.commit()
     db.refresh(acuerdo)
     return acuerdo_a_out(acuerdo)
+
+
+@router.post(
+    "/reuniones/{reunion_id}/agenda-items/{item_id}/revision",
+    response_model=RevisionAgendaItemOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def registrar_revision_agenda_item(
+    reunion_id: int,
+    item_id: int,
+    datos: RevisionAgendaItemRequest,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Marca el estado de un ítem de la agenda persistente de la serie EN
+    esta ocurrencia (checklist de Fase 2) -- ver
+    app.services.minutas.registrar_revision_agenda_item."""
+    resultado = registrar_revision_agenda_item_servicio(
+        db, usuario, reunion_id, item_id, datos.estado, datos.nota, datos.nuevo_pendiente_texto
+    )
+    db.commit()
+    return resultado

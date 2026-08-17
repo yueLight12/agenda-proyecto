@@ -21,10 +21,13 @@ from app.core.permissions import (
     puede_ver_reunion,
     requerir_participacion_en_proyecto,
 )
+from app.models.agenda_item import AgendaItem, AgendaItemRevision, EstadoRevision, TipoAgendaItem
 from app.models.minuta import AcuerdoMinuta, Minuta
 from app.schemas.minuta import AcuerdoOut, MinutaOut
+from app.schemas.serie_reunion import RevisionAgendaItemOut
 from app.services.entregables import crear_entregable
 from app.services.reuniones import obtener_reunion_o_404
+from app.services.series_reunion import item_a_out
 from app.models.usuario import Usuario
 
 
@@ -151,3 +154,72 @@ def convertir_acuerdo_a_entregable(
     acuerdo.entregable_id = nuevo.id
     acuerdo.convertido = True
     return acuerdo
+
+
+def registrar_revision_agenda_item(
+    db: Session,
+    usuario: Usuario,
+    reunion_id: int,
+    agenda_item_id: int,
+    estado: EstadoRevision,
+    nota: str | None,
+    nuevo_pendiente_texto: str | None,
+) -> RevisionAgendaItemOut:
+    """
+    Marca el estado de un ítem de la agenda persistente de la serie EN esta
+    ocurrencia puntual (revisado / pendiente / revisado_con_pendientes) --
+    la bitácora de Fase 2/3. Mismo permiso que editar la minuta
+    (puede_editar_minuta: cualquier invitado de la reunión, no solo
+    N1/N2/organizador) ya que es la misma idea de "dejar constancia de lo
+    que se habló", aplicada a la agenda persistente en vez de a un acuerdo
+    suelto.
+
+    Si se manda `nuevo_pendiente_texto`, además crea un AgendaItem nuevo
+    (tipo=pendiente) enganchado a la MISMA serie, para que lo que surgió
+    en la plática quede listo para la siguiente ocurrencia sin que haya
+    que agregarlo aparte.
+    """
+    reunion = obtener_reunion_o_404(db, reunion_id)
+    if not puede_editar_minuta(db, usuario, reunion):
+        raise HTTPException(
+            status_code=403, detail="No tienes permiso para editar la agenda de esta reunión"
+        )
+
+    item = db.query(AgendaItem).filter(AgendaItem.id == agenda_item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Ítem de agenda no encontrado")
+    if item.serie_id != reunion.serie_id:
+        raise HTTPException(
+            status_code=400, detail="Este ítem no pertenece a la serie de esta reunión"
+        )
+
+    revision = AgendaItemRevision(
+        agenda_item_id=item.id,
+        reunion_id=reunion.id,
+        estado=estado,
+        nota=nota,
+        registrado_por=usuario.id,
+    )
+    db.add(revision)
+    db.flush()
+
+    nuevo_item = None
+    if nuevo_pendiente_texto:
+        nuevo_item = AgendaItem(
+            serie_id=item.serie_id,
+            tipo=TipoAgendaItem.pendiente,
+            texto=nuevo_pendiente_texto,
+            orden=item.orden + 1,
+            creado_en_reunion_id=reunion.id,
+        )
+        db.add(nuevo_item)
+        db.flush()
+
+    return RevisionAgendaItemOut(
+        id=revision.id,
+        agenda_item_id=revision.agenda_item_id,
+        estado=revision.estado,
+        nota=revision.nota,
+        fecha_registro=revision.fecha_registro,
+        nuevo_item=item_a_out(nuevo_item) if nuevo_item else None,
+    )
