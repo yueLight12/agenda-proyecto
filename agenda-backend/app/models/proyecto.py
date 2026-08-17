@@ -45,3 +45,7 @@ class Proyecto(Base):
     series_reunion = relationship(
         "SerieReunion", back_populates="proyecto", cascade="all, delete-orphan"
     )
+    # Notas sueltas directo sobre el tema (2026-08-17, caso Diana) -- no
+    # confundir con las notas de un entregable/reunión/minuta de este
+    # proyecto, que cuelgan de esas entidades, no de aquí.
+    notas = relationship("Nota", back_populates="proyecto", cascade="all, delete-orphan")

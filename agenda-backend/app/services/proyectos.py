@@ -85,6 +85,43 @@ def listar_proyectos_visibles(db: Session, usuario: Usuario) -> list[Proyecto]:
     return db.query(Proyecto).filter(Proyecto.id.in_(ids_visibles)).all()
 
 
+def listar_arbol_visible(db: Session, usuario: Usuario) -> list[dict]:
+    """Lista PLANA {id, nombre, ruta} de TODO el árbol visible (no solo
+    raíces, a diferencia de listar_raices_visibles) -- para selectores de
+    "elige un tema/subtema" que no dependen de estar parado en un nodo
+    puntual, ej. el picker de "sección" del checklist de una junta general
+    (ver app/routers/series_reunion.py, agregado 2026-08-17 para el caso
+    Diana). Reutiliza listar_proyectos_visibles tal cual, sin regla de
+    permisos nueva -- `ruta` es solo cosmética (para distinguir subtemas
+    con el mismo nombre bajo padres distintos)."""
+    proyectos = listar_proyectos_visibles(db, usuario)
+    indice = arbol_proyectos.cargar_indice(db)
+
+    cadenas: dict[int, list[int]] = {}
+    ids_en_cadenas: set[int] = set()
+    for p in proyectos:
+        cadena = list(reversed(arbol_proyectos.cadena_ancestros(indice, p.id)))
+        cadenas[p.id] = cadena
+        ids_en_cadenas.update(cadena)
+
+    nombres = {
+        pid: nombre
+        for pid, nombre in db.query(Proyecto.id, Proyecto.nombre)
+        .filter(Proyecto.id.in_(ids_en_cadenas))
+        .all()
+    }
+    resultado = [
+        {
+            "id": p.id,
+            "nombre": p.nombre,
+            "ruta": " > ".join(nombres.get(pid, "?") for pid in cadenas[p.id]),
+        }
+        for p in proyectos
+    ]
+    resultado.sort(key=lambda r: r["ruta"])
+    return resultado
+
+
 def listar_raices_visibles(db: Session, usuario: Usuario) -> list[Proyecto]:
     """Como listar_proyectos_visibles, pero solo los nodos cuyo padre NO
     está también en el conjunto visible -- evita duplicar/doble-contar

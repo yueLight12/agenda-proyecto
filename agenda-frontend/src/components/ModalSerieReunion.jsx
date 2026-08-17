@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { proyectosApi, seriesReunionApi } from "../api/endpoints";
+import { entregablesApi, notasApi, proyectosApi, seriesReunionApi } from "../api/endpoints";
 import { etiquetaRol } from "../utils/rolLabels";
 import ConfirmDialog from "./ConfirmDialog";
 import Modal from "./Modal";
@@ -12,6 +12,23 @@ const ETIQUETAS_ESTADO = {
   revisado_con_pendientes: "revisado, con pendientes nuevos",
 };
 
+const TIPOS_ITEM = [
+  { value: "pendiente", label: "Pendiente (texto libre)" },
+  { value: "tema", label: "Tema/subtema" },
+  { value: "entregable", label: "Entregable" },
+  { value: "nota", label: "Nota" },
+];
+
+const ITEM_VACIO = {
+  tipo: "pendiente",
+  seccionId: "",
+  texto: "",
+  detalle: "",
+  entregableId: "",
+  notaId: "",
+  notaContenido: "",
+};
+
 /**
  * Alta/edición de una junta recurrente (Fase 2/3, 2026-08-17): día de la
  * semana + hora en vez de una fecha única -- sus ocurrencias se agendan
@@ -19,8 +36,13 @@ const ETIQUETAS_ESTADO = {
  * modal se queda abierto y se convierte en el panel de "Agenda de esta
  * junta" -- la lista persistente de temas/pendientes que se revisan en
  * cada ocurrencia, con lo no revisado arrastrándose a la siguiente.
+ *
+ * Ampliado 2026-08-17 (caso Diana): una junta puede ser general
+ * (proyectoId=null) con puntos agrupados por sección (tema/subtema), cada
+ * punto editable/reordenable y con un tipo "nota" que jala una Nota real
+ * del tema. `proyectoId` puede venir null (junta general).
  */
-export default function ModalSerieReunion({ proyectoId, serie = null, miembros, onGuardado, onCerrar }) {
+export default function ModalSerieReunion({ proyectoId = null, serie = null, miembros, onGuardado, onCerrar }) {
   const esEdicion = Boolean(serie);
   const [serieActual, setSerieActual] = useState(serie);
   const [titulo, setTitulo] = useState(serie?.titulo || "");
@@ -39,21 +61,23 @@ export default function ModalSerieReunion({ proyectoId, serie = null, miembros, 
 
   const [agenda, setAgenda] = useState([]);
   const [cargandoAgenda, setCargandoAgenda] = useState(false);
-  const [subtemas, setSubtemas] = useState([]);
-  const [nuevoItemTipo, setNuevoItemTipo] = useState("pendiente");
-  const [nuevoItemProyectoId, setNuevoItemProyectoId] = useState("");
-  const [nuevoItemTexto, setNuevoItemTexto] = useState("");
+  const [arbol, setArbol] = useState([]); // {id, nombre, ruta} de todo tema/subtema visible
+
+  const [itemEditandoId, setItemEditandoId] = useState(null); // null = "agregar", id = "editar"
+  const [item, setItem] = useState(ITEM_VACIO);
+  const [entregablesSeccion, setEntregablesSeccion] = useState([]);
+  const [notasSeccion, setNotasSeccion] = useState([]);
   const [agregandoItem, setAgregandoItem] = useState(false);
 
   const cargarAgenda = async (id) => {
     setCargandoAgenda(true);
     try {
-      const [ag, hijos] = await Promise.all([
+      const [ag, arbolVisible] = await Promise.all([
         seriesReunionApi.agenda(id),
-        proyectosApi.hijos(proyectoId),
+        proyectosApi.arbolVisible(),
       ]);
       setAgenda(ag);
-      setSubtemas(hijos);
+      setArbol(arbolVisible);
     } catch {
       setError("No se pudo cargar la agenda de esta junta.");
     } finally {
@@ -65,6 +89,22 @@ export default function ModalSerieReunion({ proyectoId, serie = null, miembros, 
     if (serieActual) cargarAgenda(serieActual.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serieActual?.id]);
+
+  // Cuando el tipo es "entregable" o "nota", cargar las opciones de esa
+  // sección bajo demanda (solo cuando ya se eligió a cuál tema/subtema).
+  useEffect(() => {
+    if (item.tipo === "entregable" && item.seccionId) {
+      entregablesApi.listarPorProyecto(Number(item.seccionId)).then(setEntregablesSeccion).catch(() => setEntregablesSeccion([]));
+    } else {
+      setEntregablesSeccion([]);
+    }
+    if (item.tipo === "nota" && item.seccionId) {
+      notasApi.listar({ proyecto_id: Number(item.seccionId) }).then(setNotasSeccion).catch(() => setNotasSeccion([]));
+    } else {
+      setNotasSeccion([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.tipo, item.seccionId]);
 
   const toggleParticipante = (usuarioId) => {
     setParticipantesIds((prev) =>
@@ -107,21 +147,55 @@ export default function ModalSerieReunion({ proyectoId, serie = null, miembros, 
     }
   };
 
-  const handleAgregarItem = async (e) => {
+  const limpiarFormularioItem = () => {
+    setItemEditandoId(null);
+    setItem(ITEM_VACIO);
+  };
+
+  const handleEditarItem = (agendaItem) => {
+    setItemEditandoId(agendaItem.id);
+    setItem({
+      tipo: agendaItem.tipo,
+      seccionId: agendaItem.seccion_proyecto_id ? String(agendaItem.seccion_proyecto_id) : "",
+      texto: agendaItem.tipo === "pendiente" ? agendaItem.nombre : "",
+      detalle: agendaItem.detalle || "",
+      entregableId: "",
+      notaId: "",
+      notaContenido: "",
+    });
+  };
+
+  const handleGuardarItem = async (e) => {
     e.preventDefault();
     setError("");
     setAgregandoItem(true);
     try {
-      const datos =
-        nuevoItemTipo === "tema"
-          ? { tipo: "tema", proyecto_id: Number(nuevoItemProyectoId) }
-          : { tipo: "pendiente", texto: nuevoItemTexto };
-      await seriesReunionApi.agregarItemAgenda(serieActual.id, datos);
-      setNuevoItemTexto("");
-      setNuevoItemProyectoId("");
+      if (itemEditandoId) {
+        await seriesReunionApi.editarItemAgenda(itemEditandoId, {
+          texto: item.tipo === "pendiente" ? item.texto : undefined,
+          detalle: item.detalle || null,
+          seccion_proyecto_id: item.seccionId ? Number(item.seccionId) : null,
+        });
+      } else {
+        const datos = { tipo: item.tipo, detalle: item.detalle || null };
+        if (item.tipo === "tema") {
+          datos.proyecto_id = Number(item.seccionId);
+          datos.seccion_proyecto_id = Number(item.seccionId);
+        } else {
+          datos.seccion_proyecto_id = item.seccionId ? Number(item.seccionId) : null;
+          if (item.tipo === "pendiente") datos.texto = item.texto;
+          if (item.tipo === "entregable") datos.entregable_id = Number(item.entregableId);
+          if (item.tipo === "nota") {
+            if (item.notaId) datos.nota_id = Number(item.notaId);
+            else datos.nota_contenido = item.notaContenido;
+          }
+        }
+        await seriesReunionApi.agregarItemAgenda(serieActual.id, datos);
+      }
+      limpiarFormularioItem();
       await cargarAgenda(serieActual.id);
     } catch (err) {
-      setError(err.response?.data?.detail || "No se pudo agregar el ítem.");
+      setError(err.response?.data?.detail || "No se pudo guardar el ítem.");
     } finally {
       setAgregandoItem(false);
     }
@@ -131,9 +205,20 @@ export default function ModalSerieReunion({ proyectoId, serie = null, miembros, 
     setError("");
     try {
       await seriesReunionApi.archivarItemAgenda(itemId);
+      if (itemEditandoId === itemId) limpiarFormularioItem();
       await cargarAgenda(serieActual.id);
     } catch {
       setError("No se pudo quitar el ítem.");
+    }
+  };
+
+  const handleMoverItem = async (itemId, direccion) => {
+    setError("");
+    try {
+      await seriesReunionApi.moverItemAgenda(itemId, direccion);
+      await cargarAgenda(serieActual.id);
+    } catch {
+      setError("No se pudo reordenar el ítem.");
     }
   };
 
@@ -151,6 +236,19 @@ export default function ModalSerieReunion({ proyectoId, serie = null, miembros, 
   };
 
   const mostrarFormulario = !serieActual || esEdicion;
+
+  // Agrupar la agenda por sección (seccion_proyecto_id) -- "General" para
+  // los ítems sin sección (junta general sin agrupar, o un pendiente suelto).
+  const grupos = [];
+  const indicePorSeccion = {};
+  agenda.forEach((it) => {
+    const clave = it.seccion_proyecto_id || "general";
+    if (!(clave in indicePorSeccion)) {
+      indicePorSeccion[clave] = grupos.length;
+      grupos.push({ nombre: it.seccion_nombre || "General", items: [] });
+    }
+    grupos[indicePorSeccion[clave]].items.push(it);
+  });
 
   return (
     <Modal
@@ -213,7 +311,7 @@ export default function ModalSerieReunion({ proyectoId, serie = null, miembros, 
                       onChange={() => toggleParticipante(m.usuario_id)}
                     />
                     <span style={{ fontSize: "0.88rem" }}>
-                      {m.nombre} ({etiquetaRol(m.rol)})
+                      {m.nombre} {m.rol ? `(${etiquetaRol(m.rol)})` : ""}
                     </span>
                   </label>
                 ))}
@@ -262,7 +360,7 @@ export default function ModalSerieReunion({ proyectoId, serie = null, miembros, 
             <h3 style={{ fontSize: "0.9rem", margin: 0 }}>Agenda de esta junta</h3>
             <p style={{ color: "var(--color-text-muted)", fontSize: "0.78rem", margin: 0 }}>
               Lo que agregues aquí se revisa en cada ocurrencia — lo que no se revise sigue pendiente la
-              próxima vez.
+              próxima vez. Los puntos se agrupan por tema.
             </p>
 
             {cargandoAgenda && <p style={{ fontSize: "0.85rem" }}>Cargando...</p>}
@@ -271,68 +369,199 @@ export default function ModalSerieReunion({ proyectoId, serie = null, miembros, 
                 Todavía no hay ítems en la agenda.
               </p>
             )}
-            {agenda.map((item) => (
-              <div key={item.id} className="list-inline" style={{ padding: "4px 0" }}>
-                <span style={{ fontSize: "0.85rem" }}>
-                  {item.nombre}{" "}
-                  <span style={{ color: "var(--color-text-muted)", fontSize: "0.78rem" }}>
-                    — {ETIQUETAS_ESTADO[item.estado_actual] || item.estado_actual}
-                  </span>
-                </span>
-                <button
-                  type="button"
-                  className="btn btn--ghost"
-                  style={{ fontSize: "0.72rem", padding: "2px 6px" }}
-                  onClick={() => handleQuitarItem(item.id)}
-                >
-                  Quitar
-                </button>
+
+            {grupos.map((grupo) => (
+              <div key={grupo.nombre} className="stack" style={{ gap: 4 }}>
+                <h4 style={{ fontSize: "0.82rem", margin: "6px 0 0", color: "var(--color-text-muted)" }}>
+                  {grupo.nombre}
+                </h4>
+                {grupo.items.map((it, idx) => (
+                  <div key={it.id} className="list-inline" style={{ padding: "4px 0", alignItems: "flex-start" }}>
+                    <div>
+                      <span style={{ fontSize: "0.85rem" }}>
+                        {it.nombre}{" "}
+                        <span style={{ color: "var(--color-text-muted)", fontSize: "0.78rem" }}>
+                          — {ETIQUETAS_ESTADO[it.estado_actual] || it.estado_actual}
+                        </span>
+                      </span>
+                      {it.detalle && (
+                        <p style={{ margin: "2px 0 0", fontSize: "0.78rem", color: "var(--color-text-muted)" }}>
+                          {it.detalle}
+                        </p>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      <button
+                        type="button"
+                        className="btn btn--ghost"
+                        style={{ fontSize: "0.72rem", padding: "2px 6px" }}
+                        onClick={() => handleMoverItem(it.id, "arriba")}
+                        disabled={idx === 0}
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn--ghost"
+                        style={{ fontSize: "0.72rem", padding: "2px 6px" }}
+                        onClick={() => handleMoverItem(it.id, "abajo")}
+                        disabled={idx === grupo.items.length - 1}
+                      >
+                        ↓
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn--ghost"
+                        style={{ fontSize: "0.72rem", padding: "2px 6px" }}
+                        onClick={() => handleEditarItem(it)}
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn--ghost"
+                        style={{ fontSize: "0.72rem", padding: "2px 6px" }}
+                        onClick={() => handleQuitarItem(it.id)}
+                      >
+                        Quitar
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             ))}
 
-            <form className="stack" onSubmit={handleAgregarItem} style={{ gap: 6 }}>
-              <select
-                className="input"
-                value={nuevoItemTipo}
-                onChange={(e) => setNuevoItemTipo(e.target.value)}
-              >
-                <option value="pendiente">Pendiente (texto libre)</option>
-                <option value="tema">Subtema de este tema</option>
-              </select>
-              {nuevoItemTipo === "tema" ? (
+            <form className="stack" onSubmit={handleGuardarItem} style={{ gap: 6, marginTop: 8 }}>
+              <h4 style={{ fontSize: "0.85rem", margin: 0 }}>
+                {itemEditandoId ? "Editar punto" : "Agregar punto a la agenda"}
+              </h4>
+
+              {!itemEditandoId && (
                 <select
                   className="input"
-                  value={nuevoItemProyectoId}
-                  onChange={(e) => setNuevoItemProyectoId(e.target.value)}
-                  required
-                  disabled={subtemas.length === 0}
+                  value={item.tipo}
+                  onChange={(e) => setItem({ ...ITEM_VACIO, tipo: e.target.value })}
                 >
-                  <option value="" disabled>
-                    {subtemas.length === 0 ? "Este tema no tiene subtemas todavía" : "Selecciona un subtema"}
-                  </option>
-                  {subtemas.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.nombre}
+                  {TIPOS_ITEM.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
                     </option>
                   ))}
                 </select>
-              ) : (
+              )}
+
+              <select
+                className="input"
+                value={item.seccionId}
+                onChange={(e) => setItem({ ...item, seccionId: e.target.value })}
+                required={item.tipo === "tema"}
+              >
+                <option value="">
+                  {item.tipo === "tema" ? "Selecciona el tema/subtema" : "Sin sección (General)"}
+                </option>
+                {arbol.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.ruta}
+                  </option>
+                ))}
+              </select>
+
+              {item.tipo === "pendiente" && (
                 <input
                   className="input"
                   placeholder="Describe el pendiente"
-                  value={nuevoItemTexto}
-                  onChange={(e) => setNuevoItemTexto(e.target.value)}
+                  value={item.texto}
+                  onChange={(e) => setItem({ ...item, texto: e.target.value })}
                   required
                 />
               )}
-              <button
-                className="btn btn--ghost"
-                type="submit"
-                disabled={agregandoItem}
-                style={{ alignSelf: "flex-start" }}
-              >
-                {agregandoItem ? "Agregando..." : "Agregar a la agenda"}
-              </button>
+
+              {item.tipo === "entregable" && !itemEditandoId && (
+                <select
+                  className="input"
+                  value={item.entregableId}
+                  onChange={(e) => setItem({ ...item, entregableId: e.target.value })}
+                  required
+                  disabled={!item.seccionId || entregablesSeccion.length === 0}
+                >
+                  <option value="" disabled>
+                    {!item.seccionId
+                      ? "Elige primero una sección"
+                      : entregablesSeccion.length === 0
+                      ? "Esta sección no tiene entregables"
+                      : "Selecciona un entregable"}
+                  </option>
+                  {entregablesSeccion.map((en) => (
+                    <option key={en.id} value={en.id}>
+                      {en.nombre}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {item.tipo === "nota" && !itemEditandoId && (
+                <>
+                  <select
+                    className="input"
+                    value={item.notaId}
+                    onChange={(e) => setItem({ ...item, notaId: e.target.value, notaContenido: "" })}
+                    disabled={!item.seccionId}
+                  >
+                    <option value="">
+                      {!item.seccionId
+                        ? "Elige primero una sección"
+                        : "Escribir una nota nueva (abajo) o elegir una existente"}
+                    </option>
+                    {notasSeccion.map((n) => (
+                      <option key={n.id} value={n.id}>
+                        {n.contenido.slice(0, 60)}
+                      </option>
+                    ))}
+                  </select>
+                  {!item.notaId && (
+                    <textarea
+                      className="input"
+                      rows={2}
+                      placeholder="O escribe una nota nueva sobre este tema..."
+                      value={item.notaContenido}
+                      onChange={(e) => setItem({ ...item, notaContenido: e.target.value })}
+                      disabled={!item.seccionId}
+                      required={!item.notaId}
+                    />
+                  )}
+                </>
+              )}
+
+              <textarea
+                className="input"
+                rows={2}
+                placeholder="Detalle opcional (pegar correo, montos, un link...)"
+                value={item.detalle}
+                onChange={(e) => setItem({ ...item, detalle: e.target.value })}
+              />
+
+              {error && <p className="error-text">{error}</p>}
+
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  className="btn btn--ghost"
+                  type="submit"
+                  disabled={agregandoItem}
+                  style={{ alignSelf: "flex-start" }}
+                >
+                  {agregandoItem ? "Guardando..." : itemEditandoId ? "Guardar cambios" : "Agregar a la agenda"}
+                </button>
+                {itemEditandoId && (
+                  <button
+                    type="button"
+                    className="btn btn--ghost"
+                    onClick={limpiarFormularioItem}
+                    style={{ alignSelf: "flex-start" }}
+                  >
+                    Cancelar
+                  </button>
+                )}
+              </div>
             </form>
           </div>
         )}

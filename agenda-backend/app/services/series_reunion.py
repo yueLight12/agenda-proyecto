@@ -25,11 +25,13 @@ from app.models.agenda_item import AgendaItem, AgendaItemRevision, EstadoRevisio
 from app.models.reunion import Reunion
 from app.models.serie_reunion import SerieReunion, SerieReunionParticipante
 from app.models.usuario import RolEnum, Usuario
+from app.schemas.nota import NotaCrear
 from app.schemas.serie_reunion import (
     AgendaItemOut,
     ParticipanteSerieOut,
     SerieReunionOut,
 )
+from app.services.notas import crear_nota
 
 
 def puede_editar_serie(db: Session, usuario: Usuario, serie: SerieReunion) -> bool:
@@ -189,6 +191,11 @@ def _nombre_agenda_item(item: AgendaItem) -> str:
         return item.entregable.nombre if item.entregable else "(entregable eliminado)"
     if item.tipo == TipoAgendaItem.acuerdo:
         return item.acuerdo.descripcion if item.acuerdo else "(acuerdo eliminado)"
+    if item.tipo == TipoAgendaItem.nota:
+        if not item.nota:
+            return "(nota eliminada)"
+        contenido = item.nota.contenido
+        return contenido if len(contenido) <= 80 else contenido[:77] + "..."
     return item.texto or ""
 
 
@@ -203,6 +210,9 @@ def item_a_out(item: AgendaItem) -> AgendaItemOut:
         serie_id=item.serie_id,
         tipo=item.tipo,
         nombre=_nombre_agenda_item(item),
+        detalle=item.detalle,
+        seccion_proyecto_id=item.seccion_proyecto_id,
+        seccion_nombre=item.seccion.nombre if item.seccion else None,
         activo=item.activo,
         orden=item.orden,
         estado_actual=ultima.estado if ultima else EstadoRevision.pendiente,
@@ -233,7 +243,11 @@ def agregar_item_agenda(
     proyecto_id: int | None = None,
     entregable_id: int | None = None,
     acuerdo_id: int | None = None,
+    nota_id: int | None = None,
+    nota_contenido: str | None = None,
     texto: str | None = None,
+    detalle: str | None = None,
+    seccion_proyecto_id: int | None = None,
     creado_en_reunion_id: int | None = None,
 ) -> AgendaItem:
     serie = obtener_serie_o_404(db, serie_id)
@@ -241,6 +255,25 @@ def agregar_item_agenda(
         raise HTTPException(
             status_code=403, detail="No tienes permiso para editar la agenda de esta serie"
         )
+
+    # tipo=tema: si no se manda sección explícita, el ítem se agrupa bajo sí
+    # mismo (el tema que representa) -- el frontend normalmente ya manda
+    # seccion_proyecto_id == proyecto_id para este caso.
+    if tipo == TipoAgendaItem.tema and seccion_proyecto_id is None:
+        seccion_proyecto_id = proyecto_id
+    elif tipo == TipoAgendaItem.nota and nota_id is None:
+        if not nota_contenido:
+            raise HTTPException(
+                status_code=400,
+                detail="Debes elegir una nota existente (nota_id) o escribir una nueva (nota_contenido)",
+            )
+        nueva_nota = crear_nota(
+            db,
+            usuario,
+            NotaCrear(contenido=nota_contenido, proyecto_id=seccion_proyecto_id),
+        )
+        nota_id = nueva_nota.id
+
     max_orden = (
         db.query(AgendaItem)
         .filter(AgendaItem.serie_id == serie_id)
@@ -252,13 +285,75 @@ def agregar_item_agenda(
         proyecto_id=proyecto_id,
         entregable_id=entregable_id,
         acuerdo_id=acuerdo_id,
+        nota_id=nota_id,
         texto=texto,
+        detalle=detalle,
+        seccion_proyecto_id=seccion_proyecto_id,
         orden=max_orden,
         creado_en_reunion_id=creado_en_reunion_id,
     )
     db.add(item)
     db.flush()
     return item
+
+
+def editar_item_agenda(db: Session, usuario: Usuario, item_id: int, campos: dict) -> AgendaItem:
+    """Edita texto/detalle/sección de un ítem ya creado -- no cambia `tipo`
+    ni las referencias fuertes (entregable_id/acuerdo_id/nota_id/proyecto_id
+    de tipo=tema); para eso se archiva y se crea uno nuevo. `campos` ya
+    viene filtrado por el router con `exclude_unset=True`, así que cada
+    valor presente (incluido None, ej. limpiar seccion_proyecto_id para
+    mandar el punto a "General") se aplica tal cual -- a diferencia de
+    otros `actualizar_*` de este archivo, aquí NO se filtra `is not None`,
+    porque eso bloquearía justo el caso de querer limpiar una sección."""
+    item = db.query(AgendaItem).filter(AgendaItem.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Ítem de agenda no encontrado")
+    serie = obtener_serie_o_404(db, item.serie_id)
+    if not puede_editar_serie(db, usuario, serie):
+        raise HTTPException(
+            status_code=403, detail="No tienes permiso para editar la agenda de esta serie"
+        )
+    for campo, valor in campos.items():
+        setattr(item, campo, valor)
+    return item
+
+
+def mover_item_agenda(db: Session, usuario: Usuario, item_id: int, direccion: str) -> None:
+    """Intercambia el `orden` de este ítem con su vecino más cercano DENTRO
+    DE LA MISMA SECCIÓN (seccion_proyecto_id igual, o ambos sin sección) --
+    reordenar entre secciones distintas no tiene sentido visualmente, cada
+    una se muestra agrupada aparte. Flechas arriba/abajo en vez de
+    drag-and-drop, para no agregar una librería nueva."""
+    item = db.query(AgendaItem).filter(AgendaItem.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Ítem de agenda no encontrado")
+    serie = obtener_serie_o_404(db, item.serie_id)
+    if not puede_editar_serie(db, usuario, serie):
+        raise HTTPException(
+            status_code=403, detail="No tienes permiso para editar la agenda de esta serie"
+        )
+    if direccion not in ("arriba", "abajo"):
+        raise HTTPException(status_code=400, detail="direccion debe ser 'arriba' o 'abajo'")
+
+    hermanos = (
+        db.query(AgendaItem)
+        .filter(
+            AgendaItem.serie_id == item.serie_id,
+            AgendaItem.activo.is_(True),
+            AgendaItem.seccion_proyecto_id == item.seccion_proyecto_id,
+        )
+        .order_by(AgendaItem.orden, AgendaItem.id)
+        .all()
+    )
+    posicion = next((i for i, h in enumerate(hermanos) if h.id == item.id), None)
+    if posicion is None:
+        return
+    vecino_pos = posicion - 1 if direccion == "arriba" else posicion + 1
+    if vecino_pos < 0 or vecino_pos >= len(hermanos):
+        return  # ya está en el extremo, no hay nada que mover
+    vecino = hermanos[vecino_pos]
+    item.orden, vecino.orden = vecino.orden, item.orden
 
 
 def archivar_item_agenda(db: Session, usuario: Usuario, item_id: int) -> None:

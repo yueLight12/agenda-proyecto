@@ -3,6 +3,7 @@ import CalendarioEntregables from "../components/CalendarioEntregables";
 import FormularioEntregable from "../components/FormularioEntregable";
 import ModalEventoEmpresa from "../components/ModalEventoEmpresa";
 import ModalReunion from "../components/ModalReunion";
+import ModalSerieReunion from "../components/ModalSerieReunion";
 import {
   entregablesApi,
   eventosEmpresaApi,
@@ -21,6 +22,7 @@ export default function CalendarioGlobal() {
   const [error, setError] = useState("");
   const [modalEntregable, setModalEntregable] = useState(null);
   const [modalReunion, setModalReunion] = useState(null);
+  const [modalSerieGeneral, setModalSerieGeneral] = useState(false);
   const [modalEventoEmpresa, setModalEventoEmpresa] = useState(null);
   const [modo, setModo] = useState("general"); // "personal" | "general" | "empresa"
   const [eventosEmpresa, setEventosEmpresa] = useState([]);
@@ -147,6 +149,9 @@ export default function CalendarioGlobal() {
         <button className="btn btn--ghost" onClick={() => setModalReunion("nueva-general")}>
           Nueva reunión general
         </button>
+        <button className="btn btn--ghost" onClick={() => setModalSerieGeneral(true)}>
+          Nueva junta recurrente general
+        </button>
       </div>
       {modo !== "empresa" && entregablesMostrados.length === 0 && reunionesMostradas.length === 0 && (
         <p style={{ color: "var(--color-text-muted)" }}>
@@ -220,6 +225,15 @@ export default function CalendarioGlobal() {
             await cargarTodo();
           }}
           onCerrar={() => setModalReunion(null)}
+        />
+      )}
+
+      {modalSerieGeneral && (
+        <ModalSerieReunion
+          proyectoId={null}
+          miembros={miEquipo}
+          onGuardado={cargarTodo}
+          onCerrar={() => setModalSerieGeneral(false)}
         />
       )}
     </div>

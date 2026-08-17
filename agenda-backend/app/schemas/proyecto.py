@@ -47,6 +47,12 @@ class AsignarRolRequest(BaseModel):
     supervisor_id: Optional[int] = None  # requerido si rol es N3 o N4
 
 
+class ProyectoArbolOut(BaseModel):
+    id: int
+    nombre: str
+    ruta: str  # "Tema > Subtema > Subtema hijo" -- para selectores planos
+
+
 class MiembroEquipoOut(BaseModel):
     usuario_id: int
     nombre: str

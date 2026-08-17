@@ -5,15 +5,19 @@ import ConfirmDialog from "./ConfirmDialog";
 
 /**
  * Sección reutilizable de notas/avisos/pendientes, para colgar de un
- * entregable, una reunión o una minuta (exactamente uno de los tres props
- * de id). El backend ya valida quién puede ver/crear/borrar (la nota
- * hereda la visibilidad de su padre, ver app/services/notas.py) — esta
- * sección no duplica esa lógica, solo maneja qué botones mostrar:
- * "Eliminar" se ofrece al autor de cada nota, y además a quien pueda
- * administrar el padre (`puedeAdministrar`, ej. N1/N2 del proyecto) si el
- * componente que la usa se lo indica.
+ * entregable, una reunión, una minuta o un proyecto/tema (exactamente uno
+ * de los cuatro props de id). El backend ya valida quién puede
+ * ver/crear/borrar (la nota hereda la visibilidad de su padre, ver
+ * app/services/notas.py) — esta sección no duplica esa lógica, solo maneja
+ * qué botones mostrar: "Eliminar" se ofrece al autor de cada nota, y
+ * además a quien pueda administrar el padre (`puedeAdministrar`, ej. N1/N2
+ * del proyecto) si el componente que la usa se lo indica.
+ *
+ * Una nota sobre un proyecto/tema (2026-08-17, caso Diana) también puede
+ * jalarse como un punto más del checklist de una junta recurrente general
+ * -- ver ModalSerieReunion.jsx (tipo "nota").
  */
-export default function SeccionNotas({ entregableId, reunionId, minutaId, puedeAdministrar = false }) {
+export default function SeccionNotas({ entregableId, reunionId, minutaId, proyectoId, puedeAdministrar = false }) {
   const { usuario } = useAuth();
   const [notas, setNotas] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -27,7 +31,9 @@ export default function SeccionNotas({ entregableId, reunionId, minutaId, puedeA
     ? { entregable_id: entregableId }
     : reunionId
     ? { reunion_id: reunionId }
-    : { minuta_id: minutaId };
+    : minutaId
+    ? { minuta_id: minutaId }
+    : { proyecto_id: proyectoId };
 
   const cargar = () =>
     notasApi
@@ -39,7 +45,7 @@ export default function SeccionNotas({ entregableId, reunionId, minutaId, puedeA
   useEffect(() => {
     cargar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entregableId, reunionId, minutaId]);
+  }, [entregableId, reunionId, minutaId, proyectoId]);
 
   const handleAgregar = async (e) => {
     e.preventDefault();

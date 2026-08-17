@@ -62,14 +62,37 @@ class AgendaItemCrear(BaseModel):
     proyecto_id: Optional[int] = None
     entregable_id: Optional[int] = None
     acuerdo_id: Optional[int] = None
+    # Nota ya existente sobre un tema (tipo=nota). Alternativa a
+    # nota_contenido: si se manda, se crea una Nota nueva sobre
+    # seccion_proyecto_id y se referencia -- ver agregar_item_agenda.
+    nota_id: Optional[int] = None
+    nota_contenido: Optional[str] = None
     texto: Optional[str] = None
+    detalle: Optional[str] = None
+    # Bajo qué tema/subtema se agrupa este punto -- ver
+    # AgendaItem.seccion_proyecto_id. Irrelevante para tipo=tema (el ítem
+    # ES la sección, se ignora si se manda).
+    seccion_proyecto_id: Optional[int] = None
+
+
+class AgendaItemActualizar(BaseModel):
+    texto: Optional[str] = None
+    detalle: Optional[str] = None
+    seccion_proyecto_id: Optional[int] = None
+
+
+class MoverItemAgendaRequest(BaseModel):
+    direccion: str  # "arriba" | "abajo"
 
 
 class AgendaItemOut(BaseModel):
     id: int
     serie_id: int
     tipo: TipoAgendaItem
-    nombre: str  # resuelto: proyecto.nombre / entregable.nombre / acuerdo.descripcion / texto
+    nombre: str  # resuelto: proyecto.nombre / entregable.nombre / acuerdo.descripcion / nota / texto
+    detalle: Optional[str] = None
+    seccion_proyecto_id: Optional[int] = None
+    seccion_nombre: Optional[str] = None  # None = "General" (sin sección)
     activo: bool
     orden: int
     # Estado derivado de la AgendaItemRevision más reciente (o "pendiente"

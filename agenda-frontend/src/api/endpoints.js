@@ -39,6 +39,7 @@ export const proyectosApi = {
   resumenSubarbol: async (id) => (await api.get(`/proyectos/${id}/resumen-subarbol`)).data,
   mover: async (id, nuevoParentId) =>
     (await api.patch(`/proyectos/${id}/mover`, { nuevo_parent_id: nuevoParentId })).data,
+  arbolVisible: async () => (await api.get("/proyectos/arbol-visible")).data,
 };
 
 export const entregablesApi = {
@@ -113,6 +114,10 @@ export const seriesReunionApi = {
   agenda: async (serieId) => (await api.get(`/series-reuniones/${serieId}/agenda`)).data,
   agregarItemAgenda: async (serieId, datos) =>
     (await api.post(`/series-reuniones/${serieId}/agenda`, datos)).data,
+  editarItemAgenda: async (itemId, datos) =>
+    (await api.patch(`/series-reuniones/agenda-items/${itemId}`, datos)).data,
+  moverItemAgenda: async (itemId, direccion) =>
+    (await api.post(`/series-reuniones/agenda-items/${itemId}/mover`, { direccion })).data,
   archivarItemAgenda: async (itemId) => api.delete(`/series-reuniones/agenda-items/${itemId}`),
 };
 

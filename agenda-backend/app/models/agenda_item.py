@@ -30,6 +30,7 @@ class TipoAgendaItem(str, enum.Enum):
     entregable = "entregable"
     acuerdo = "acuerdo"  # seguimiento a un acuerdo de una ocurrencia anterior
     pendiente = "pendiente"  # texto libre, sin entidad real detrás
+    nota = "nota"  # referencia a una Nota ya existente sobre un tema (nota_id)
 
 
 class EstadoRevision(str, enum.Enum):
@@ -61,7 +62,22 @@ class AgendaItem(Base):
     acuerdo_id = Column(
         Integer, ForeignKey("acuerdos_minuta.id", ondelete="SET NULL"), nullable=True
     )
+    nota_id = Column(Integer, ForeignKey("notas.id", ondelete="SET NULL"), nullable=True)
+    # Bajo qué tema/subtema se agrupa este punto en el checklist -- INDEPENDIENTE
+    # de `proyecto_id` (que para tipo=tema es el subtema que el ítem
+    # REPRESENTA). Aplica a cualquier tipo (ej. un pendiente o una nota se
+    # archivan bajo la sección "Suites"); un ítem tipo=tema no necesita
+    # sección propia (el ítem ES la sección), se deja en null. Null en
+    # cualquier otro tipo = sección "General" (reunión sin tema fijo).
+    # Agregado 2026-08-17 para el checklist multi-tema de una junta general
+    # (caso Diana) -- ver app/services/series_reunion.py.
+    seccion_proyecto_id = Column(
+        Integer, ForeignKey("proyectos.id", ondelete="SET NULL"), nullable=True
+    )
     texto = Column(String(500), nullable=True)
+    # Texto largo libre para pegar contenido de referencia (correo, tabla de
+    # montos, link) -- complementa a `texto`, que es solo el título corto.
+    detalle = Column(Text, nullable=True)
     orden = Column(Integer, default=0, nullable=False)
     activo = Column(Boolean, default=True, nullable=False)  # "archivado" si False
     # De qué ocurrencia salió este ítem (ej. un pendiente que surgió en la
@@ -72,9 +88,11 @@ class AgendaItem(Base):
     fecha_creacion = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     serie = relationship("SerieReunion", back_populates="agenda_items")
-    proyecto = relationship("Proyecto")
+    proyecto = relationship("Proyecto", foreign_keys=[proyecto_id])
+    seccion = relationship("Proyecto", foreign_keys=[seccion_proyecto_id])
     entregable = relationship("Entregable")
     acuerdo = relationship("AcuerdoMinuta")
+    nota = relationship("Nota")
     creado_en_reunion = relationship("Reunion", foreign_keys=[creado_en_reunion_id])
     revisiones = relationship(
         "AgendaItemRevision", back_populates="agenda_item", cascade="all, delete-orphan"

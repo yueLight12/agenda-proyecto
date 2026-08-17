@@ -1,35 +1,43 @@
 """
 Servicio de notas: crear, listar y eliminar notas sobre un entregable, una
-reunión o una minuta.
+reunión, una minuta, o un proyecto/tema.
 
 Regla de visibilidad (igual que Minuta/AcuerdoMinuta con Reunion, ver
 app/services/minutas.py): la nota NUNCA calcula su propio permiso. Se
-resuelve el padre (entregable, reunión, o la reunión de la minuta) y se
-delega en las funciones ya existentes de app.core.permissions. Crear una
-nota requiere poder VER el padre; editar/borrar requiere ser el autor o
-poder EDITAR el padre (N1/N2 del proyecto, o super admin — ya cubierto
-dentro de puede_editar_entregable/puede_editar_reunion).
+resuelve el padre (entregable, reunión, la reunión de la minuta, o el
+proyecto/tema) y se delega en las funciones ya existentes de
+app.core.permissions. Crear una nota requiere poder VER el padre;
+editar/borrar requiere ser el autor o poder EDITAR el padre (N1/N2 del
+proyecto, o super admin — ya cubierto dentro de
+puede_editar_entregable/puede_editar_reunion; para proyecto_id se usa
+obtener_rol_en_proyecto, mismo criterio que puede_editar_serie en
+app/services/series_reunion.py).
 
 Al crear una nota se notifica (in-app, reutilizando Notificacion/
 TipoNotificacion.otro — sin tipo ni columna nueva) a quien correspondería
-enterarse: el responsable del entregable, o el organizador + invitados de
-la reunión/minuta, excluyendo siempre al propio autor.
+enterarse: el responsable del entregable, el organizador + invitados de la
+reunión/minuta, o quien tenga rol N1/N2 local en el tema (para proyecto_id),
+excluyendo siempre al propio autor.
 """
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.permissions import (
+    obtener_rol_en_proyecto,
     puede_editar_entregable,
     puede_editar_reunion,
     puede_ver_entregable,
     puede_ver_reunion,
+    requerir_participacion_en_proyecto,
 )
 from app.models.minuta import Minuta
 from app.models.nota import Nota
 from app.models.notificacion import Notificacion, TipoNotificacion
-from app.models.usuario import Usuario
+from app.models.usuario import RolEnum, Usuario
+from app.models.usuario_proyecto_rol import UsuarioProyectoRol
 from app.schemas.nota import NotaCrear, NotaOut
 from app.services.entregables import obtener_entregable_o_404
+from app.services.proyectos import obtener_proyecto_o_404
 from app.services.reuniones import obtener_reunion_o_404
 
 
@@ -39,6 +47,7 @@ def nota_a_out(nota: Nota) -> NotaOut:
         entregable_id=nota.entregable_id,
         reunion_id=nota.reunion_id,
         minuta_id=nota.minuta_id,
+        proyecto_id=nota.proyecto_id,
         contenido=nota.contenido,
         autor_id=nota.autor_id,
         autor_nombre=nota.autor.nombre,
@@ -59,6 +68,7 @@ def _puede_ver_padre(
     entregable_id: int | None,
     reunion_id: int | None,
     minuta_id: int | None,
+    proyecto_id: int | None = None,
 ) -> bool:
     if entregable_id is not None:
         entregable = obtener_entregable_o_404(db, entregable_id)
@@ -66,8 +76,15 @@ def _puede_ver_padre(
     if reunion_id is not None:
         reunion = obtener_reunion_o_404(db, reunion_id)
         return puede_ver_reunion(db, usuario, reunion)
-    minuta = _obtener_minuta_o_404(db, minuta_id)
-    return puede_ver_reunion(db, usuario, minuta.reunion)
+    if minuta_id is not None:
+        minuta = _obtener_minuta_o_404(db, minuta_id)
+        return puede_ver_reunion(db, usuario, minuta.reunion)
+    obtener_proyecto_o_404(db, proyecto_id)
+    try:
+        requerir_participacion_en_proyecto(db, usuario, proyecto_id)
+        return True
+    except HTTPException:
+        return False
 
 
 def _puede_editar_padre(db: Session, usuario: Usuario, nota: Nota) -> bool:
@@ -75,7 +92,12 @@ def _puede_editar_padre(db: Session, usuario: Usuario, nota: Nota) -> bool:
         return puede_editar_entregable(db, usuario, nota.entregable)
     if nota.reunion_id is not None:
         return puede_editar_reunion(db, usuario, nota.reunion)
-    return puede_editar_reunion(db, usuario, nota.minuta.reunion)
+    if nota.minuta_id is not None:
+        return puede_editar_reunion(db, usuario, nota.minuta.reunion)
+    if usuario.es_super_admin:
+        return True
+    fila = obtener_rol_en_proyecto(db, usuario.id, nota.proyecto_id)
+    return fila is not None and fila.rol in (RolEnum.N1, RolEnum.N2)
 
 
 def listar_notas(
@@ -84,15 +106,17 @@ def listar_notas(
     entregable_id: int | None,
     reunion_id: int | None,
     minuta_id: int | None,
+    proyecto_id: int | None = None,
 ) -> list[Nota]:
-    padres = [entregable_id, reunion_id, minuta_id]
+    padres = [entregable_id, reunion_id, minuta_id, proyecto_id]
     if sum(1 for p in padres if p is not None) != 1:
         raise HTTPException(
             status_code=400,
-            detail="Debes indicar exactamente uno de: entregable_id, reunion_id o minuta_id",
+            detail="Debes indicar exactamente uno de: entregable_id, reunion_id, "
+            "minuta_id o proyecto_id",
         )
 
-    if not _puede_ver_padre(db, usuario, entregable_id, reunion_id, minuta_id):
+    if not _puede_ver_padre(db, usuario, entregable_id, reunion_id, minuta_id, proyecto_id):
         raise HTTPException(status_code=403, detail="No tienes acceso a este contenido")
 
     query = db.query(Nota)
@@ -100,8 +124,10 @@ def listar_notas(
         query = query.filter(Nota.entregable_id == entregable_id)
     elif reunion_id is not None:
         query = query.filter(Nota.reunion_id == reunion_id)
-    else:
+    elif minuta_id is not None:
         query = query.filter(Nota.minuta_id == minuta_id)
+    else:
+        query = query.filter(Nota.proyecto_id == proyecto_id)
     return query.order_by(Nota.fecha_creacion.asc()).all()
 
 
@@ -111,6 +137,18 @@ def _notificar_nota_nueva(db: Session, usuario: Usuario, nota: Nota) -> None:
         destinatarios = {entregable.responsable_id}
         mensaje = f'{usuario.nombre} agregó una nota en el entregable "{entregable.nombre}".'
         entregable_id_notif = entregable.id
+    elif nota.proyecto_id is not None:
+        destinatarios = {
+            r.usuario_id
+            for r in db.query(UsuarioProyectoRol)
+            .filter(
+                UsuarioProyectoRol.proyecto_id == nota.proyecto_id,
+                UsuarioProyectoRol.rol.in_([RolEnum.N1, RolEnum.N2]),
+            )
+            .all()
+        }
+        mensaje = f'{usuario.nombre} agregó una nota en el tema "{nota.proyecto.nombre}".'
+        entregable_id_notif = None
     else:
         reunion = nota.reunion if nota.reunion_id is not None else nota.minuta.reunion
         destinatarios = {reunion.organizador_id} | {p.usuario_id for p in reunion.participantes}
@@ -130,18 +168,21 @@ def _notificar_nota_nueva(db: Session, usuario: Usuario, nota: Nota) -> None:
 
 
 def crear_nota(db: Session, usuario: Usuario, datos: NotaCrear) -> Nota:
-    if not _puede_ver_padre(db, usuario, datos.entregable_id, datos.reunion_id, datos.minuta_id):
+    if not _puede_ver_padre(
+        db, usuario, datos.entregable_id, datos.reunion_id, datos.minuta_id, datos.proyecto_id
+    ):
         raise HTTPException(status_code=403, detail="No tienes acceso a este contenido")
 
     nota = Nota(
         entregable_id=datos.entregable_id,
         reunion_id=datos.reunion_id,
         minuta_id=datos.minuta_id,
+        proyecto_id=datos.proyecto_id,
         contenido=datos.contenido,
         autor_id=usuario.id,
     )
     db.add(nota)
-    db.flush()  # asigna nota.id y deja disponibles las relaciones (entregable/reunion/minuta)
+    db.flush()  # asigna nota.id y deja disponibles las relaciones (entregable/reunion/minuta/proyecto)
     _notificar_nota_nueva(db, usuario, nota)
     return nota
 

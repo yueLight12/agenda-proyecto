@@ -8,10 +8,13 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import obtener_usuario_actual
+from app.models.agenda_item import AgendaItem
 from app.models.usuario import Usuario
 from app.schemas.serie_reunion import (
+    AgendaItemActualizar,
     AgendaItemCrear,
     AgendaItemOut,
+    MoverItemAgendaRequest,
     SerieReunionActualizar,
     SerieReunionCrear,
     SerieReunionOut,
@@ -22,9 +25,11 @@ from app.services.series_reunion import (
     archivar_item_agenda as archivar_item_agenda_servicio,
     crear_serie as crear_serie_servicio,
     actualizar_serie as actualizar_serie_servicio,
+    editar_item_agenda as editar_item_agenda_servicio,
     eliminar_serie as eliminar_serie_servicio,
     item_a_out,
     listar_series_visibles,
+    mover_item_agenda as mover_item_agenda_servicio,
     obtener_serie_o_404,
     serie_a_out,
 )
@@ -114,10 +119,40 @@ def agregar_item_agenda(
         proyecto_id=datos.proyecto_id,
         entregable_id=datos.entregable_id,
         acuerdo_id=datos.acuerdo_id,
+        nota_id=datos.nota_id,
+        nota_contenido=datos.nota_contenido,
         texto=datos.texto,
+        detalle=datos.detalle,
+        seccion_proyecto_id=datos.seccion_proyecto_id,
     )
     db.commit()
     db.refresh(item)
+    return item_a_out(item)
+
+
+@router.patch("/agenda-items/{item_id}", response_model=AgendaItemOut)
+def editar_item_agenda(
+    item_id: int,
+    datos: AgendaItemActualizar,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    item = editar_item_agenda_servicio(db, usuario, item_id, datos.model_dump(exclude_unset=True))
+    db.commit()
+    db.refresh(item)
+    return item_a_out(item)
+
+
+@router.post("/agenda-items/{item_id}/mover", response_model=AgendaItemOut)
+def mover_item_agenda(
+    item_id: int,
+    datos: MoverItemAgendaRequest,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    mover_item_agenda_servicio(db, usuario, item_id, datos.direccion)
+    db.commit()
+    item = db.query(AgendaItem).filter(AgendaItem.id == item_id).first()
     return item_a_out(item)
 
 

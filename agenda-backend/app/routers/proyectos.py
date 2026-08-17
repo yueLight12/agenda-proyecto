@@ -15,6 +15,7 @@ from app.schemas.proyecto import (
     AsignarRolRequest,
     MiembroEquipoOut,
     ProyectoActualizar,
+    ProyectoArbolOut,
     ProyectoCrear,
     ProyectoOut,
 )
@@ -24,6 +25,7 @@ from app.services.proyectos import (
     crear_proyecto as crear_proyecto_servicio,
     eliminar_proyecto as eliminar_proyecto_servicio,
     listar_ancestros as listar_ancestros_servicio,
+    listar_arbol_visible as listar_arbol_visible_servicio,
     listar_equipo_visible,
     listar_hijos_directos as listar_hijos_directos_servicio,
     listar_raices_visibles,
@@ -70,6 +72,19 @@ def crear_proyecto(
     db.commit()
     db.refresh(nuevo)
     return proyecto_a_out(db, usuario, nuevo)
+
+
+@router.get("/arbol-visible", response_model=list[ProyectoArbolOut])
+def listar_arbol_visible(
+    db: Session = Depends(get_db), usuario: Usuario = Depends(obtener_usuario_actual)
+):
+    """Lista plana de TODO el árbol de temas/subtemas visible al usuario
+    (no solo raíces) -- para selectores de "elige un tema" que no dependen
+    de estar parado en un nodo puntual, ej. el picker de sección del
+    checklist de una junta recurrente general. Debe declararse ANTES de
+    /{proyecto_id} para que FastAPI no intente resolver "arbol-visible"
+    como un id."""
+    return listar_arbol_visible_servicio(db, usuario)
 
 
 @router.get("/{proyecto_id}", response_model=ProyectoOut)

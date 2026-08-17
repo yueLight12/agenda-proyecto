@@ -13,6 +13,7 @@ import ModalHistorial from "../components/ModalHistorial";
 import ModalReunion from "../components/ModalReunion";
 import ModalMinuta from "../components/ModalMinuta";
 import ModalSerieReunion from "../components/ModalSerieReunion";
+import SeccionNotas from "../components/SeccionNotas";
 import { etiquetaRol } from "../utils/rolLabels";
 import { useAuth } from "../context/AuthContext";
 
@@ -259,6 +260,10 @@ export default function TableroProyecto() {
           )}
         </div>
       )}
+
+      <div className="card">
+        <SeccionNotas proyectoId={proyecto?.id} puedeAdministrar={puedeAdministrar} />
+      </div>
 
       {resumen && (
         <div className="grid-summary">

@@ -50,6 +50,11 @@ function ItemAgenda({ item, reunionId, onCambio }) {
           {ETIQUETAS_ESTADO[item.estado_actual] || item.estado_actual} {abierto ? "▲" : "▼"}
         </span>
       </button>
+      {item.detalle && !abierto && (
+        <p style={{ fontSize: "0.78rem", color: "var(--color-text-muted)", margin: "4px 0 0" }}>
+          {item.detalle}
+        </p>
+      )}
       {item.ultima_nota && !abierto && (
         <p style={{ fontSize: "0.78rem", color: "var(--color-text-muted)", margin: "4px 0 0" }}>
           "{item.ultima_nota}"
@@ -115,6 +120,19 @@ export default function SeccionAgendaSerie({ serieId, reunionId }) {
   if (cargando) return <p style={{ fontSize: "0.85rem" }}>Cargando agenda...</p>;
   if (error) return <p className="error-text">{error}</p>;
 
+  // Mismo agrupado por sección que ModalSerieReunion.jsx -- un punto sin
+  // seccion_proyecto_id cae en "General".
+  const grupos = [];
+  const indicePorSeccion = {};
+  agenda.forEach((it) => {
+    const clave = it.seccion_proyecto_id || "general";
+    if (!(clave in indicePorSeccion)) {
+      indicePorSeccion[clave] = grupos.length;
+      grupos.push({ nombre: it.seccion_nombre || "General", items: [] });
+    }
+    grupos[indicePorSeccion[clave]].items.push(it);
+  });
+
   return (
     <div className="stack" style={{ gap: 6 }}>
       <p style={{ color: "var(--color-text-muted)", fontSize: "0.78rem", margin: 0 }}>
@@ -125,8 +143,15 @@ export default function SeccionAgendaSerie({ serieId, reunionId }) {
           Esta junta todavía no tiene ítems en su agenda.
         </p>
       )}
-      {agenda.map((item) => (
-        <ItemAgenda key={item.id} item={item} reunionId={reunionId} onCambio={cargar} />
+      {grupos.map((grupo) => (
+        <div key={grupo.nombre} className="stack" style={{ gap: 4 }}>
+          <h4 style={{ fontSize: "0.8rem", margin: "6px 0 0", color: "var(--color-text-muted)" }}>
+            {grupo.nombre}
+          </h4>
+          {grupo.items.map((item) => (
+            <ItemAgenda key={item.id} item={item} reunionId={reunionId} onCambio={cargar} />
+          ))}
+        </div>
       ))}
     </div>
   );
