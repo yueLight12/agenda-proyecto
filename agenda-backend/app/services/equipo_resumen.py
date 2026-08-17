@@ -31,8 +31,11 @@ from app.core.permissions import (
     query_entregables_visibles,
     query_reuniones_visibles,
 )
+from app.models.entregable import Entregable
 from app.models.equipo_miembro import EquipoMiembro
+from app.models.reunion import Reunion
 from app.models.usuario import RolEnum, Usuario
+from app.models.usuario_proyecto_rol import UsuarioProyectoRol
 from app.schemas.equipo_resumen import (
     EntregableResumenPersonaOut,
     MiembroResumenOut,
@@ -40,6 +43,16 @@ from app.schemas.equipo_resumen import (
     ReunionResumenPersonaOut,
 )
 from app.services.proyectos import listar_equipo_visible, listar_proyectos_visibles
+
+
+def listar_proyectos_de_usuario(db: Session, usuario_id: int) -> list[UsuarioProyectoRol]:
+    """Todas las filas de UsuarioProyectoRol de esta persona, SIN filtrar
+    por lo que el viewer puede ver -- a diferencia de listar_proyectos_visibles
+    (que sí filtra). Usado para que un jefe vea TODO lo que hace su
+    subordinado (2026-08-17, a petición de Yue: "todo lo que haga un
+    subordinado lo debe poder ver su jefe"), incluyendo árboles donde el
+    jefe no tiene ningún rol propio -- ver resumen_equipo_multiproyecto."""
+    return db.query(UsuarioProyectoRol).filter(UsuarioProyectoRol.usuario_id == usuario_id).all()
 
 
 def resumen_equipo_multiproyecto(db: Session, usuario: Usuario) -> list[MiembroResumenOut]:
@@ -113,6 +126,65 @@ def resumen_equipo_multiproyecto(db: Session, usuario: Usuario) -> list[MiembroR
                 )
             else:
                 personas[miembro.usuario_id].proyectos.append(proyecto_de_miembro)
+
+    # Un jefe ve TODO lo que hace su subordinado, no solo los árboles que
+    # el jefe ya visita (2026-08-17, a petición de Yue) -- para cada
+    # persona ya detectada como "mi equipo" arriba (aparece en algún
+    # proyecto visible para mí), sumar también sus proyectos en árboles
+    # donde YO no tengo ningún rol propio. entregables/reuniones se
+    # consultan directo (no vía query_*_visibles, que exige mi propia
+    # visibilidad en ese proyecto -- aquí la visibilidad ya se ganó por
+    # ser jefe de esta persona, no por mi rol en el árbol).
+    if not usuario.es_super_admin:
+        for persona_id, persona in list(personas.items()):
+            if persona_id == usuario.id:
+                continue
+            proyecto_ids_ya = {p.proyecto_id for p in persona.proyectos}
+            for fila in listar_proyectos_de_usuario(db, persona_id):
+                if fila.proyecto_id in proyecto_ids_ya:
+                    continue
+                proyecto_ids_ya.add(fila.proyecto_id)
+                proyecto = fila.proyecto
+                entregables_de = [
+                    EntregableResumenPersonaOut(
+                        id=e.id,
+                        nombre=e.nombre,
+                        fecha_entrega=e.fecha_entrega,
+                        porcentaje_avance=e.porcentaje_avance,
+                        estatus=e.estatus,
+                        sensible=e.sensible,
+                    )
+                    for e in db.query(Entregable)
+                    .filter(Entregable.proyecto_id == proyecto.id, Entregable.responsable_id == persona_id)
+                    .all()
+                ]
+                reuniones_de = [
+                    ReunionResumenPersonaOut(
+                        id=r.id,
+                        titulo=r.titulo,
+                        fecha_inicio=r.fecha_inicio,
+                        rol_en_reunion="organiza" if r.organizador_id == persona_id else "invitado",
+                    )
+                    for r in db.query(Reunion)
+                    .filter(Reunion.proyecto_id == proyecto.id)
+                    .all()
+                    if r.organizador_id == persona_id
+                    or any(p.usuario_id == persona_id for p in r.participantes)
+                ]
+                persona.proyectos.append(
+                    ProyectoDeMiembroOut(
+                        proyecto_id=proyecto.id,
+                        proyecto_nombre=proyecto.nombre,
+                        rol=fila.rol,
+                        supervisor_id=fila.supervisor_id,
+                        entregables=entregables_de,
+                        reuniones=reuniones_de,
+                        # El viewer no tiene rol en este árbol -- no puede
+                        # administrarlo, solo verlo.
+                        viewer_puede_administrar=False,
+                        parent_id=proyecto.parent_id,
+                    )
+                )
 
     plantilla = db.query(EquipoMiembro).filter(EquipoMiembro.propietario_id == usuario.id).all()
     for entrada in plantilla:

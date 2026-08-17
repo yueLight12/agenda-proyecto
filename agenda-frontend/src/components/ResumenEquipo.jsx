@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { equipoResumenApi, proyectosApi } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
+import ConfirmDialog from "./ConfirmDialog";
 import KanbanSupervisores from "./KanbanSupervisores";
+import ModalEditarProyecto from "./ModalEditarProyecto";
 import ModalEquipo from "./ModalEquipo";
 
 export default function ResumenEquipo() {
@@ -11,6 +13,12 @@ export default function ResumenEquipo() {
   const [error, setError] = useState("");
   const [modalProyecto, setModalProyecto] = useState(null); // { id, nombre, rol_efectivo } | null
   const [miembrosModal, setMiembrosModal] = useState([]);
+  const [creandoTema, setCreandoTema] = useState(false);
+  const [editandoTema, setEditandoTema] = useState(null); // proyecto completo (GET /proyectos/{id}) | null
+  const [confirmandoEliminar, setConfirmandoEliminar] = useState(null); // { id, nombre } | null
+  const [resumenEliminar, setResumenEliminar] = useState(null);
+  const [eliminando, setEliminando] = useState(false);
+  const [errorEliminar, setErrorEliminar] = useState("");
 
   const cargar = () =>
     equipoResumenApi
@@ -39,19 +47,59 @@ export default function ResumenEquipo() {
     await cargar();
   };
 
+  // Editar/eliminar tema (2026-08-17, movido aquí al fusionar "Temas" con
+  // "Equipo") -- mismo patrón que antes vivía en Proyectos.jsx. Se
+  // gatilla desde el botón por proyecto en KanbanSupervisores, gated
+  // server-side por viewer_puede_administrar.
+  const abrirEditarTema = async (proyectoId) => {
+    setErrorEliminar("");
+    const proyecto = await proyectosApi.obtener(proyectoId);
+    setEditandoTema(proyecto);
+  };
+
+  const abrirEliminarTema = async (proyectoId, proyectoNombre) => {
+    setErrorEliminar("");
+    const proyecto = await proyectosApi.obtener(proyectoId);
+    setResumenEliminar(proyecto.tiene_hijos ? await proyectosApi.resumenSubarbol(proyectoId) : null);
+    setConfirmandoEliminar({ id: proyectoId, nombre: proyectoNombre });
+  };
+
+  const confirmarEliminarTema = async () => {
+    setEliminando(true);
+    setErrorEliminar("");
+    try {
+      await proyectosApi.eliminar(confirmandoEliminar.id);
+      setConfirmandoEliminar(null);
+      await cargar();
+    } catch (err) {
+      setErrorEliminar(err.response?.data?.detail || "No se pudo eliminar el tema.");
+    } finally {
+      setEliminando(false);
+    }
+  };
+
   if (cargando) return <p>Cargando resumen de tu equipo...</p>;
   if (error) return <p className="error-text">{error}</p>;
 
   return (
     <div className="stack">
-      <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
-        Las reuniones que se muestran aquí son solo las que tú también puedes ver (donde tú
-        organizas o estás invitado) — no necesariamente todas las reuniones de cada persona.
-      </p>
+      <div className="list-inline" style={{ borderBottom: "none", padding: 0 }}>
+        <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem", margin: 0 }}>
+          Las reuniones que se muestran aquí son solo las que tú también puedes ver (donde tú
+          organizas o estás invitado) — no necesariamente todas las reuniones de cada persona.
+        </p>
+        <button className="btn btn--primary" type="button" onClick={() => setCreandoTema(true)}>
+          Crear tema
+        </button>
+      </div>
+
+      {errorEliminar && <p className="error-text">{errorEliminar}</p>}
 
       <KanbanSupervisores
         miembros={miembros}
         onAdministrar={abrirAdministrar}
+        onEditarTema={abrirEditarTema}
+        onEliminarTema={abrirEliminarTema}
         usuarioActualId={usuario?.id}
       />
 
@@ -62,6 +110,42 @@ export default function ResumenEquipo() {
           viewerRolEfectivo={modalProyecto.rol_efectivo}
           onCambio={refrescarModal}
           onCerrar={() => setModalProyecto(null)}
+        />
+      )}
+
+      {creandoTema && (
+        <ModalEditarProyecto
+          proyecto={null}
+          onGuardado={async () => {
+            setCreandoTema(false);
+            await cargar();
+          }}
+          onCerrar={() => setCreandoTema(false)}
+        />
+      )}
+
+      {editandoTema && (
+        <ModalEditarProyecto
+          proyecto={editandoTema}
+          onGuardado={async () => {
+            setEditandoTema(null);
+            await cargar();
+          }}
+          onCerrar={() => setEditandoTema(null)}
+        />
+      )}
+
+      {confirmandoEliminar && (
+        <ConfirmDialog
+          titulo="Eliminar tema"
+          mensaje={
+            resumenEliminar && resumenEliminar.total_subtemas > 0
+              ? `¿Eliminar "${confirmandoEliminar.nombre}"? Esto también borra ${resumenEliminar.total_subtemas} subtema(s), ${resumenEliminar.total_entregables} entregable(s) y ${resumenEliminar.total_reuniones} reunión(es) de todo su subárbol. Esta acción no se puede deshacer.`
+              : `¿Eliminar el tema "${confirmandoEliminar.nombre}"? Esto borra también su equipo, entregables y reuniones. Esta acción no se puede deshacer.`
+          }
+          textoConfirmar={eliminando ? "Eliminando..." : "Eliminar"}
+          onConfirmar={confirmarEliminarTema}
+          onCancelar={() => setConfirmandoEliminar(null)}
         />
       )}
     </div>

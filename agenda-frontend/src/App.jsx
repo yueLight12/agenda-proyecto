@@ -1,10 +1,9 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import RutaProtegida from "./components/RutaProtegida";
 import AppLayout from "./components/AppLayout";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
-import Proyectos from "./pages/Proyectos";
 import TableroProyecto from "./pages/TableroProyecto";
 import Equipo from "./pages/Equipo";
 import MisPendientes from "./pages/MisPendientes";
@@ -27,7 +26,10 @@ export default function App() {
             }
           >
             <Route index element={<Dashboard />} />
-            <Route path="proyectos" element={<Proyectos />} />
+            {/* "Temas" (lista propia) se retiró 2026-08-17 -- se fusionó
+                con "Equipo" (columna "Yo"), ver KanbanSupervisores.jsx.
+                Redirect en vez de 404 por si alguien tiene el link guardado. */}
+            <Route path="proyectos" element={<Navigate to="/equipo" replace />} />
             <Route path="proyectos/:proyectoId" element={<TableroProyecto />} />
             <Route path="equipo" element={<Equipo />} />
             <Route path="mis-pendientes" element={<MisPendientes />} />

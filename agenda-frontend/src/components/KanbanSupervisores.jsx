@@ -43,7 +43,7 @@ function construirArbol(proyectos) {
   return { raices, hijosPorPadre };
 }
 
-function NodoProyecto({ proyecto, hijosPorPadre, onAdministrar, nivel }) {
+function NodoProyecto({ proyecto, hijosPorPadre, onAdministrar, onEditarTema, onEliminarTema, nivel }) {
   const hoyIso = new Date().toISOString().slice(0, 10);
   const hijos = hijosPorPadre.get(proyecto.proyecto_id) || [];
 
@@ -56,16 +56,38 @@ function NodoProyecto({ proyecto, hijosPorPadre, onAdministrar, nivel }) {
           </Link>
           {proyecto.rol && <span style={{ fontWeight: 400 }}> ({etiquetaRol(proyecto.rol)})</span>}
         </span>
-        {onAdministrar && proyecto.viewer_puede_administrar && (
-          <button
-            className="btn btn--ghost"
-            type="button"
-            style={{ fontSize: "0.75rem", padding: "2px 8px" }}
-            onClick={() => onAdministrar(proyecto.proyecto_id, proyecto.proyecto_nombre)}
-          >
-            Administrar
-          </button>
-        )}
+        <div style={{ display: "flex", gap: 4 }}>
+          {onAdministrar && proyecto.viewer_puede_administrar && (
+            <button
+              className="btn btn--ghost"
+              type="button"
+              style={{ fontSize: "0.75rem", padding: "2px 8px" }}
+              onClick={() => onAdministrar(proyecto.proyecto_id, proyecto.proyecto_nombre)}
+            >
+              Administrar
+            </button>
+          )}
+          {onEditarTema && proyecto.viewer_puede_administrar && (
+            <button
+              className="btn btn--ghost"
+              type="button"
+              style={{ fontSize: "0.75rem", padding: "2px 8px" }}
+              onClick={() => onEditarTema(proyecto.proyecto_id)}
+            >
+              Editar
+            </button>
+          )}
+          {onEliminarTema && proyecto.viewer_puede_administrar && (
+            <button
+              className="btn btn--ghost"
+              type="button"
+              style={{ fontSize: "0.75rem", padding: "2px 8px" }}
+              onClick={() => onEliminarTema(proyecto.proyecto_id, proyecto.proyecto_nombre)}
+            >
+              Eliminar
+            </button>
+          )}
+        </div>
       </div>
       {proyecto.entregables.length === 0 && proyecto.reuniones.length === 0 && (
         <p style={{ fontSize: "0.8rem", color: "var(--color-text-muted)", margin: "2px 0" }}>
@@ -129,6 +151,8 @@ function NodoProyecto({ proyecto, hijosPorPadre, onAdministrar, nivel }) {
           proyecto={h}
           hijosPorPadre={hijosPorPadre}
           onAdministrar={onAdministrar}
+          onEditarTema={onEditarTema}
+          onEliminarTema={onEliminarTema}
           nivel={nivel + 1}
         />
       ))}
@@ -136,7 +160,7 @@ function NodoProyecto({ proyecto, hijosPorPadre, onAdministrar, nivel }) {
   );
 }
 
-function EntregablesYReuniones({ proyectos, onAdministrar }) {
+function EntregablesYReuniones({ proyectos, onAdministrar, onEditarTema, onEliminarTema }) {
   const { raices, hijosPorPadre } = construirArbol(proyectos);
 
   return (
@@ -147,6 +171,8 @@ function EntregablesYReuniones({ proyectos, onAdministrar }) {
           proyecto={p}
           hijosPorPadre={hijosPorPadre}
           onAdministrar={onAdministrar}
+          onEditarTema={onEditarTema}
+          onEliminarTema={onEliminarTema}
           nivel={0}
         />
       ))}
@@ -154,7 +180,7 @@ function EntregablesYReuniones({ proyectos, onAdministrar }) {
   );
 }
 
-function TarjetaColumna({ columna, onAdministrar }) {
+function TarjetaColumna({ columna, onAdministrar, onEditarTema, onEliminarTema }) {
   const hoyIso = new Date().toISOString().slice(0, 10);
   const vencidos = columna.proyectos.reduce(
     (acc, p) => acc + p.entregables.filter((e) => e.estatus !== "cumplido" && e.fecha_entrega < hoyIso).length,
@@ -180,14 +206,19 @@ function TarjetaColumna({ columna, onAdministrar }) {
             Sin temas asignados todavía.
           </p>
         ) : (
-          <EntregablesYReuniones proyectos={columna.proyectos} onAdministrar={onAdministrar} />
+          <EntregablesYReuniones
+            proyectos={columna.proyectos}
+            onAdministrar={onAdministrar}
+            onEditarTema={onEditarTema}
+            onEliminarTema={onEliminarTema}
+          />
         )}
       </div>
     </div>
   );
 }
 
-export default function KanbanSupervisores({ miembros, onAdministrar, usuarioActualId }) {
+export default function KanbanSupervisores({ miembros, onAdministrar, onEditarTema, onEliminarTema, usuarioActualId }) {
   const columnas = armarColumnasEquipo(miembros, usuarioActualId);
 
   if (columnas.length === 0) {
@@ -202,7 +233,13 @@ export default function KanbanSupervisores({ miembros, onAdministrar, usuarioAct
     <div className="kanban-responsive">
       <div className="kanban-board">
         {columnas.map((c) => (
-          <TarjetaColumna key={c.usuario_id} columna={c} onAdministrar={onAdministrar} />
+          <TarjetaColumna
+            key={c.usuario_id}
+            columna={c}
+            onAdministrar={onAdministrar}
+            onEditarTema={onEditarTema}
+            onEliminarTema={onEliminarTema}
+          />
         ))}
       </div>
     </div>

@@ -137,9 +137,13 @@ function proyectosAgregados(personas, rolesPropios) {
 //     — sin esto, esa persona simplemente desaparecía del tablero en vez de
 //     mostrarse vacía (bug real encontrado el 2026-08-14: al quitarle sus
 //     únicos reportes de demo, Jasso/Diana dejaron de generar columna).
-//   - Si al final no queda ninguna columna (nadie más es visible, ej.
-//     un N3/N4 viendo su propio tablero), se cae a una columna con el
-//     propio usuario y sus proyectos.
+//   - SIEMPRE hay además una columna propia ("Yo", 2026-08-17, corrige un
+//     bug real: un tema donde el viewer es la ÚNICA persona -- sin
+//     supervisor_id, N1 de sí mismo -- nunca colgaba de ninguna columna
+//     de supervisor y antes solo se veía en la página "Temas", aparte).
+//     Muestra TODOS los proyectos del viewer tal cual vienen en su propia
+//     entrada de `miembros`, sin importar si además aparece como
+//     supervisor de alguien más arriba.
 export function armarColumnasEquipo(miembros, usuarioActualId) {
   const supervisores = agruparPorSupervisor(miembros);
 
@@ -188,16 +192,14 @@ export function armarColumnasEquipo(miembros, usuarioActualId) {
     idsCubiertos.add(m.usuario_id);
   }
 
-  if (columnas.length === 0) {
-    const yo = miembros.find((m) => m.usuario_id === usuarioActualId);
-    if (yo && yo.proyectos.length > 0) {
-      columnas.push({
-        usuario_id: yo.usuario_id,
-        nombre: yo.nombre,
-        puesto: yo.puesto,
-        proyectos: yo.proyectos,
-      });
-    }
+  const yo = miembros.find((m) => m.usuario_id === usuarioActualId);
+  if (yo && yo.proyectos.length > 0) {
+    columnas.unshift({
+      usuario_id: yo.usuario_id,
+      nombre: yo.nombre,
+      puesto: yo.puesto,
+      proyectos: yo.proyectos,
+    });
   }
 
   return columnas;
