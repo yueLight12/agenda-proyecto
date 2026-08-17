@@ -55,17 +55,49 @@ def _fila_a_miembro(fila: UsuarioProyectoRol) -> MiembroEquipoOut:
     )
 
 
+def _companeros_de_jefes(db: Session, jefes_ids: set[int]) -> list[UsuarioProyectoRol]:
+    """Todo N1/N2 en cualquier tema donde alguno de `jefes_ids` es N1
+    LOCAL -- "gente que reporta al mismo jefe", sin importar en qué tema
+    esté cada quien (ej. David, Diana y Jasso son todos N2 en temas
+    distintos, pero Bernardo es N1 en todos -- deben poder invitarse entre
+    sí como oyentes, 2026-08-17, pedido explícito de Yue). Se queda en
+    N1/N2 a propósito (no N3/N4) -- mismo criterio de privacidad de
+    listar_equipo_visible: no exponer el directorio completo de
+    colaboradores, solo pares de nivel Dirección/Líder."""
+    if not jefes_ids:
+        return []
+    proyectos_de_jefes = {
+        f.proyecto_id
+        for f in db.query(UsuarioProyectoRol)
+        .filter(UsuarioProyectoRol.usuario_id.in_(jefes_ids), UsuarioProyectoRol.rol == RolEnum.N1)
+        .all()
+    }
+    if not proyectos_de_jefes:
+        return []
+    return (
+        db.query(UsuarioProyectoRol)
+        .filter(
+            UsuarioProyectoRol.proyecto_id.in_(proyectos_de_jefes),
+            UsuarioProyectoRol.rol.in_([RolEnum.N1, RolEnum.N2]),
+        )
+        .all()
+    )
+
+
 def listar_invitables_reunion(
     db: Session, usuario: Usuario, proyecto_id: int | None
 ) -> list[MiembroEquipoOut]:
     """
     A quién se puede invitar a una reunión/junta -- pedido explícito de Yue
     (2026-08-17): "quisiera que un subordinado pueda agregar a su jefe a
-    juntas". Deliberadamente MÁS permisiva que listar_equipo_visible (que
-    sigue intacta y es la que manda para "Administrar equipo"/asignar
-    roles) -- invitar a alguien a una reunión es una acción de mucho menor
-    alcance que administrar su rol, así que aquí se le suma a cada quien,
-    además de lo que ya podía ver:
+    juntas", y después ampliado el mismo día: "si david quiere crear una
+    reunión e invitar a jasso y/o a diana debería ser posible... como
+    oyentes, dado que todos están bajo bernardo". Deliberadamente MÁS
+    permisiva que listar_equipo_visible (que sigue intacta y es la que
+    manda para "Administrar equipo"/asignar roles) -- invitar a alguien a
+    una reunión es una acción de mucho menor alcance que administrar su
+    rol, así que aquí se le suma a cada quien, además de lo que ya podía
+    ver:
 
     - Con `proyecto_id` (reunión/junta de un tema): todo N1 LOCAL de ese
       tema (Dirección), y el propio supervisor directo del usuario en ese
@@ -75,6 +107,12 @@ def listar_invitables_reunion(
       propia, y su supervisor directo en cualquiera de esos temas -- así
       Diana puede invitar a Bernardo a una junta general sin tener que
       guardarlo antes en su plantilla "Mi equipo".
+    - En AMBOS casos, además: los "compañeros" de cada jefe encontrado
+      arriba -- cualquier N1/N2 en algún tema donde ese jefe también sea
+      N1 (ver _companeros_de_jefes). Esto es lo que deja a David invitar a
+      Diana/Jasso (y viceversa) aunque no compartan ningún tema entre
+      ellos, porque los tres comparten jefe (Bernardo) en alguno de los
+      suyos.
 
     Simplificación consciente: solo mira roles N1 LOCALES (fila explícita
     en ese proyecto_id exacto), no resuelve herencia de un ancestro lejano
@@ -83,6 +121,7 @@ def listar_invitables_reunion(
     permisos existente, es una lista nueva y aparte.
     """
     vistos: dict[int, MiembroEquipoOut] = {}
+    jefes_ids: set[int] = set()
 
     def agregar(m: MiembroEquipoOut) -> None:
         if m.usuario_id != usuario.id:
@@ -101,6 +140,7 @@ def listar_invitables_reunion(
         for fila in filas:
             if fila.rol == RolEnum.N1:
                 agregar(_fila_a_miembro(fila))
+                jefes_ids.add(fila.usuario_id)
 
         mi_fila = next((f for f in filas if f.usuario_id == usuario.id), None)
         if mi_fila and mi_fila.supervisor_id is not None:
@@ -109,6 +149,7 @@ def listar_invitables_reunion(
             )
             if fila_supervisor:
                 agregar(_fila_a_miembro(fila_supervisor))
+                jefes_ids.add(fila_supervisor.usuario_id)
     else:
         plantilla = (
             db.query(EquipoMiembro).filter(EquipoMiembro.propietario_id == usuario.id).all()
@@ -144,6 +185,7 @@ def listar_invitables_reunion(
             )
             for fila in filas_n1:
                 agregar(_fila_a_miembro(fila))
+                jefes_ids.add(fila.usuario_id)
 
         if supervisor_ids:
             filas_supervisores = (
@@ -156,6 +198,10 @@ def listar_invitables_reunion(
             )
             for fila in filas_supervisores:
                 agregar(_fila_a_miembro(fila))
+                jefes_ids.add(fila.usuario_id)
+
+    for fila in _companeros_de_jefes(db, jefes_ids):
+        agregar(_fila_a_miembro(fila))
 
     return list(vistos.values())
 
