@@ -7,7 +7,6 @@ import ModalSerieReunion from "../components/ModalSerieReunion";
 import {
   entregablesApi,
   eventosEmpresaApi,
-  miEquipoApi,
   proyectosApi,
   reunionesApi,
 } from "../api/endpoints";
@@ -18,6 +17,8 @@ export default function CalendarioGlobal() {
   const [entregables, setEntregables] = useState([]);
   const [reuniones, setReuniones] = useState([]);
   const [equiposPorProyecto, setEquiposPorProyecto] = useState({});
+  const [invitablesPorProyecto, setInvitablesPorProyecto] = useState({});
+  const [invitablesGenerales, setInvitablesGenerales] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [modalEntregable, setModalEntregable] = useState(null);
@@ -26,7 +27,6 @@ export default function CalendarioGlobal() {
   const [modalEventoEmpresa, setModalEventoEmpresa] = useState(null);
   const [modo, setModo] = useState("general"); // "personal" | "general" | "empresa"
   const [eventosEmpresa, setEventosEmpresa] = useState([]);
-  const [miEquipo, setMiEquipo] = useState([]);
 
   const cargarTodo = async () => {
     const raices = await proyectosApi.listar();
@@ -66,10 +66,19 @@ export default function CalendarioGlobal() {
       [...idsProyectos].map((id) => proyectosApi.equipo(id).then((eq) => [id, eq]))
     );
     const mapaEquipos = Object.fromEntries(equiposEntries);
+    // A quién se puede invitar a una reunión/junta -- más permisiva que el
+    // equipo del tema (incluye jefe/Dirección, ver
+    // services/reuniones.py::listar_invitables_reunion). No reemplaza
+    // equiposPorProyecto, que se sigue usando para lo demás (entregables).
+    const invitablesEntries = await Promise.all(
+      [...idsProyectos].map((id) => reunionesApi.invitables(id).then((inv) => [id, inv]))
+    );
+    const mapaInvitables = Object.fromEntries(invitablesEntries);
 
     const eventos = await eventosEmpresaApi.listar();
-    const plantilla = await miEquipoApi.listar();
-    setMiEquipo(plantilla);
+    const invitablesGeneral = await reunionesApi.invitables();
+    setInvitablesGenerales(invitablesGeneral);
+    setInvitablesPorProyecto(mapaInvitables);
     setEntregables(
       todosEntregables.map((e) => ({ ...e, proyecto_nombre: nombresPorId[e.proyecto_id] }))
     );
@@ -202,7 +211,11 @@ export default function CalendarioGlobal() {
         <ModalReunion
           proyectoId={modalReunion.proyecto_id}
           reunion={modalReunion}
-          miembros={equiposPorProyecto[modalReunion.proyecto_id] || []}
+          miembros={
+            modalReunion.proyecto_id
+              ? invitablesPorProyecto[modalReunion.proyecto_id] || []
+              : invitablesGenerales
+          }
           organizadorId={modalReunion.organizador_id}
           puedeAdministrar={puedeEditar(modalReunion)}
           onGuardado={async () => {
@@ -217,7 +230,7 @@ export default function CalendarioGlobal() {
         <ModalReunion
           proyectoId={null}
           reunion={null}
-          miembros={miEquipo}
+          miembros={invitablesGenerales}
           organizadorId={usuario?.id}
           puedeAdministrar
           onGuardado={async () => {
@@ -231,7 +244,7 @@ export default function CalendarioGlobal() {
       {modalSerieGeneral && (
         <ModalSerieReunion
           proyectoId={null}
-          miembros={miEquipo}
+          miembros={invitablesGenerales}
           onGuardado={cargarTodo}
           onCerrar={() => setModalSerieGeneral(false)}
         />

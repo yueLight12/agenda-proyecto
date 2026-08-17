@@ -76,6 +76,11 @@ export const reunionesApi = {
   actualizar: async (reunionId, datos) =>
     (await api.patch(`/reuniones/${reunionId}`, datos)).data,
   eliminar: async (reunionId) => api.delete(`/reuniones/${reunionId}`),
+  // A quién se puede invitar -- más permisiva que proyectosApi.equipo, ver
+  // services/reuniones.py::listar_invitables_reunion. proyectoId puede
+  // omitirse (junta/reunión general).
+  invitables: async (proyectoId) =>
+    (await api.get("/reuniones/invitables", { params: { proyecto_id: proyectoId } })).data,
 };
 
 export const usuariosApi = {

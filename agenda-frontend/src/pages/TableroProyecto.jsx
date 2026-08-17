@@ -28,6 +28,7 @@ export default function TableroProyecto() {
   const [reuniones, setReuniones] = useState([]);
   const [series, setSeries] = useState([]);
   const [equipo, setEquipo] = useState([]);
+  const [invitablesReunion, setInvitablesReunion] = useState([]);
   const [ancestros, setAncestros] = useState([]);
   const [subtemas, setSubtemas] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -56,11 +57,12 @@ export default function TableroProyecto() {
   const puedeAdministrar = Boolean(proyecto?.puede_administrar);
 
   const cargarTodo = async () => {
-    const [p, r, e, eq, reu, anc, hijos, ser] = await Promise.all([
+    const [p, r, e, eq, inv, reu, anc, hijos, ser] = await Promise.all([
       proyectosApi.obtener(proyectoId),
       proyectosApi.resumen(proyectoId),
       entregablesApi.listarPorProyecto(proyectoId),
       proyectosApi.equipo(proyectoId),
+      reunionesApi.invitables(proyectoId),
       reunionesApi.listarPorProyecto(proyectoId),
       proyectosApi.ancestros(proyectoId),
       proyectosApi.hijos(proyectoId),
@@ -70,6 +72,7 @@ export default function TableroProyecto() {
     setResumen(r);
     setEntregables(e);
     setEquipo(eq);
+    setInvitablesReunion(inv);
     setReuniones(reu);
     setAncestros(anc);
     setSubtemas(hijos);
@@ -541,7 +544,7 @@ export default function TableroProyecto() {
         <ModalReunion
           proyectoId={proyectoId}
           reunion={modalReunion === "nueva" ? null : modalReunion}
-          miembros={equipo}
+          miembros={invitablesReunion}
           organizadorId={modalReunion === "nueva" ? usuario?.id : modalReunion.organizador_id}
           puedeAdministrar={puedeAdministrar}
           onGuardado={async () => {
@@ -556,7 +559,7 @@ export default function TableroProyecto() {
         <ModalSerieReunion
           proyectoId={Number(proyectoId)}
           serie={modalSerie === "nueva" ? null : modalSerie}
-          miembros={equipo}
+          miembros={invitablesReunion}
           onGuardado={cargarTodo}
           onCerrar={() => setModalSerie(null)}
         />

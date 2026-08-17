@@ -20,10 +20,12 @@ from app.dependencies import obtener_usuario_actual
 from app.models.reunion import Reunion
 from app.models.usuario import Usuario
 from app.schemas.reunion import ReunionActualizar, ReunionCrear, ReunionOut
+from app.schemas.proyecto import MiembroEquipoOut
 from app.services.reuniones import (
     actualizar_reunion as actualizar_reunion_servicio,
     crear_reunion as crear_reunion_servicio,
     eliminar_reunion as eliminar_reunion_servicio,
+    listar_invitables_reunion as listar_invitables_reunion_servicio,
     reunion_a_out,
 )
 
@@ -97,6 +99,19 @@ def crear_reunion_general(
     db.commit()
     db.refresh(nueva)
     return reunion_a_out(db, usuario, nueva)
+
+
+@router.get("/reuniones/invitables", response_model=list[MiembroEquipoOut])
+def listar_invitables(
+    proyecto_id: int | None = None,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """A quién se puede invitar a una reunión/junta -- más permisiva que
+    /proyectos/{id}/usuarios (esa sigue siendo la fuente de verdad para
+    "Administrar equipo"). Declarado ANTES de /reuniones/{reunion_id} para
+    que FastAPI no intente resolver "invitables" como un id."""
+    return listar_invitables_reunion_servicio(db, usuario, proyecto_id)
 
 
 @router.get("/reuniones/{reunion_id}", response_model=ReunionOut)
