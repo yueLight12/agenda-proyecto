@@ -63,6 +63,7 @@ fueron acordadas explícitamente con el cliente):
 - Todo el código, nombres de variables, comentarios y docstrings van **en español**, siguiendo el estilo ya usado en el repo (ver cualquier archivo en `app/`).
 - Cada modelo, schema y router tiene un docstring de módulo explicando su propósito — mantén ese patrón.
 - No agregues lógica de negocio directamente en los routers si ya existe o debería existir un servicio en `app/services/`.
+- Migraciones de esquema: **Alembic** (2026-08-17 en adelante, ver sección 6) — `alembic revision --autogenerate -m "..."` para generar, revisar el archivo generado, `alembic upgrade head` corrido en la Pi (`docker exec agenda-proyecto-api-1 alembic upgrade head`) antes de reiniciar `api`. Ya no se usan scripts sueltos de `ALTER TABLE`/`CREATE TABLE` en la raíz del backend para cambios de esquema nuevos (los que ya existen ahí, ej. `migrar_parent_id_proyectos.py`, se quedan como están, ya aplicados).
 
 **Frontend (React + Vite):**
 - JSX en español para textos visibles al usuario; nombres de variables pueden ir en español o inglés siguiendo el patrón ya usado (mayormente español para mantener consistencia).
