@@ -34,6 +34,7 @@ export default function App() {
             <Route path="calendario" element={<CalendarioGlobal />} />
             <Route path="chatbot" element={<Chatbot />} />
             <Route path="perfil" element={<Perfil />} />
+            <Route path="perfil/:usuarioId" element={<Perfil />} />
           </Route>
         </Routes>
       </AuthProvider>

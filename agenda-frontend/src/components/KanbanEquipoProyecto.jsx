@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { fechaLocal, textoDiasRelativos } from "../utils/fechas";
 import { agruparEquipoProyectoPorSupervisor } from "../utils/equipoProyecto";
 import { etiquetaRol } from "../utils/rolLabels";
@@ -69,18 +70,20 @@ function TarjetaMiembro({ miembro, entregables, reuniones, onQuitar }) {
 
   return (
     <div className="kanban-card" style={{ cursor: "default" }}>
-      <button
-        type="button"
-        className="list-inline list-inline--boton"
-        style={{ padding: 0 }}
-        onClick={() => setAbierta((actual) => !actual)}
-        aria-expanded={abierta}
-      >
-        <div className="kanban-card__titulo">{miembro.nombre}</div>
-        <span style={{ fontSize: "0.8rem", color: "var(--color-text-muted)" }}>
+      <div className="list-inline" style={{ padding: 0, borderBottom: "none" }}>
+        <Link to={`/perfil/${miembro.usuario_id}`} className="kanban-card__titulo">
+          {miembro.nombre}
+        </Link>
+        <button
+          type="button"
+          className="btn btn--ghost"
+          style={{ fontSize: "0.8rem", padding: "2px 6px" }}
+          onClick={() => setAbierta((actual) => !actual)}
+          aria-expanded={abierta}
+        >
           {etiquetaRol(miembro.rol)} {abierta ? "▲" : "▼"}
-        </span>
-      </button>
+        </button>
+      </div>
       {miembro.puesto && (
         <div style={{ fontSize: "0.78rem", color: "var(--color-text-muted)" }}>{miembro.puesto}</div>
       )}

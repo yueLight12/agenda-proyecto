@@ -85,6 +85,7 @@ export const reunionesApi = {
 
 export const usuariosApi = {
   listar: async () => (await api.get("/usuarios")).data,
+  perfil: async (usuarioId) => (await api.get(`/usuarios/${usuarioId}/perfil`)).data,
 };
 
 export const miEquipoApi = {

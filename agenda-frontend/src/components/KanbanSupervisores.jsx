@@ -120,7 +120,9 @@ function TarjetaColumna({ columna, onAdministrar }) {
   return (
     <div className="kanban-column">
       <div className="kanban-column__header">
-        <span>{columna.nombre}</span>
+        <Link to={`/perfil/${columna.usuario_id}`} style={{ color: "inherit" }}>
+          {columna.nombre}
+        </Link>
         <span className="kanban-column__contador">{columna.proyectos.length}</span>
       </div>
       {vencidos > 0 && (

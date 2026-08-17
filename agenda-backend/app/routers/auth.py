@@ -9,13 +9,8 @@ from app.core.security import crear_access_token, hash_password, verificar_passw
 from app.database import get_db
 from app.dependencies import obtener_usuario_actual
 from app.models.usuario import Usuario
-from app.schemas.usuario import (
-    CambiarPasswordRequest,
-    RolPorProyectoOut,
-    Token,
-    UsuarioConRolesOut,
-    UsuarioOut,
-)
+from app.schemas.usuario import CambiarPasswordRequest, Token, UsuarioConRolesOut
+from app.services.usuarios import usuario_con_roles_a_out
 
 router = APIRouter(prefix="/auth", tags=["Autenticación"])
 
@@ -45,20 +40,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 @router.get("/me", response_model=UsuarioConRolesOut)
 def obtener_perfil_actual(usuario: Usuario = Depends(obtener_usuario_actual)):
     """Devuelve los datos del usuario autenticado junto con sus roles por proyecto."""
-    roles = [
-        RolPorProyectoOut(
-            proyecto_id=r.proyecto_id,
-            proyecto_nombre=r.proyecto.nombre,
-            rol=r.rol,
-            supervisor_id=r.supervisor_id,
-        )
-        for r in usuario.roles_por_proyecto
-    ]
-    # Se construye desde UsuarioOut (sin roles) porque validar roles_por_proyecto
-    # directamente desde el objeto ORM falla: ese campo requiere proyecto_nombre,
-    # que no existe como atributo plano en UsuarioProyectoRol (viene de r.proyecto.nombre).
-    base = UsuarioOut.model_validate(usuario)
-    return UsuarioConRolesOut(**base.model_dump(), roles_por_proyecto=roles)
+    return usuario_con_roles_a_out(usuario)
 
 
 @router.post("/cambiar-password", status_code=status.HTTP_204_NO_CONTENT)

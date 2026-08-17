@@ -25,7 +25,12 @@ from app.database import get_db
 from app.dependencies import obtener_usuario_actual
 from app.models.usuario import RolEnum, Usuario
 from app.models.usuario_proyecto_rol import UsuarioProyectoRol
-from app.schemas.usuario import UsuarioActualizar, UsuarioCrear, UsuarioOut
+from app.schemas.usuario import UsuarioActualizar, UsuarioConRolesOut, UsuarioCrear, UsuarioOut
+from app.services.usuarios import (
+    obtener_usuario_o_404,
+    perfil_visible_a_out,
+    usuario_visible_para,
+)
 
 router = APIRouter(prefix="/usuarios", tags=["Usuarios"])
 
@@ -81,6 +86,29 @@ def crear_usuario(
     db.commit()
     db.refresh(nuevo)
     return nuevo
+
+
+@router.get("/{usuario_id}/perfil", response_model=UsuarioConRolesOut)
+def obtener_perfil_usuario(
+    usuario_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Ficha de perfil de OTRO usuario (2026-08-17, "Mi perfil" extendido
+    a ver el de un subordinado, pedido de Yue) -- de solo lectura, mismos
+    campos que GET /auth/me. NO usa _requerir_n1 (ese gate es para el
+    directorio global) -- en cambio, usuario_visible_para replica el
+    criterio de listar_equipo_visible sin depender de un tema puntual: te
+    ves a ti mismo siempre, o a alguien más si eres N1/N2 (local o
+    heredado) de algún tema donde esa persona participa y, si eres N2,
+    la supervisas ahí localmente."""
+    objetivo = obtener_usuario_o_404(db, usuario_id)
+    if not usuario_visible_para(db, usuario, usuario_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes acceso al perfil de este usuario",
+        )
+    return perfil_visible_a_out(db, usuario, objetivo)
 
 
 @router.patch("/{usuario_id}", response_model=UsuarioOut)
