@@ -9,7 +9,7 @@ export default function ResumenEquipo() {
   const [miembros, setMiembros] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
-  const [modalProyecto, setModalProyecto] = useState(null); // { id, nombre } | null
+  const [modalProyecto, setModalProyecto] = useState(null); // { id, nombre, rol_efectivo } | null
   const [miembrosModal, setMiembrosModal] = useState([]);
 
   const cargar = () =>
@@ -25,9 +25,12 @@ export default function ResumenEquipo() {
   }, []);
 
   const abrirAdministrar = async (proyectoId, proyectoNombre) => {
-    const equipo = await proyectosApi.equipo(proyectoId);
+    const [equipo, proyecto] = await Promise.all([
+      proyectosApi.equipo(proyectoId),
+      proyectosApi.obtener(proyectoId),
+    ]);
     setMiembrosModal(equipo);
-    setModalProyecto({ id: proyectoId, nombre: proyectoNombre });
+    setModalProyecto({ id: proyectoId, nombre: proyectoNombre, rol_efectivo: proyecto.rol_efectivo });
   };
 
   const refrescarModal = async () => {
@@ -56,6 +59,7 @@ export default function ResumenEquipo() {
         <ModalEquipo
           proyectoId={modalProyecto.id}
           miembros={miembrosModal}
+          viewerRolEfectivo={modalProyecto.rol_efectivo}
           onCambio={refrescarModal}
           onCerrar={() => setModalProyecto(null)}
         />

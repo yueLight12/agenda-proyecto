@@ -13,6 +13,16 @@ export default function ModalEquipo({
   entregables = [],
   reuniones = [],
   titulo = "Administrar equipo del tema",
+  // Rol efectivo de QUIEN ESTÁ VIENDO este modal en este tema (N1/N2, local
+  // o heredado) -- decide de dónde sale la lista de "a quién puedo agregar"
+  // (Yue, 2026-08-17: "un N2 solo debería poder administrar/asignar su
+  // equipo"). Dirección (N1) sigue viendo el directorio completo de la
+  // organización; un Líder (N2) solo ve a quien ya tiene guardado en su
+  // propia plantilla "Mi equipo" -- para agregar a alguien totalmente
+  // nuevo a la organización, primero lo guarda ahí. Si no se pasa (uso
+  // legado), se trata como N2 por default -- más restrictivo, nunca más
+  // permisivo de lo esperado.
+  viewerRolEfectivo,
   onCambio,
   onCerrar,
 }) {
@@ -29,18 +39,32 @@ export default function ModalEquipo({
   const [quitando, setQuitando] = useState(false);
   const [errorQuitar, setErrorQuitar] = useState("");
 
+  const esDireccion = viewerRolEfectivo === "N1";
   const supervisoresPosibles = miembros.filter((m) => m.rol === "N2");
 
   useEffect(() => {
-    usuariosApi
-      .listar()
-      .then(setUsuariosDisponibles)
-      .catch(() =>
-        setErrorListaUsuarios(
-          "No se pudo cargar el listado de usuarios. Puedes reasignar el rol de miembros que ya están en el equipo."
+    if (esDireccion) {
+      usuariosApi
+        .listar()
+        .then(setUsuariosDisponibles)
+        .catch(() =>
+          setErrorListaUsuarios(
+            "No se pudo cargar el listado de usuarios. Puedes reasignar el rol de miembros que ya están en el equipo."
+          )
+        );
+    } else {
+      miEquipoApi
+        .listar()
+        .then((plantilla) =>
+          setUsuariosDisponibles(plantilla.map((m) => ({ id: m.usuario_id, nombre: m.nombre, puesto: m.puesto, email: m.email })))
         )
-      );
-  }, []);
+        .catch(() =>
+          setErrorListaUsuarios(
+            "No se pudo cargar tu equipo guardado. Puedes reasignar el rol de miembros que ya están en el equipo."
+          )
+        );
+    }
+  }, [esDireccion]);
 
   const handleAgregar = async (e) => {
     e.preventDefault();
@@ -126,9 +150,19 @@ export default function ModalEquipo({
           <h3 style={{ fontSize: "0.95rem", margin: 0 }}>Agregar o reasignar miembro</h3>
 
           {errorListaUsuarios && <p className="error-text">{errorListaUsuarios}</p>}
+          {!esDireccion && !errorListaUsuarios && usuariosDisponibles.length === 0 && (
+            <p style={{ color: "var(--color-text-muted)", fontSize: "0.8rem" }}>
+              Tu equipo guardado está vacío — guarda gente en "Equipo" para poder agregarla aquí.
+            </p>
+          )}
 
           <label className="stack" style={{ gap: 4 }}>
             <span style={{ fontSize: "0.85rem" }}>Usuario</span>
+            {!esDireccion && (
+              <span style={{ color: "var(--color-text-muted)", fontSize: "0.78rem" }}>
+                Solo gente de tu equipo guardado ("Mi equipo").
+              </span>
+            )}
             <select
               className="input"
               value={usuarioId}

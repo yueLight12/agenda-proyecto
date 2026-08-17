@@ -16,6 +16,7 @@ from app.core.permissions import (
     requerir_rol_minimo,
 )
 from app.models.entregable import Entregable
+from app.models.equipo_miembro import EquipoMiembro
 from app.models.notificacion import Notificacion
 from app.models.proyecto import Proyecto
 from app.models.reunion import Reunion
@@ -335,9 +336,38 @@ def asignar_rol_en_proyecto(
     Para N3/N4, si no se manda supervisor_id, queda como supervisor quien está
     haciendo la asignación (sea N1 o N2) — así alguien que es N1 de un proyecto
     recién creado puede agregar colaboradores sin tener que nombrar antes a un N2.
+
+    Un Líder (N2) solo puede ADMINISTRAR SU EQUIPO -- decisión explícita de
+    Yue, 2026-08-17: puede reasignar el rol de quien YA participa en este
+    tema sin restricción (es justo "administrar su equipo"), pero para
+    agregar a alguien que todavía NO participa aquí, esa persona debe estar
+    en su plantilla personal "Mi equipo" -- si no, se rechaza (mismo criterio
+    que ya aplica en el frontend, ModalEquipo.jsx, pero reforzado aquí para
+    que tampoco se pueda saltar por API directa o por el asistente de voz,
+    que reutiliza esta misma función). Dirección (N1) no tiene esta
+    restricción -- puede agregar a cualquiera de la organización.
     """
     rol_actual = requerir_participacion_en_proyecto(db, usuario, proyecto_id)
     requerir_rol_minimo(rol_actual, [RolEnum.N1, RolEnum.N2])
+
+    if rol_actual.rol == RolEnum.N2:
+        ya_es_miembro = obtener_rol_local_en_proyecto(db, usuario_id, proyecto_id) is not None
+        if not ya_es_miembro:
+            en_su_plantilla = (
+                db.query(EquipoMiembro)
+                .filter(
+                    EquipoMiembro.propietario_id == usuario.id,
+                    EquipoMiembro.usuario_id == usuario_id,
+                )
+                .first()
+                is not None
+            )
+            if not en_su_plantilla:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Como líder, solo puedes agregar a alguien que ya tengas guardado en "
+                    "tu equipo ('Mi equipo'). Guárdalo ahí primero.",
+                )
 
     if rol in (RolEnum.N3, RolEnum.N4) and supervisor_id is None:
         supervisor_id = usuario.id
