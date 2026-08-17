@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { entregablesApi, notasApi, proyectosApi, seriesReunionApi } from "../api/endpoints";
+import { acuerdosApi, entregablesApi, notasApi, pendientesApi, proyectosApi, seriesReunionApi } from "../api/endpoints";
 import { etiquetaRol } from "../utils/rolLabels";
 import ConfirmDialog from "./ConfirmDialog";
 import Modal from "./Modal";
@@ -13,10 +13,11 @@ const ETIQUETAS_ESTADO = {
 };
 
 const TIPOS_ITEM = [
-  { value: "pendiente", label: "Pendiente (texto libre)" },
+  { value: "pendiente", label: "Pendiente" },
   { value: "tema", label: "Tema/subtema" },
   { value: "entregable", label: "Entregable" },
   { value: "nota", label: "Nota" },
+  { value: "acuerdo", label: "Acuerdo" },
 ];
 
 const ITEM_VACIO = {
@@ -27,6 +28,9 @@ const ITEM_VACIO = {
   entregableId: "",
   notaId: "",
   notaContenido: "",
+  pendienteId: "",
+  pendienteContenido: "",
+  acuerdoId: "",
 };
 
 /**
@@ -67,6 +71,8 @@ export default function ModalSerieReunion({ proyectoId = null, serie = null, mie
   const [item, setItem] = useState(ITEM_VACIO);
   const [entregablesSeccion, setEntregablesSeccion] = useState([]);
   const [notasSeccion, setNotasSeccion] = useState([]);
+  const [pendientesSeccion, setPendientesSeccion] = useState([]);
+  const [acuerdosSeccion, setAcuerdosSeccion] = useState([]);
   const [agregandoItem, setAgregandoItem] = useState(false);
 
   const cargarAgenda = async (id) => {
@@ -102,6 +108,22 @@ export default function ModalSerieReunion({ proyectoId = null, serie = null, mie
       notasApi.listar({ proyecto_id: Number(item.seccionId) }).then(setNotasSeccion).catch(() => setNotasSeccion([]));
     } else {
       setNotasSeccion([]);
+    }
+    if (item.tipo === "pendiente" && item.seccionId) {
+      pendientesApi
+        .listar({ proyecto_id: Number(item.seccionId) })
+        .then(setPendientesSeccion)
+        .catch(() => setPendientesSeccion([]));
+    } else {
+      setPendientesSeccion([]);
+    }
+    if (item.tipo === "acuerdo" && item.seccionId) {
+      acuerdosApi
+        .listarPorProyecto(Number(item.seccionId))
+        .then(setAcuerdosSeccion)
+        .catch(() => setAcuerdosSeccion([]));
+    } else {
+      setAcuerdosSeccion([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item.tipo, item.seccionId]);
@@ -162,6 +184,9 @@ export default function ModalSerieReunion({ proyectoId = null, serie = null, mie
       entregableId: "",
       notaId: "",
       notaContenido: "",
+      pendienteId: "",
+      pendienteContenido: "",
+      acuerdoId: "",
     });
   };
 
@@ -183,12 +208,16 @@ export default function ModalSerieReunion({ proyectoId = null, serie = null, mie
           datos.seccion_proyecto_id = Number(item.seccionId);
         } else {
           datos.seccion_proyecto_id = item.seccionId ? Number(item.seccionId) : null;
-          if (item.tipo === "pendiente") datos.texto = item.texto;
+          if (item.tipo === "pendiente") {
+            if (item.pendienteId) datos.pendiente_id = Number(item.pendienteId);
+            else datos.pendiente_contenido = item.pendienteContenido;
+          }
           if (item.tipo === "entregable") datos.entregable_id = Number(item.entregableId);
           if (item.tipo === "nota") {
             if (item.notaId) datos.nota_id = Number(item.notaId);
             else datos.nota_contenido = item.notaContenido;
           }
+          if (item.tipo === "acuerdo") datos.acuerdo_id = Number(item.acuerdoId);
         }
         await seriesReunionApi.agregarItemAgenda(serieActual.id, datos);
       }
@@ -466,7 +495,40 @@ export default function ModalSerieReunion({ proyectoId = null, serie = null, mie
                 ))}
               </select>
 
-              {item.tipo === "pendiente" && (
+              {item.tipo === "pendiente" && !itemEditandoId && (
+                <>
+                  <select
+                    className="input"
+                    value={item.pendienteId}
+                    onChange={(e) => setItem({ ...item, pendienteId: e.target.value, pendienteContenido: "" })}
+                    disabled={!item.seccionId}
+                  >
+                    <option value="">
+                      {!item.seccionId
+                        ? "Elige primero una sección"
+                        : "Escribir un pendiente nuevo (abajo) o elegir uno existente"}
+                    </option>
+                    {pendientesSeccion.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.contenido.slice(0, 60)}
+                      </option>
+                    ))}
+                  </select>
+                  {!item.pendienteId && (
+                    <textarea
+                      className="input"
+                      rows={2}
+                      placeholder="O escribe un pendiente nuevo sobre este tema..."
+                      value={item.pendienteContenido}
+                      onChange={(e) => setItem({ ...item, pendienteContenido: e.target.value })}
+                      disabled={!item.seccionId}
+                      required={!item.pendienteId}
+                    />
+                  )}
+                </>
+              )}
+
+              {item.tipo === "pendiente" && itemEditandoId && (
                 <input
                   className="input"
                   placeholder="Describe el pendiente"
@@ -494,6 +556,30 @@ export default function ModalSerieReunion({ proyectoId = null, serie = null, mie
                   {entregablesSeccion.map((en) => (
                     <option key={en.id} value={en.id}>
                       {en.nombre}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {item.tipo === "acuerdo" && !itemEditandoId && (
+                <select
+                  className="input"
+                  value={item.acuerdoId}
+                  onChange={(e) => setItem({ ...item, acuerdoId: e.target.value })}
+                  required
+                  disabled={!item.seccionId || acuerdosSeccion.length === 0}
+                >
+                  <option value="" disabled>
+                    {!item.seccionId
+                      ? "Elige primero una sección"
+                      : acuerdosSeccion.length === 0
+                      ? "Esta sección no tiene acuerdos"
+                      : "Selecciona un acuerdo"}
+                  </option>
+                  {acuerdosSeccion.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.descripcion.slice(0, 60)}
+                      {a.responsable_nombre ? ` — ${a.responsable_nombre}` : ""}
                     </option>
                   ))}
                 </select>

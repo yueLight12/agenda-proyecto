@@ -23,9 +23,11 @@ from app.core.permissions import (
 )
 from app.models.agenda_item import AgendaItem, AgendaItemRevision, EstadoRevision, TipoAgendaItem
 from app.models.minuta import AcuerdoMinuta, Minuta
+from app.models.reunion import Reunion
 from app.schemas.minuta import AcuerdoOut, MinutaOut
 from app.schemas.serie_reunion import RevisionAgendaItemOut
 from app.services.entregables import crear_entregable
+from app.services.proyectos import obtener_proyecto_o_404
 from app.services.reuniones import obtener_reunion_o_404
 from app.services.series_reunion import item_a_out
 from app.models.usuario import Usuario
@@ -50,6 +52,24 @@ def minuta_a_out(minuta: Minuta) -> MinutaOut:
         creado_por=minuta.creado_por,
         fecha_actualizacion=minuta.fecha_actualizacion,
         acuerdos=[acuerdo_a_out(a) for a in minuta.acuerdos],
+    )
+
+
+def listar_acuerdos_de_proyecto(db: Session, usuario: Usuario, proyecto_id: int) -> list[AcuerdoMinuta]:
+    """Acuerdos de todas las minutas de reuniones ligadas directamente a
+    este tema/subtema -- pensado para el picker de "agregar punto" del
+    checklist de una junta recurrente (tipo=acuerdo). Mismo criterio de
+    visibilidad que el picker de nota/entregable por sección: participar en
+    el tema, no el permiso de cada reunión individual."""
+    obtener_proyecto_o_404(db, proyecto_id)
+    requerir_participacion_en_proyecto(db, usuario, proyecto_id)
+    return (
+        db.query(AcuerdoMinuta)
+        .join(Minuta, AcuerdoMinuta.minuta_id == Minuta.id)
+        .join(Reunion, Minuta.reunion_id == Reunion.id)
+        .filter(Reunion.proyecto_id == proyecto_id)
+        .order_by(AcuerdoMinuta.fecha_creacion.asc())
+        .all()
     )
 
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { notasApi } from "../api/endpoints";
+import { notasApi, pendientesApi } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
 import ConfirmDialog from "./ConfirmDialog";
 
@@ -16,8 +16,26 @@ import ConfirmDialog from "./ConfirmDialog";
  * Una nota sobre un proyecto/tema (2026-08-17, caso Diana) también puede
  * jalarse como un punto más del checklist de una junta recurrente general
  * -- ver ModalSerieReunion.jsx (tipo "nota").
+ *
+ * `temaId` (2026-08-17, reuniones sueltas): si se manda, además del padre
+ * normal de la nota (entregable/reunión/minuta/proyecto), se ofrece un
+ * selector para REUTILIZAR el contenido de una nota o pendiente ya
+ * existente en ese tema -- copia el texto al textarea (la nota que se crea
+ * sigue siendo una nota nueva, propia de este padre; no se "liga" a la
+ * original, ya que Nota no soporta más de un padre y ninguna de las dos se
+ * edita después de creada, así que copiar el texto es equivalente a
+ * enlazarlo en la práctica, sin tocar el modelo). No aplica en juntas
+ * generales (temaId null) -- mismo límite que ya tiene el picker de
+ * ModalSerieReunion.
  */
-export default function SeccionNotas({ entregableId, reunionId, minutaId, proyectoId, puedeAdministrar = false }) {
+export default function SeccionNotas({
+  entregableId,
+  reunionId,
+  minutaId,
+  proyectoId,
+  temaId = null,
+  puedeAdministrar = false,
+}) {
   const { usuario } = useAuth();
   const [notas, setNotas] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -26,6 +44,9 @@ export default function SeccionNotas({ entregableId, reunionId, minutaId, proyec
   const [enviando, setEnviando] = useState(false);
   const [confirmandoEliminar, setConfirmandoEliminar] = useState(null);
   const [eliminando, setEliminando] = useState(false);
+  const [notasTema, setNotasTema] = useState([]);
+  const [pendientesTema, setPendientesTema] = useState([]);
+  const [reutilizarId, setReutilizarId] = useState("");
 
   const params = entregableId
     ? { entregable_id: entregableId }
@@ -47,6 +68,34 @@ export default function SeccionNotas({ entregableId, reunionId, minutaId, proyec
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entregableId, reunionId, minutaId, proyectoId]);
 
+  useEffect(() => {
+    if (!temaId) {
+      setNotasTema([]);
+      setPendientesTema([]);
+      return;
+    }
+    notasApi.listar({ proyecto_id: temaId }).then(setNotasTema).catch(() => setNotasTema([]));
+    pendientesApi
+      .listar({ proyecto_id: temaId })
+      .then(setPendientesTema)
+      .catch(() => setPendientesTema([]));
+  }, [temaId]);
+
+  const opcionesReutilizar = [
+    ...notasTema.map((n) => ({ clave: `nota-${n.id}`, contenido: n.contenido, etiqueta: `Nota: ${n.contenido.slice(0, 50)}` })),
+    ...pendientesTema.map((p) => ({
+      clave: `pendiente-${p.id}`,
+      contenido: p.contenido,
+      etiqueta: `Pendiente: ${p.contenido.slice(0, 50)}`,
+    })),
+  ];
+
+  const handleReutilizar = (clave) => {
+    setReutilizarId(clave);
+    const opcion = opcionesReutilizar.find((o) => o.clave === clave);
+    if (opcion) setContenido(opcion.contenido);
+  };
+
   const handleAgregar = async (e) => {
     e.preventDefault();
     if (!contenido.trim()) return;
@@ -55,6 +104,7 @@ export default function SeccionNotas({ entregableId, reunionId, minutaId, proyec
     try {
       await notasApi.crear({ ...params, contenido });
       setContenido("");
+      setReutilizarId("");
       await cargar();
     } catch (err) {
       setError(err.response?.data?.detail || "No se pudo agregar la nota.");
@@ -119,6 +169,20 @@ export default function SeccionNotas({ entregableId, reunionId, minutaId, proyec
       )}
 
       <form className="stack" style={{ gap: 4 }} onSubmit={handleAgregar}>
+        {temaId && opcionesReutilizar.length > 0 && (
+          <select
+            className="input"
+            value={reutilizarId}
+            onChange={(e) => handleReutilizar(e.target.value)}
+          >
+            <option value="">Reutilizar una nota o pendiente ya escrito en este tema...</option>
+            {opcionesReutilizar.map((o) => (
+              <option key={o.clave} value={o.clave}>
+                {o.etiqueta}
+              </option>
+            ))}
+          </select>
+        )}
         <textarea
           className="input"
           rows={2}

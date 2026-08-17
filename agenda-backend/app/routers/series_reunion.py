@@ -121,6 +121,8 @@ def agregar_item_agenda(
         acuerdo_id=datos.acuerdo_id,
         nota_id=datos.nota_id,
         nota_contenido=datos.nota_contenido,
+        pendiente_id=datos.pendiente_id,
+        pendiente_contenido=datos.pendiente_contenido,
         texto=datos.texto,
         detalle=datos.detalle,
         seccion_proyecto_id=datos.seccion_proyecto_id,

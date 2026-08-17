@@ -26,12 +26,14 @@ from app.models.reunion import Reunion
 from app.models.serie_reunion import SerieReunion, SerieReunionParticipante
 from app.models.usuario import RolEnum, Usuario
 from app.schemas.nota import NotaCrear
+from app.schemas.pendiente import PendienteCrear
 from app.schemas.serie_reunion import (
     AgendaItemOut,
     ParticipanteSerieOut,
     SerieReunionOut,
 )
 from app.services.notas import crear_nota
+from app.services.pendientes import crear_pendiente
 
 
 def puede_editar_serie(db: Session, usuario: Usuario, serie: SerieReunion) -> bool:
@@ -196,6 +198,10 @@ def _nombre_agenda_item(item: AgendaItem) -> str:
             return "(nota eliminada)"
         contenido = item.nota.contenido
         return contenido if len(contenido) <= 80 else contenido[:77] + "..."
+    if item.tipo == TipoAgendaItem.pendiente and item.pendiente_id is not None:
+        # Ítems creados antes de que pendiente_id existiera no tienen esta
+        # referencia -- siguen leyendo item.texto (rama de abajo).
+        return item.pendiente.contenido if item.pendiente else "(pendiente eliminado)"
     return item.texto or ""
 
 
@@ -245,6 +251,8 @@ def agregar_item_agenda(
     acuerdo_id: int | None = None,
     nota_id: int | None = None,
     nota_contenido: str | None = None,
+    pendiente_id: int | None = None,
+    pendiente_contenido: str | None = None,
     texto: str | None = None,
     detalle: str | None = None,
     seccion_proyecto_id: int | None = None,
@@ -273,6 +281,19 @@ def agregar_item_agenda(
             NotaCrear(contenido=nota_contenido, proyecto_id=seccion_proyecto_id),
         )
         nota_id = nueva_nota.id
+    elif tipo == TipoAgendaItem.pendiente and pendiente_id is None:
+        if not pendiente_contenido:
+            raise HTTPException(
+                status_code=400,
+                detail="Debes elegir un pendiente existente (pendiente_id) o escribir uno "
+                "nuevo (pendiente_contenido)",
+            )
+        nuevo_pendiente = crear_pendiente(
+            db,
+            usuario,
+            PendienteCrear(contenido=pendiente_contenido, proyecto_id=seccion_proyecto_id),
+        )
+        pendiente_id = nuevo_pendiente.id
 
     max_orden = (
         db.query(AgendaItem)
@@ -286,6 +307,7 @@ def agregar_item_agenda(
         entregable_id=entregable_id,
         acuerdo_id=acuerdo_id,
         nota_id=nota_id,
+        pendiente_id=pendiente_id,
         texto=texto,
         detalle=detalle,
         seccion_proyecto_id=seccion_proyecto_id,

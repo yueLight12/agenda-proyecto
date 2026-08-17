@@ -26,6 +26,7 @@ from app.services.minutas import (
     convertir_acuerdo_a_entregable as convertir_acuerdo_a_entregable_servicio,
     crear_o_actualizar_minuta as crear_o_actualizar_minuta_servicio,
     eliminar_acuerdo as eliminar_acuerdo_servicio,
+    listar_acuerdos_de_proyecto as listar_acuerdos_de_proyecto_servicio,
     minuta_a_out,
     registrar_revision_agenda_item as registrar_revision_agenda_item_servicio,
 )
@@ -64,6 +65,16 @@ def crear_o_actualizar_minuta(
     db.commit()
     db.refresh(minuta)
     return minuta_a_out(minuta)
+
+
+@router.get("/proyectos/{proyecto_id}/acuerdos", response_model=list[AcuerdoOut])
+def listar_acuerdos_de_proyecto(
+    proyecto_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    acuerdos = listar_acuerdos_de_proyecto_servicio(db, usuario, proyecto_id)
+    return [acuerdo_a_out(a) for a in acuerdos]
 
 
 @router.post(

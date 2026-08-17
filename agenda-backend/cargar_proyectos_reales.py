@@ -87,10 +87,9 @@ def _plan(usuarios):
             u = usuarios[clave]
             lineas.append(f"  {rol}: {u.nombre} ({u.email})")
 
-    lineas.append(f'Proyecto "{REUNION["proyecto"]}" también suma rol N4 a:')
-    for clave in ("jasso", "diana"):
-        u = usuarios[clave]
-        lineas.append(f"  N4: {u.nombre} ({u.email})")
+    lineas.append(f'Proyecto "{REUNION["proyecto"]}" también suma:')
+    lineas.append(f"  N2: {usuarios['jasso'].nombre} ({usuarios['jasso'].email})")
+    lineas.append(f"  N4: {usuarios['diana'].nombre} ({usuarios['diana'].email})")
 
     organizador = usuarios[REUNION["organizador"]]
     participantes = ", ".join(usuarios[c].nombre for c in REUNION["participantes"])
@@ -153,9 +152,14 @@ def _ejecutar(db, usuarios):
         )
 
     agenda = proyectos["Agenda Inteligente"]
-    _asignar_rol_si_falta(
-        db, usuarios["jasso"], agenda, RolEnum.N4, supervisor_id=usuarios["david"].id
-    )
+    # Jasso sube a N2 (2026-08-17, a petición de Yue) -- mismo nivel que
+    # David, para que la regla de "compañeros del mismo jefe"
+    # (_companeros_de_jefes en services/reuniones.py) lo deje invitar/ser
+    # invitado como par, sin exponerlo como si fuera solo N3/N4. Sin
+    # supervisor_id explícito, mismo patrón que David (N1/N2 no llevan
+    # supervisor_id -- la jerarquía entre ellos se deriva del rol dentro
+    # del proyecto, no de un supervisor_id apuntado a mano).
+    _asignar_rol_si_falta(db, usuarios["jasso"], agenda, RolEnum.N2)
     _asignar_rol_si_falta(
         db, usuarios["diana"], agenda, RolEnum.N4, supervisor_id=usuarios["david"].id
     )

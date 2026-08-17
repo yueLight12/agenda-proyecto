@@ -67,6 +67,11 @@ class AgendaItemCrear(BaseModel):
     # seccion_proyecto_id y se referencia -- ver agregar_item_agenda.
     nota_id: Optional[int] = None
     nota_contenido: Optional[str] = None
+    # Pendiente ya existente sobre un tema (tipo=pendiente). Alternativa a
+    # pendiente_contenido: si se manda, se crea un Pendiente nuevo sobre
+    # seccion_proyecto_id y se referencia -- ver agregar_item_agenda.
+    pendiente_id: Optional[int] = None
+    pendiente_contenido: Optional[str] = None
     texto: Optional[str] = None
     detalle: Optional[str] = None
     # Bajo qué tema/subtema se agrupa este punto -- ver

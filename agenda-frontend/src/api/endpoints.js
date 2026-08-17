@@ -138,6 +138,17 @@ export const notasApi = {
   eliminar: async (notaId) => api.delete(`/notas/${notaId}`),
 };
 
+export const pendientesApi = {
+  listar: async (params) => (await api.get("/pendientes", { params })).data,
+  crear: async (datos) => (await api.post("/pendientes", datos)).data,
+  eliminar: async (pendienteId) => api.delete(`/pendientes/${pendienteId}`),
+};
+
+export const acuerdosApi = {
+  listarPorProyecto: async (proyectoId) =>
+    (await api.get(`/proyectos/${proyectoId}/acuerdos`)).data,
+};
+
 export const chatbotApi = {
   consultar: async (pregunta) =>
     (await api.post("/chatbot/consulta", { pregunta }, { timeout: 150000 })).data,

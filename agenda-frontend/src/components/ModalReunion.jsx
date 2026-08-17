@@ -192,7 +192,7 @@ export default function ModalReunion({
 
       {esEdicion && (
         <div style={{ marginTop: 16, borderTop: "1px solid var(--color-border)", paddingTop: 16 }}>
-          <SeccionNotas reunionId={reunion.id} puedeAdministrar={puedeAdministrar} />
+          <SeccionNotas reunionId={reunion.id} temaId={proyectoId} puedeAdministrar={puedeAdministrar} />
         </div>
       )}
 

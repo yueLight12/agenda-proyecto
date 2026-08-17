@@ -63,6 +63,15 @@ class AgendaItem(Base):
         Integer, ForeignKey("acuerdos_minuta.id", ondelete="SET NULL"), nullable=True
     )
     nota_id = Column(Integer, ForeignKey("notas.id", ondelete="SET NULL"), nullable=True)
+    # Referencia a un Pendiente reutilizable (ver app/models/pendiente.py),
+    # agregado para poder "jalar" un pendiente ya escrito en vez de
+    # retipearlo -- mismo criterio ON DELETE SET NULL que las otras 3
+    # referencias de arriba. Los AgendaItem tipo=pendiente creados ANTES de
+    # esta columna se quedan sin ella (null) y siguen leyendo su contenido
+    # de `texto` -- ver _nombre_agenda_item en services/series_reunion.py.
+    pendiente_id = Column(
+        Integer, ForeignKey("pendientes.id", ondelete="SET NULL"), nullable=True
+    )
     # Bajo qué tema/subtema se agrupa este punto en el checklist -- INDEPENDIENTE
     # de `proyecto_id` (que para tipo=tema es el subtema que el ítem
     # REPRESENTA). Aplica a cualquier tipo (ej. un pendiente o una nota se
@@ -93,6 +102,7 @@ class AgendaItem(Base):
     entregable = relationship("Entregable")
     acuerdo = relationship("AcuerdoMinuta")
     nota = relationship("Nota")
+    pendiente = relationship("Pendiente")
     creado_en_reunion = relationship("Reunion", foreign_keys=[creado_en_reunion_id])
     revisiones = relationship(
         "AgendaItemRevision", back_populates="agenda_item", cascade="all, delete-orphan"

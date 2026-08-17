@@ -22,89 +22,133 @@ import EstatusBadge from "./EstatusBadge";
 // usuario.roles_por_proyecto, se rompe con herencia) muestra un botón
 // "Administrar" que abre ModalEquipo — el Dashboard ("Tu equipo") no lo
 // pasa y por tanto no muestra ese botón, sin cambio de comportamiento ahí.
-function EntregablesYReuniones({ proyectos, onAdministrar }) {
+// Arma un árbol a partir de la lista PLANA de proyectos que trae cada
+// columna (ya viene con `parent_id` desde el backend, ver
+// ProyectoDeMiembroOut en app/schemas/equipo_resumen.py). Un nodo cuyo
+// `parent_id` no está en la propia lista (el padre no es visible para el
+// viewer) se trata como raíz, para no perder proyectos de la vista.
+function construirArbol(proyectos) {
+  const idsVisibles = new Set(proyectos.map((p) => p.proyecto_id));
+  const hijosPorPadre = new Map();
+  const raices = [];
+  proyectos.forEach((p) => {
+    const esRaiz = !p.parent_id || !idsVisibles.has(p.parent_id);
+    if (esRaiz) {
+      raices.push(p);
+    } else {
+      if (!hijosPorPadre.has(p.parent_id)) hijosPorPadre.set(p.parent_id, []);
+      hijosPorPadre.get(p.parent_id).push(p);
+    }
+  });
+  return { raices, hijosPorPadre };
+}
+
+function NodoProyecto({ proyecto, hijosPorPadre, onAdministrar, nivel }) {
   const hoyIso = new Date().toISOString().slice(0, 10);
+  const hijos = hijosPorPadre.get(proyecto.proyecto_id) || [];
+
+  return (
+    <div style={nivel > 0 ? { marginLeft: 14, borderLeft: "2px solid var(--color-border)", paddingLeft: 10, marginTop: 6 } : undefined}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+        <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--color-text-muted)" }}>
+          <Link to={`/proyectos/${proyecto.proyecto_id}`} style={{ color: "inherit" }}>
+            {proyecto.proyecto_nombre}
+          </Link>
+          {proyecto.rol && <span style={{ fontWeight: 400 }}> ({etiquetaRol(proyecto.rol)})</span>}
+        </span>
+        {onAdministrar && proyecto.viewer_puede_administrar && (
+          <button
+            className="btn btn--ghost"
+            type="button"
+            style={{ fontSize: "0.75rem", padding: "2px 8px" }}
+            onClick={() => onAdministrar(proyecto.proyecto_id, proyecto.proyecto_nombre)}
+          >
+            Administrar
+          </button>
+        )}
+      </div>
+      {proyecto.entregables.length === 0 && proyecto.reuniones.length === 0 && (
+        <p style={{ fontSize: "0.8rem", color: "var(--color-text-muted)", margin: "2px 0" }}>
+          Sin entregables ni reuniones aquí.
+        </p>
+      )}
+      {proyecto.entregables.map((e) => {
+        const vencido = e.estatus !== "cumplido" && e.fecha_entrega < hoyIso;
+        return (
+          <div key={`entregable-${e.id}`} style={{ padding: "3px 0" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: "0.8rem" }}>
+              <Link
+                to={`/proyectos/${proyecto.proyecto_id}?entregable=${e.id}`}
+                style={{ color: "inherit", textDecoration: "none", flex: 1 }}
+              >
+                {vencido && "🔴 "}
+                {e.nombre}
+                {e.sensible && (
+                  <span className="badge badge--sensible" style={{ marginLeft: 6, fontSize: "0.65rem" }}>
+                    Sensible
+                  </span>
+                )}
+              </Link>
+              <EstatusBadge estatus={e.estatus} />
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <div className="progress-bar" style={{ flex: 1 }}>
+                <div className="progress-bar__fill" style={{ width: `${e.porcentaje_avance}%` }} />
+              </div>
+              <span style={{ fontSize: "0.7rem", color: "var(--color-text-muted)", whiteSpace: "nowrap" }}>
+                {fechaLocal(e.fecha_entrega).toLocaleDateString("es-MX", { dateStyle: "short" })} ·{" "}
+                {textoDiasRelativos(e.fecha_entrega)}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+      {proyecto.reuniones.map((r) => (
+        <Link
+          key={`reunion-${r.id}`}
+          to={`/proyectos/${proyecto.proyecto_id}?reunion=${r.id}`}
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 8,
+            fontSize: "0.8rem",
+            padding: "2px 0",
+            color: "var(--color-text-muted)",
+            textDecoration: "none",
+          }}
+        >
+          <span>🗓️ {r.titulo}</span>
+          <span style={{ whiteSpace: "nowrap" }}>
+            {new Date(r.fecha_inicio).toLocaleDateString("es-MX", { dateStyle: "short" })}
+          </span>
+        </Link>
+      ))}
+      {hijos.map((h) => (
+        <NodoProyecto
+          key={h.proyecto_id}
+          proyecto={h}
+          hijosPorPadre={hijosPorPadre}
+          onAdministrar={onAdministrar}
+          nivel={nivel + 1}
+        />
+      ))}
+    </div>
+  );
+}
+
+function EntregablesYReuniones({ proyectos, onAdministrar }) {
+  const { raices, hijosPorPadre } = construirArbol(proyectos);
 
   return (
     <div className="stack" style={{ gap: 8, padding: "4px 0 4px 12px" }}>
-      {proyectos.map((p) => (
-        <div key={p.proyecto_id}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--color-text-muted)" }}>
-              <Link to={`/proyectos/${p.proyecto_id}`} style={{ color: "inherit" }}>
-                {p.proyecto_nombre}
-              </Link>
-              {p.parent_id && <span style={{ fontWeight: 400 }}> (subtema)</span>}
-              {p.rol && <span style={{ fontWeight: 400 }}> ({etiquetaRol(p.rol)})</span>}
-            </span>
-            {onAdministrar && p.viewer_puede_administrar && (
-              <button
-                className="btn btn--ghost"
-                type="button"
-                style={{ fontSize: "0.75rem", padding: "2px 8px" }}
-                onClick={() => onAdministrar(p.proyecto_id, p.proyecto_nombre)}
-              >
-                Administrar
-              </button>
-            )}
-          </div>
-          {p.entregables.length === 0 && p.reuniones.length === 0 && (
-            <p style={{ fontSize: "0.8rem", color: "var(--color-text-muted)", margin: "2px 0" }}>
-              Sin entregables ni reuniones aquí.
-            </p>
-          )}
-          {p.entregables.map((e) => {
-            const vencido = e.estatus !== "cumplido" && e.fecha_entrega < hoyIso;
-            return (
-              <div key={`entregable-${e.id}`} style={{ padding: "3px 0" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: "0.8rem" }}>
-                  <Link
-                    to={`/proyectos/${p.proyecto_id}?entregable=${e.id}`}
-                    style={{ color: "inherit", textDecoration: "none", flex: 1 }}
-                  >
-                    {vencido && "🔴 "}
-                    {e.nombre}
-                    {e.sensible && (
-                      <span className="badge badge--sensible" style={{ marginLeft: 6, fontSize: "0.65rem" }}>
-                        Sensible
-                      </span>
-                    )}
-                  </Link>
-                  <EstatusBadge estatus={e.estatus} />
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <div className="progress-bar" style={{ flex: 1 }}>
-                    <div className="progress-bar__fill" style={{ width: `${e.porcentaje_avance}%` }} />
-                  </div>
-                  <span style={{ fontSize: "0.7rem", color: "var(--color-text-muted)", whiteSpace: "nowrap" }}>
-                    {fechaLocal(e.fecha_entrega).toLocaleDateString("es-MX", { dateStyle: "short" })} ·{" "}
-                    {textoDiasRelativos(e.fecha_entrega)}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-          {p.reuniones.map((r) => (
-            <Link
-              key={`reunion-${r.id}`}
-              to={`/proyectos/${p.proyecto_id}?reunion=${r.id}`}
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 8,
-                fontSize: "0.8rem",
-                padding: "2px 0",
-                color: "var(--color-text-muted)",
-                textDecoration: "none",
-              }}
-            >
-              <span>🗓️ {r.titulo}</span>
-              <span style={{ whiteSpace: "nowrap" }}>
-                {new Date(r.fecha_inicio).toLocaleDateString("es-MX", { dateStyle: "short" })}
-              </span>
-            </Link>
-          ))}
-        </div>
+      {raices.map((p) => (
+        <NodoProyecto
+          key={p.proyecto_id}
+          proyecto={p}
+          hijosPorPadre={hijosPorPadre}
+          onAdministrar={onAdministrar}
+          nivel={0}
+        />
       ))}
     </div>
   );
