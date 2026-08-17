@@ -10,12 +10,19 @@ app.core.permissions.query_reuniones_visibles) -- organizador/invitado, o
 N1 del tema (local o heredado) ve todas las series de ese tema/subárbol.
 proyecto_id nullable, igual que Reunion -- puede ser una serie general.
 """
+import enum
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, String, Time
+from sqlalchemy import Boolean, Column, Date, DateTime, Enum, ForeignKey, Integer, String, Time
 from sqlalchemy.orm import relationship
 
 from app.database import Base
+
+
+class TipoRecurrencia(str, enum.Enum):
+    diaria = "diaria"
+    semanal = "semanal"
+    mensual = "mensual"
 
 
 class SerieReunion(Base):
@@ -25,12 +32,19 @@ class SerieReunion(Base):
     proyecto_id = Column(Integer, ForeignKey("proyectos.id"), nullable=True)
     titulo = Column(String(200), nullable=False)
     organizador_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
-    # Regla de recurrencia simple: "cada semana en este día, a esta hora" --
-    # no se soportan reglas más complejas (cada N semanas, mensual, etc.) a
-    # propósito, es lo que se pidió ("occasional/muy recurrente, ej. cada
-    # lunes 10am"). dia_semana: 0=lunes ... 6=domingo (convención de
-    # datetime.weekday()).
-    dia_semana = Column(Integer, nullable=False)
+    # Regla de recurrencia (2026-08-17, ampliado de "solo semanal" a
+    # diaria/semanal/mensual -- ver app/services/materializar_series.py
+    # para cómo se generan las fechas de cada tipo):
+    #   - diaria: cada día calendario, dia_semana/dia_mes se ignoran.
+    #   - semanal (default, caso original): dia_semana obligatorio
+    #     (0=lunes...6=domingo, convención de datetime.weekday()).
+    #   - mensual: dia_mes obligatorio (1-31, con clamp al último día del
+    #     mes si ese mes no llega a ese número).
+    tipo_recurrencia = Column(
+        Enum(TipoRecurrencia), nullable=False, default=TipoRecurrencia.semanal
+    )
+    dia_semana = Column(Integer, nullable=True)
+    dia_mes = Column(Integer, nullable=True)
     hora = Column(Time, nullable=False)
     duracion_minutos = Column(Integer, default=30, nullable=False)
     fecha_inicio = Column(Date, nullable=False)

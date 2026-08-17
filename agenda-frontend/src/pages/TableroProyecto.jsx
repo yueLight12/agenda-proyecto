@@ -12,7 +12,6 @@ import ModalEquipo from "../components/ModalEquipo";
 import ModalHistorial from "../components/ModalHistorial";
 import ModalReunion from "../components/ModalReunion";
 import ModalMinuta from "../components/ModalMinuta";
-import ModalSerieReunion from "../components/ModalSerieReunion";
 import SeccionNotas from "../components/SeccionNotas";
 import { etiquetaRol } from "../utils/rolLabels";
 import { useAuth } from "../context/AuthContext";
@@ -207,9 +206,6 @@ export default function TableroProyecto() {
           </button>
           <button className="btn btn--ghost" onClick={() => setModalReunion("nueva")}>
             Nueva reunión
-          </button>
-          <button className="btn btn--ghost" onClick={() => setModalSerie("nueva")}>
-            Nueva junta recurrente
           </button>
         </div>
       </div>
@@ -547,16 +543,13 @@ export default function TableroProyecto() {
           miembros={invitablesReunion}
           organizadorId={modalReunion === "nueva" ? usuario?.id : modalReunion.organizador_id}
           puedeAdministrar={puedeAdministrar}
-          onGuardado={async () => {
-            setModalReunion(null);
-            await cargarTodo();
-          }}
+          onGuardado={cargarTodo}
           onCerrar={() => setModalReunion(null)}
         />
       )}
 
       {modalSerie && (
-        <ModalSerieReunion
+        <ModalReunion
           proyectoId={Number(proyectoId)}
           serie={modalSerie === "nueva" ? null : modalSerie}
           miembros={invitablesReunion}

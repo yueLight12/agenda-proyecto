@@ -11,6 +11,7 @@ from typing import Optional
 from pydantic import BaseModel
 
 from app.models.agenda_item import EstadoRevision, TipoAgendaItem
+from app.models.serie_reunion import TipoRecurrencia
 
 
 class ParticipanteSerieOut(BaseModel):
@@ -21,7 +22,9 @@ class ParticipanteSerieOut(BaseModel):
 class SerieReunionCrear(BaseModel):
     proyecto_id: Optional[int] = None
     titulo: str
-    dia_semana: int  # 0=lunes ... 6=domingo
+    tipo_recurrencia: TipoRecurrencia = TipoRecurrencia.semanal
+    dia_semana: Optional[int] = None  # requerido si tipo_recurrencia=semanal (0=lunes...6=domingo)
+    dia_mes: Optional[int] = None  # requerido si tipo_recurrencia=mensual (1-31)
     hora: time
     duracion_minutos: int = 30
     participantes_ids: list[int] = []
@@ -31,7 +34,11 @@ class SerieReunionCrear(BaseModel):
 
 class SerieReunionActualizar(BaseModel):
     titulo: Optional[str] = None
+    # tipo_recurrencia NO es editable (no se puede cambiar de semanal a
+    # mensual, ej. -- archivar y crear una serie nueva); dia_semana/dia_mes
+    # sí, para poder mover "cada lunes" a "cada martes" sin recrear todo.
     dia_semana: Optional[int] = None
+    dia_mes: Optional[int] = None
     hora: Optional[time] = None
     duracion_minutos: Optional[int] = None
     participantes_ids: Optional[list[int]] = None
@@ -46,7 +53,9 @@ class SerieReunionOut(BaseModel):
     titulo: str
     organizador_id: int
     organizador_nombre: str
-    dia_semana: int
+    tipo_recurrencia: TipoRecurrencia
+    dia_semana: Optional[int] = None
+    dia_mes: Optional[int] = None
     hora: time
     duracion_minutos: int
     fecha_inicio: date

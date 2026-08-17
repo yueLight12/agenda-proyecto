@@ -11,31 +11,65 @@ con antelación, no se calculan al vuelo -- así cada una es una Reunion de
 verdad, se puede mover/cancelar una sola ocurrencia sin afectar las demás,
 y tiene su propia Minuta con la agenda de la serie precargada.
 """
+import calendar
 from datetime import date, datetime, time, timedelta
 
 from sqlalchemy.orm import Session
 
 from app.models.notificacion import Notificacion, TipoNotificacion
 from app.models.reunion import Reunion, ReunionParticipante
-from app.models.serie_reunion import SerieReunion
+from app.models.serie_reunion import SerieReunion, TipoRecurrencia
+
+
+def _fecha_mes(anio: int, mes: int, dia: int) -> date:
+    """Clamp de `dia` al último día real de ese mes (ej. dia_mes=31 en
+    febrero cae en 28 o 29)."""
+    ultimo_dia_mes = calendar.monthrange(anio, mes)[1]
+    return date(anio, mes, min(dia, ultimo_dia_mes))
+
+
+def _mes_siguiente(anio: int, mes: int) -> tuple[int, int]:
+    return (anio + 1, 1) if mes == 12 else (anio, mes + 1)
 
 
 def _proximas_fechas(serie: SerieReunion, hoy: date, horizonte_dias: int) -> list[date]:
-    """Todas las fechas dentro de [hoy, hoy+horizonte_dias] que caen en el
-    dia_semana de la serie y dentro de [fecha_inicio, fecha_fin]."""
+    """Todas las fechas dentro de [hoy, hoy+horizonte_dias] que caen dentro
+    de [fecha_inicio, fecha_fin], según el patrón de recurrencia de la
+    serie (diaria/semanal/mensual, ver TipoRecurrencia)."""
     fin_ventana = hoy + timedelta(days=horizonte_dias)
     inicio = max(serie.fecha_inicio, hoy)
     if serie.fecha_fin is not None:
         fin_ventana = min(fin_ventana, serie.fecha_fin)
+    if inicio > fin_ventana:
+        return []
 
     fechas = []
-    cursor = inicio
-    # Avanza al primer día que coincide con dia_semana.
-    delta = (serie.dia_semana - cursor.weekday()) % 7
-    cursor = cursor + timedelta(days=delta)
-    while cursor <= fin_ventana:
-        fechas.append(cursor)
-        cursor += timedelta(days=7)
+
+    if serie.tipo_recurrencia == TipoRecurrencia.diaria:
+        cursor = inicio
+        while cursor <= fin_ventana:
+            fechas.append(cursor)
+            cursor += timedelta(days=1)
+
+    elif serie.tipo_recurrencia == TipoRecurrencia.mensual:
+        cursor = _fecha_mes(inicio.year, inicio.month, serie.dia_mes)
+        if cursor < inicio:
+            anio, mes = _mes_siguiente(inicio.year, inicio.month)
+            cursor = _fecha_mes(anio, mes, serie.dia_mes)
+        while cursor <= fin_ventana:
+            fechas.append(cursor)
+            anio, mes = _mes_siguiente(cursor.year, cursor.month)
+            cursor = _fecha_mes(anio, mes, serie.dia_mes)
+
+    else:  # semanal (default, comportamiento original)
+        cursor = inicio
+        # Avanza al primer día que coincide con dia_semana.
+        delta = (serie.dia_semana - cursor.weekday()) % 7
+        cursor = cursor + timedelta(days=delta)
+        while cursor <= fin_ventana:
+            fechas.append(cursor)
+            cursor += timedelta(days=7)
+
     return fechas
 
 

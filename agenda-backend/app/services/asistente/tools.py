@@ -1726,9 +1726,10 @@ def _ejecutar_crear_serie_reunion(db: Session, usuario: Usuario, parametros: dic
     nueva = crear_serie(
         db, usuario,
         parametros["proyecto_id"], parametros["titulo"],
-        parametros["dia_semana"], _time.fromisoformat(parametros["hora"]),
+        _time.fromisoformat(parametros["hora"]),
         parametros["duracion_minutos"], parametros["participantes_ids"],
         _date.fromisoformat(parametros["fecha_inicio"]), None,
+        dia_semana=parametros["dia_semana"],
     )
     db.commit()
     db.refresh(nueva)

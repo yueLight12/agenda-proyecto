@@ -24,7 +24,7 @@ from app.core.permissions import (
 )
 from app.models.agenda_item import AgendaItem, AgendaItemRevision, EstadoRevision, TipoAgendaItem
 from app.models.reunion import Reunion
-from app.models.serie_reunion import SerieReunion, SerieReunionParticipante
+from app.models.serie_reunion import SerieReunion, SerieReunionParticipante, TipoRecurrencia
 from app.models.usuario import RolEnum, Usuario
 from app.schemas.nota import NotaCrear
 from app.schemas.pendiente import PendienteCrear
@@ -62,7 +62,9 @@ def serie_a_out(db: Session, usuario: Usuario, serie: SerieReunion) -> SerieReun
         titulo=serie.titulo,
         organizador_id=serie.organizador_id,
         organizador_nombre=serie.organizador.nombre,
+        tipo_recurrencia=serie.tipo_recurrencia,
         dia_semana=serie.dia_semana,
+        dia_mes=serie.dia_mes,
         hora=serie.hora,
         duracion_minutos=serie.duracion_minutos,
         fecha_inicio=serie.fecha_inicio,
@@ -107,23 +109,35 @@ def crear_serie(
     usuario: Usuario,
     proyecto_id: int | None,
     titulo: str,
-    dia_semana: int,
     hora,
     duracion_minutos: int,
     participantes_ids: list[int],
     fecha_inicio: date,
     fecha_fin: date | None,
+    tipo_recurrencia: TipoRecurrencia = TipoRecurrencia.semanal,
+    dia_semana: int | None = None,
+    dia_mes: int | None = None,
 ) -> SerieReunion:
     """Cualquier participante del tema puede proponer una serie -- mismo
-    criterio que crear_reunion, no requiere N1/N2."""
+    criterio que crear_reunion, no requiere N1/N2. `dia_semana` obligatorio
+    para tipo_recurrencia=semanal, `dia_mes` obligatorio para =mensual --
+    validado aquí en vez de solo en el schema porque la combinación válida
+    depende de tipo_recurrencia."""
     if proyecto_id is not None:
         requerir_participacion_en_proyecto(db, usuario, proyecto_id)
+
+    if tipo_recurrencia == TipoRecurrencia.semanal and dia_semana is None:
+        raise HTTPException(status_code=400, detail="Falta dia_semana para una serie semanal")
+    if tipo_recurrencia == TipoRecurrencia.mensual and not (dia_mes and 1 <= dia_mes <= 31):
+        raise HTTPException(status_code=400, detail="Falta dia_mes (1-31) para una serie mensual")
 
     nueva = SerieReunion(
         proyecto_id=proyecto_id,
         titulo=titulo,
         organizador_id=usuario.id,
-        dia_semana=dia_semana,
+        tipo_recurrencia=tipo_recurrencia,
+        dia_semana=dia_semana if tipo_recurrencia == TipoRecurrencia.semanal else None,
+        dia_mes=dia_mes if tipo_recurrencia == TipoRecurrencia.mensual else None,
         hora=hora,
         duracion_minutos=duracion_minutos,
         fecha_inicio=fecha_inicio,

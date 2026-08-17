@@ -58,12 +58,14 @@ def crear_serie(
         usuario,
         datos.proyecto_id,
         datos.titulo,
-        datos.dia_semana,
         datos.hora,
         datos.duracion_minutos,
         datos.participantes_ids,
         datos.fecha_inicio,
         datos.fecha_fin,
+        tipo_recurrencia=datos.tipo_recurrencia,
+        dia_semana=datos.dia_semana,
+        dia_mes=datos.dia_mes,
     )
     db.commit()
     db.refresh(nueva)
