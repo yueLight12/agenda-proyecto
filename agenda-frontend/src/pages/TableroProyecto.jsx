@@ -16,6 +16,17 @@ import SeccionNotas from "../components/SeccionNotas";
 import { etiquetaRol } from "../utils/rolLabels";
 import { useAuth } from "../context/AuthContext";
 
+const DIAS_SEMANA = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
+
+// Describe la recurrencia de una serie según su tipo (2026-08-17, antes
+// asumía siempre "semanal" y mostraba "todos los undefined" para series
+// diarias/mensuales).
+function descripcionRecurrencia(serie) {
+  if (serie.tipo_recurrencia === "diaria") return "todos los días";
+  if (serie.tipo_recurrencia === "mensual") return `cada mes el día ${serie.dia_mes}`;
+  return `todos los ${DIAS_SEMANA[serie.dia_semana]}`;
+}
+
 export default function TableroProyecto() {
   const { proyectoId } = useParams();
   const { usuario } = useAuth();
@@ -337,9 +348,7 @@ export default function TableroProyecto() {
               <div>
                 <strong>{s.titulo}</strong>{" "}
                 <span style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
-                  todos los{" "}
-                  {["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"][s.dia_semana]} a
-                  las {s.hora?.slice(0, 5)}
+                  {descripcionRecurrencia(s)} a las {s.hora?.slice(0, 5)}
                   {!s.activa && " — pausada"}
                 </span>
               </div>
