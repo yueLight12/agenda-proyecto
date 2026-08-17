@@ -18,7 +18,7 @@ function DetalleMiembro({ usuarioId, entregables, reuniones }) {
   if (susEntregables.length === 0 && susReuniones.length === 0) {
     return (
       <p style={{ fontSize: "0.8rem", color: "var(--color-text-muted)", margin: "4px 0 0" }}>
-        Sin entregables ni reuniones en este proyecto.
+        Sin entregables ni reuniones en este tema.
       </p>
     );
   }
@@ -105,7 +105,7 @@ export default function KanbanEquipoProyecto({ miembros, entregables = [], reuni
   if (miembros.length === 0) {
     return (
       <p style={{ color: "var(--color-text-muted)" }}>
-        Aún no hay miembros visibles para ti en este proyecto.
+        Aún no hay miembros visibles para ti en este tema.
       </p>
     );
   }

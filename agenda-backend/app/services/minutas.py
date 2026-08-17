@@ -129,8 +129,8 @@ def convertir_acuerdo_a_entregable(
         # requerir_participacion_en_proyecto truene con un 403 genérico.
         raise HTTPException(
             status_code=400,
-            detail="Esta reunión es general (sin tema/proyecto), no se puede convertir un acuerdo "
-            "suyo en entregable -- conviértelo desde una reunión ligada a un proyecto.",
+            detail="Esta reunión es general (sin tema), no se puede convertir un acuerdo "
+            "suyo en entregable -- conviértelo desde una reunión ligada a un tema.",
         )
 
     rol = requerir_participacion_en_proyecto(db, usuario, reunion.proyecto_id)

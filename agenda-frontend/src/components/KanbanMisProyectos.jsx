@@ -25,7 +25,7 @@ function DetalleMiembro({ usuarioId, entregables, reuniones }) {
   if (susEntregables.length === 0 && susReuniones.length === 0) {
     return (
       <p style={{ fontSize: "0.8rem", color: "var(--color-text-muted)", margin: "4px 0 0" }}>
-        Sin entregables ni reuniones en este proyecto.
+        Sin entregables ni reuniones en este tema.
       </p>
     );
   }
@@ -127,7 +127,7 @@ function TarjetaProyecto({ proyecto, onEditar, onEliminar }) {
       setReuniones(reu);
       setCargado(true);
     } catch {
-      setError("No se pudo cargar el equipo de este proyecto.");
+      setError("No se pudo cargar el equipo de este tema.");
     } finally {
       setCargando(false);
     }
@@ -202,7 +202,7 @@ function TarjetaProyecto({ proyecto, onEditar, onEliminar }) {
           )}
           {cargado && equipo.length === 0 && (
             <p style={{ color: "var(--color-text-muted)", fontSize: "0.8rem" }}>
-              Sin miembros visibles para ti en este proyecto.
+              Sin miembros visibles para ti en este tema.
             </p>
           )}
           {cargado &&
@@ -218,7 +218,7 @@ function TarjetaProyecto({ proyecto, onEditar, onEliminar }) {
 export default function KanbanMisProyectos({ proyectos, onEditar, onEliminar }) {
   if (proyectos.length === 0) {
     return (
-      <p style={{ color: "var(--color-text-muted)" }}>No tienes proyectos asignados todavía.</p>
+      <p style={{ color: "var(--color-text-muted)" }}>No tienes temas asignados todavía.</p>
     );
   }
 

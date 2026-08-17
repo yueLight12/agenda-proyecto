@@ -154,7 +154,7 @@ def resolver_proyecto(
     if not proyectos:
         return ResolucionResultado(
             resuelto=False,
-            pregunta="No participas en ningún proyecto todavía, así que no puedo hacer eso.",
+            pregunta="No participas en ningún tema todavía, así que no puedo hacer eso.",
             tipo_entrada="texto",
         )
 
@@ -166,7 +166,7 @@ def resolver_proyecto(
         if len(candidatos) > 1:
             return ResolucionResultado(
                 resuelto=False,
-                pregunta=f'Encontré varios proyectos parecidos a "{texto}", ¿cuál es?',
+                pregunta=f'Encontré varios temas parecidos a "{texto}", ¿cuál es?',
                 tipo_entrada="opciones",
                 opciones=[OpcionResolucion(p.id, p.nombre) for p in candidatos],
             )
@@ -188,7 +188,7 @@ def resolver_proyecto(
 
     return ResolucionResultado(
         resuelto=False,
-        pregunta="¿En qué proyecto?",
+        pregunta="¿En qué tema?",
         tipo_entrada="opciones",
         opciones=[OpcionResolucion(p.id, p.nombre) for p in proyectos],
     )
@@ -219,7 +219,7 @@ def resolver_persona_en_equipo(
             )
         return ResolucionResultado(
             resuelto=False,
-            pregunta=f'No encontré a nadie llamado "{nombre_hablado}" en tu equipo visible de este proyecto. '
+            pregunta=f'No encontré a nadie llamado "{nombre_hablado}" en tu equipo visible de este tema. '
             "¿Puedes decir el nombre completo?",
             tipo_entrada="texto",
         )
@@ -289,7 +289,7 @@ def resolver_entregable(
     if not candidatos:
         return ResolucionResultado(
             resuelto=False,
-            pregunta=f'No encontré ningún entregable llamado "{nombre_hablado}" en este proyecto. '
+            pregunta=f'No encontré ningún entregable llamado "{nombre_hablado}" en este tema. '
             "¿Cuál es el nombre exacto?",
             tipo_entrada="texto",
         )
@@ -545,7 +545,7 @@ def resolver_reunion(
     if not candidatos:
         return ResolucionResultado(
             resuelto=False,
-            pregunta=f'No encontré ninguna reunión llamada "{nombre_hablado}" en este proyecto. '
+            pregunta=f'No encontré ninguna reunión llamada "{nombre_hablado}" en este tema. '
             "¿Cuál es el título exacto?",
             tipo_entrada="texto",
         )

@@ -33,8 +33,8 @@ export default function Chatbot() {
     <div className="stack">
       <h1>Asistente de consulta</h1>
       <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
-        Pregunta en lenguaje natural sobre tus proyectos y entregables (ej. "¿qué
-        tengo pendiente esta semana?", "¿cómo va el Proyecto Alfa?"). Solo consulta,
+        Pregunta en lenguaje natural sobre tus temas y entregables (ej. "¿qué
+        tengo pendiente esta semana?", "¿cómo va el tema Cubo?"). Solo consulta,
         no modifica nada.
       </p>
 

@@ -60,7 +60,7 @@ export default function AppLayout() {
           <NavLink to="/" end>
             Dashboard
           </NavLink>
-          <NavLink to="/proyectos">Proyectos</NavLink>
+          <NavLink to="/proyectos">Temas</NavLink>
           <NavLink to="/equipo">Equipo</NavLink>
           <NavLink to="/mis-pendientes">Mis pendientes</NavLink>
           <NavLink to="/calendario">Calendario</NavLink>

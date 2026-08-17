@@ -92,7 +92,7 @@ export default function TableroProyecto() {
           setSearchParams({}, { replace: true });
         }
       })
-      .catch(() => setError("No se pudo cargar el proyecto. Intenta de nuevo más tarde."))
+      .catch(() => setError("No se pudo cargar el tema. Intenta de nuevo más tarde."))
       .finally(() => setCargando(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [proyectoId]);
@@ -148,7 +148,7 @@ export default function TableroProyecto() {
     }
   };
 
-  if (cargando) return <p>Cargando proyecto...</p>;
+  if (cargando) return <p>Cargando tema...</p>;
   if (error) return <p className="error-text">{error}</p>;
 
   return (
@@ -288,7 +288,7 @@ export default function TableroProyecto() {
         </div>
         {reuniones.length === 0 && (
           <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
-            No tienes reuniones agendadas en este proyecto.
+            No tienes reuniones agendadas en este tema.
           </p>
         )}
         {[...reuniones]
@@ -414,7 +414,7 @@ export default function TableroProyecto() {
             {entregables.length === 0 && (
               <tr>
                 <td colSpan={5} style={{ color: "var(--color-text-muted)" }}>
-                  No hay entregables visibles para ti en este proyecto todavía.
+                  No hay entregables visibles para ti en este tema todavía.
                 </td>
               </tr>
             )}

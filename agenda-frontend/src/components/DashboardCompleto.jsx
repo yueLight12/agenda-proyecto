@@ -38,11 +38,11 @@ export default function DashboardCompleto({ resumen }) {
       <div className="grid-summary">
         <div className="stat">
           <div className="stat__value">{resumen.porcentaje_avance_global}%</div>
-          <div className="stat__label">Avance global (todos tus proyectos)</div>
+          <div className="stat__label">Avance global (todos tus temas)</div>
         </div>
         <div className="stat">
           <div className="stat__value">{resumen.total_proyectos}</div>
-          <div className="stat__label">Proyectos</div>
+          <div className="stat__label">Temas</div>
         </div>
         <div className="stat">
           <div className="stat__value">{resumen.entregables_vencidos}</div>
@@ -63,10 +63,10 @@ export default function DashboardCompleto({ resumen }) {
       </div>
 
       <div className="card">
-        <h3 style={{ fontSize: "0.95rem", marginTop: 0 }}>Avance por proyecto</h3>
+        <h3 style={{ fontSize: "0.95rem", marginTop: 0 }}>Avance por tema</h3>
         {resumen.proyectos.length === 0 && (
           <p style={{ color: "var(--color-text-muted)" }}>
-            No tienes proyectos asignados todavía.
+            No tienes temas asignados todavía.
           </p>
         )}
         {resumen.proyectos.map((p) => (

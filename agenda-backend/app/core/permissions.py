@@ -103,7 +103,7 @@ def requerir_participacion_en_proyecto(
     if rol is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes acceso a este proyecto",
+            detail="No tienes acceso a este tema",
         )
     return rol
 
@@ -113,7 +113,7 @@ def requerir_rol_minimo(rol_actual: UsuarioProyectoRol, roles_permitidos: list[R
     if rol_actual.rol not in roles_permitidos:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes permisos suficientes para esta acción en este proyecto",
+            detail="No tienes permisos suficientes para esta acción en este tema",
         )
 
 

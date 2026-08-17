@@ -89,7 +89,7 @@ export default function ModalEquipo({ proyectoId, miembros, entregables = [], re
   };
 
   return (
-    <Modal titulo="Administrar equipo del proyecto" onCerrar={onCerrar}>
+    <Modal titulo="Administrar equipo del tema" onCerrar={onCerrar}>
       <div className="stack">
         <div className="list-inline" style={{ borderBottom: "none" }}>
           <span style={{ fontSize: "0.85rem", color: "var(--color-text-muted)" }}>
@@ -141,7 +141,7 @@ export default function ModalEquipo({ proyectoId, miembros, entregables = [], re
           </label>
 
           <label className="stack" style={{ gap: 4 }}>
-            <span style={{ fontSize: "0.85rem" }}>Rol en este proyecto</span>
+            <span style={{ fontSize: "0.85rem" }}>Rol en este tema</span>
             <select className="input" value={rol} onChange={(e) => setRol(e.target.value)}>
               {ROLES.map((r) => (
                 <option key={r} value={r}>
@@ -182,8 +182,8 @@ export default function ModalEquipo({ proyectoId, miembros, entregables = [], re
 
       {confirmandoQuitar !== null && (
         <ConfirmDialog
-          titulo="Quitar del proyecto"
-          mensaje="¿Quitar a este usuario del proyecto?"
+          titulo="Quitar del tema"
+          mensaje="¿Quitar a este usuario del tema?"
           textoConfirmar={quitando ? "Quitando..." : "Quitar"}
           onConfirmar={confirmarQuitar}
           onCancelar={() => setConfirmandoQuitar(null)}

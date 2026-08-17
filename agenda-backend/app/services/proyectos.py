@@ -29,7 +29,7 @@ from app.services.equipos import rol_default_para_nuevo_proyecto
 def obtener_proyecto_o_404(db: Session, proyecto_id: int) -> Proyecto:
     proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
     if not proyecto:
-        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+        raise HTTPException(status_code=404, detail="Tema no encontrado")
     return proyecto
 
 
@@ -382,6 +382,6 @@ def quitar_miembro_de_proyecto(db: Session, usuario: Usuario, proyecto_id: int, 
     # ancestro) en vez de la de este nodo.
     registro = obtener_rol_local_en_proyecto(db, usuario_id, proyecto_id)
     if not registro:
-        raise HTTPException(status_code=404, detail="El usuario no pertenece a este proyecto")
+        raise HTTPException(status_code=404, detail="El usuario no pertenece a este tema")
 
     db.delete(registro)

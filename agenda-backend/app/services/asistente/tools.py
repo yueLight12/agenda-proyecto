@@ -296,7 +296,7 @@ def _resolver_crear_proyecto(
     nombre = (nombre or "").strip()
     if not nombre:
         return ResultadoInterpretacion(
-            listo=False, campo="nombre", pregunta="¿Cómo se llama el proyecto?", tipo_entrada="texto"
+            listo=False, campo="nombre", pregunta="¿Cómo se llama el tema?", tipo_entrada="texto"
         )
 
     # tema_padre es OPCIONAL -- si no se menciona, es un proyecto/tema raíz
@@ -330,18 +330,18 @@ def _resolver_crear_proyecto(
     rol, supervisor_id = rol_default_para_nuevo_proyecto(db, usuario)
     equipo = [{"usuario_id": usuario.id, "nombre": usuario.nombre, "rol": rol.value}]
     if rol == RolEnum.N1:
-        resumen = f'Voy a crear el proyecto "{nombre}". Quedarás como {_etiqueta_rol(rol)}. ¿Confirmas?'
+        resumen = f'Voy a crear el tema "{nombre}". Quedarás como {_etiqueta_rol(rol)}. ¿Confirmas?'
     else:
         supervisor = db.query(Usuario).filter(Usuario.id == supervisor_id).first() if supervisor_id else None
         if supervisor:
             equipo.append({"usuario_id": supervisor.id, "nombre": supervisor.nombre, "rol": RolEnum.N2.value})
             resumen = (
-                f'Voy a crear el proyecto "{nombre}". Quedarás como {_etiqueta_rol(rol)} y {supervisor.nombre} '
+                f'Voy a crear el tema "{nombre}". Quedarás como {_etiqueta_rol(rol)} y {supervisor.nombre} '
                 f"como {_etiqueta_rol(RolEnum.N2)} (tu supervisor). ¿Confirmas?"
             )
         else:
             resumen = (
-                f'Voy a crear el proyecto "{nombre}". Quedarás como {_etiqueta_rol(rol)} '
+                f'Voy a crear el tema "{nombre}". Quedarás como {_etiqueta_rol(rol)} '
                 "(según tu equipo guardado). ¿Confirmas?"
             )
     preview = {
@@ -360,7 +360,7 @@ def _ejecutar_crear_proyecto(db: Session, usuario: Usuario, parametros: dict) ->
     db.commit()
     db.refresh(nuevo)
     return {
-        "mensaje": f'Proyecto "{nuevo.nombre}" creado correctamente.',
+        "mensaje": f'Tema "{nuevo.nombre}" creado correctamente.',
         "resultado": {"id": nuevo.id, "nombre": nuevo.nombre},
     }
 
@@ -509,7 +509,7 @@ def _resolver_asignar_rol(
             # el nombre esté mal dicho (repetirlo no serviría de nada).
             return ResolucionResultado(
                 resuelto=False,
-                pregunta="Esa persona no está en el equipo de este proyecto, y solo dirección o líderes "
+                pregunta="Esa persona no está en el equipo de este tema, y solo dirección o líderes "
                 "pueden agregar o reasignar gente aquí. Pide a alguien con ese rol que lo haga.",
                 tipo_entrada="texto",
             )
@@ -551,7 +551,7 @@ def _resolver_asignar_rol(
         "supervisor_id": supervisor_id,
     }
     verbo = "asignar" if ya_en_equipo else "agregar"
-    resumen = f'Voy a {verbo} a {nombre_persona} como {_etiqueta_rol(rol_res.valor)} en este proyecto. ¿Confirmas?'
+    resumen = f'Voy a {verbo} a {nombre_persona} como {_etiqueta_rol(rol_res.valor)} en este tema. ¿Confirmas?'
     preview = {
         "tipo": "miembro",
         "usuario_id": persona_res.valor,
@@ -574,7 +574,7 @@ def _ejecutar_asignar_rol(db: Session, usuario: Usuario, parametros: dict) -> di
     )
     db.commit()
     return {
-        "mensaje": f"{resultado.nombre} quedó asignado como {_etiqueta_rol(resultado.rol)} en el proyecto.",
+        "mensaje": f"{resultado.nombre} quedó asignado como {_etiqueta_rol(resultado.rol)} en el tema.",
         "resultado": {"usuario_id": resultado.usuario_id, "rol": resultado.rol.value},
     }
 
@@ -633,7 +633,7 @@ def _resolver_agregar_miembro(
         "rol": rol_res.valor.value,
         "supervisor_id": supervisor_id,
     }
-    resumen = f'Voy a agregar a {nombre_persona} al proyecto como {_etiqueta_rol(rol_res.valor)}. ¿Confirmas?'
+    resumen = f'Voy a agregar a {nombre_persona} al tema como {_etiqueta_rol(rol_res.valor)}. ¿Confirmas?'
     preview = {
         "tipo": "miembro",
         "usuario_id": persona_res.valor,
@@ -656,7 +656,7 @@ def _ejecutar_agregar_miembro(db: Session, usuario: Usuario, parametros: dict) -
     )
     db.commit()
     return {
-        "mensaje": f"{resultado.nombre} se agregó al proyecto como {_etiqueta_rol(resultado.rol)}.",
+        "mensaje": f"{resultado.nombre} se agregó al tema como {_etiqueta_rol(resultado.rol)}.",
         "resultado": {"usuario_id": resultado.usuario_id, "rol": resultado.rol.value},
     }
 
@@ -1090,12 +1090,12 @@ def _resolver_editar_proyecto(
     if not campos:
         return ResultadoInterpretacion(
             listo=False, campo="nombre_nuevo",
-            pregunta="¿Qué quieres cambiar del proyecto: el nombre o la descripción?",
+            pregunta="¿Qué quieres cambiar del tema: el nombre o la descripción?",
             tipo_entrada="texto",
         )
 
     parametros = {"proyecto_id": proyecto_id, "campos": campos}
-    resumen = f"Voy a actualizar {', '.join(resumen_partes)} del proyecto. ¿Confirmas?"
+    resumen = f"Voy a actualizar {', '.join(resumen_partes)} del tema. ¿Confirmas?"
     preview = {
         "tipo": "proyecto",
         "nombre": campos.get("nombre", proyecto_actual.nombre if proyecto_actual else nombre_nuevo),
@@ -1111,7 +1111,7 @@ def _ejecutar_editar_proyecto(db: Session, usuario: Usuario, parametros: dict) -
     proyecto = actualizar_proyecto(db, usuario, parametros["proyecto_id"], parametros["campos"])
     db.commit()
     db.refresh(proyecto)
-    return {"mensaje": f'Proyecto "{proyecto.nombre}" actualizado correctamente.', "resultado": {"id": proyecto.id}}
+    return {"mensaje": f'Tema "{proyecto.nombre}" actualizado correctamente.', "resultado": {"id": proyecto.id}}
 
 
 # --- leer_notificaciones (solo lectura, sin confirmación) ------------------
@@ -1199,7 +1199,7 @@ def _resolver_eliminar_proyecto(
         return _pendiente("proyecto_id", proyecto_res)
 
     proyecto_actual = db.query(Proyecto).filter(Proyecto.id == proyecto_res.valor).first()
-    nombre = proyecto_actual.nombre if proyecto_actual else "ese proyecto"
+    nombre = proyecto_actual.nombre if proyecto_actual else "ese tema"
 
     parametros = {"proyecto_id": proyecto_res.valor}
     aviso_subtemas = ""
@@ -1209,7 +1209,7 @@ def _resolver_eliminar_proyecto(
             f' Esto incluye {resumen_arbol["total_subtemas"]} subtema(s) y todo su contenido.'
         )
     resumen = (
-        f'Voy a ELIMINAR el proyecto "{nombre}" y TODO lo que tiene (entregables, reuniones, '
+        f'Voy a ELIMINAR el tema "{nombre}" y TODO lo que tiene (entregables, reuniones, '
         f"minutas, equipo).{aviso_subtemas} Esta acción no se puede deshacer. ¿Confirmas?"
     )
     preview = {
@@ -1224,7 +1224,7 @@ def _resolver_eliminar_proyecto(
 def _ejecutar_eliminar_proyecto(db: Session, usuario: Usuario, parametros: dict) -> dict:
     eliminar_proyecto(db, usuario, parametros["proyecto_id"])
     db.commit()
-    return {"mensaje": "Proyecto eliminado correctamente.", "resultado": None}
+    return {"mensaje": "Tema eliminado correctamente.", "resultado": None}
 
 
 # --- listar_subtemas (solo lectura, sin confirmación) ----------------------
@@ -1601,7 +1601,7 @@ def _resolver_aplicar_mi_equipo(
     nombres = [m.usuario.nombre for m in plantilla]
     parametros = {"proyecto_id": proyecto_id}
     resumen = (
-        f'Voy a aplicar tu equipo guardado ({", ".join(nombres)}) al proyecto '
+        f'Voy a aplicar tu equipo guardado ({", ".join(nombres)}) al tema '
         f'"{proyecto_actual.nombre if proyecto_actual else ""}". ¿Confirmas?'
     )
     preview = {
@@ -1619,7 +1619,7 @@ def _ejecutar_aplicar_mi_equipo(db: Session, usuario: Usuario, parametros: dict)
     resultado = aplicar_mi_equipo(db, usuario, parametros["proyecto_id"])
     db.commit()
     return {
-        "mensaje": f"Se aplicó tu equipo guardado al proyecto ({len(resultado)} persona(s)).",
+        "mensaje": f"Se aplicó tu equipo guardado al tema ({len(resultado)} persona(s)).",
         "resultado": {"cantidad": len(resultado)},
     }
 

@@ -112,8 +112,8 @@ function PlantillaEquipo() {
     <div className="stack">
       <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
         Guarda aquí a las personas que siempre trabajan contigo (ej. "el equipo de David") para
-        aplicarlas de un clic a cualquier proyecto, en vez de asignarlas una por una cada vez.
-        Desde "Administrar equipo" dentro de un proyecto vas a poder usar el botón
+        aplicarlas de un clic a cualquier tema, en vez de asignarlas una por una cada vez.
+        Desde "Administrar equipo" dentro de un tema vas a poder usar el botón
         "Aplicar mi equipo".
       </p>
 

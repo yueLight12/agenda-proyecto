@@ -29,7 +29,7 @@ export default function PanelResumenProyecto({ proyectoId }) {
         setEntregables(ent);
         setReuniones(reu);
       })
-      .catch(() => activo && setError("No se pudo cargar el detalle de este proyecto."))
+      .catch(() => activo && setError("No se pudo cargar el detalle de este tema."))
       .finally(() => activo && setCargando(false));
     return () => {
       activo = false;
@@ -45,7 +45,7 @@ export default function PanelResumenProyecto({ proyectoId }) {
         <h4 style={{ fontSize: "0.85rem", margin: "0 0 6px" }}>Equipo y entregables por persona</h4>
         {equipo.length === 0 && (
           <p style={{ color: "var(--color-text-muted)", fontSize: "0.8rem" }}>
-            No hay miembros visibles para ti en este proyecto.
+            No hay miembros visibles para ti en este tema.
           </p>
         )}
         {equipo.map((m) => {
@@ -134,7 +134,7 @@ export default function PanelResumenProyecto({ proyectoId }) {
         <h4 style={{ fontSize: "0.85rem", margin: "0 0 6px" }}>Reuniones</h4>
         {reuniones.length === 0 && (
           <p style={{ color: "var(--color-text-muted)", fontSize: "0.8rem" }}>
-            No hay reuniones visibles para ti en este proyecto.
+            No hay reuniones visibles para ti en este tema.
           </p>
         )}
         {[...reuniones]

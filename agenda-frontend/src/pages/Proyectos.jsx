@@ -19,7 +19,7 @@ export default function Proyectos() {
     proyectosApi
       .listar()
       .then(setProyectos)
-      .catch(() => setError("No se pudieron cargar tus proyectos. Intenta de nuevo más tarde."))
+      .catch(() => setError("No se pudieron cargar tus temas. Intenta de nuevo más tarde."))
       .finally(() => setCargando(false));
 
   useEffect(() => {
@@ -45,21 +45,21 @@ export default function Proyectos() {
       setConfirmandoEliminar(null);
       await cargarProyectos();
     } catch (err) {
-      setErrorEliminar(err.response?.data?.detail || "No se pudo eliminar el proyecto.");
+      setErrorEliminar(err.response?.data?.detail || "No se pudo eliminar el tema.");
     } finally {
       setEliminando(false);
     }
   };
 
-  if (cargando) return <p>Cargando proyectos...</p>;
+  if (cargando) return <p>Cargando temas...</p>;
   if (error) return <p className="error-text">{error}</p>;
 
   return (
     <div className="stack">
       <div className="list-inline">
-        <h1>Tus proyectos</h1>
+        <h1>Tus temas</h1>
         <button className="btn btn--primary" onClick={() => setModalProyecto("nuevo")}>
-          Crear proyecto
+          Crear tema
         </button>
       </div>
 
@@ -67,7 +67,7 @@ export default function Proyectos() {
 
       {proyectos.length === 0 && (
         <p style={{ color: "var(--color-text-muted)" }}>
-          Todavía no tienes proyectos — usa "Crear proyecto" arriba para empezar.
+          Todavía no tienes temas — usa "Crear tema" arriba para empezar.
         </p>
       )}
       <KanbanMisProyectos
@@ -89,11 +89,11 @@ export default function Proyectos() {
 
       {confirmandoEliminar && (
         <ConfirmDialog
-          titulo="Eliminar proyecto"
+          titulo="Eliminar tema"
           mensaje={
             resumenEliminar && resumenEliminar.total_subtemas > 0
               ? `¿Eliminar "${confirmandoEliminar.nombre}"? Esto también borra ${resumenEliminar.total_subtemas} subtema(s), ${resumenEliminar.total_entregables} entregable(s) y ${resumenEliminar.total_reuniones} reunión(es) de todo su subárbol. Esta acción no se puede deshacer.`
-              : `¿Eliminar el proyecto "${confirmandoEliminar.nombre}"? Esto borra también su equipo, entregables y reuniones. Esta acción no se puede deshacer.`
+              : `¿Eliminar el tema "${confirmandoEliminar.nombre}"? Esto borra también su equipo, entregables y reuniones. Esta acción no se puede deshacer.`
           }
           textoConfirmar={eliminando ? "Eliminando..." : "Eliminar"}
           onConfirmar={confirmarEliminar}

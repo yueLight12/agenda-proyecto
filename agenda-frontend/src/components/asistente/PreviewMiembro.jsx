@@ -5,7 +5,7 @@ export default function PreviewMiembro({ preview }) {
     <div className="stack" style={{ gap: 4 }}>
       {preview.proyecto_nombre && (
         <span style={{ fontSize: "0.8rem", color: "var(--color-text-muted)" }}>
-          Proyecto: {preview.proyecto_nombre}
+          Tema: {preview.proyecto_nombre}
         </span>
       )}
       <div className="list-inline">

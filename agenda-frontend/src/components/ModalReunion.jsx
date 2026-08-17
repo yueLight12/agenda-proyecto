@@ -145,7 +145,7 @@ export default function ModalReunion({
           <p style={{ color: "var(--color-text-muted)", fontSize: "0.78rem", margin: 0 }}>
             {proyectoId
               ? "Solo el organizador, los invitados y la dirección podrán ver esta reunión."
-              : "Reunión general (sin tema/proyecto) — solo el organizador y los invitados podrán verla."}
+              : "Reunión general (sin tema) — solo el organizador y los invitados podrán verla."}
           </p>
           <div className="stack" style={{ gap: 4, maxHeight: 160, overflowY: "auto" }}>
             {invitables.map((m) => (

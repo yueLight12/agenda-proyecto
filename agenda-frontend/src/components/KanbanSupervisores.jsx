@@ -130,7 +130,7 @@ function TarjetaColumna({ columna, onAdministrar }) {
       <div className="kanban-column__lista">
         {columna.proyectos.length === 0 ? (
           <p style={{ fontSize: "0.8rem", color: "var(--color-text-muted)", margin: "4px 0" }}>
-            Sin proyectos asignados todavía.
+            Sin temas asignados todavía.
           </p>
         ) : (
           <EntregablesYReuniones proyectos={columna.proyectos} onAdministrar={onAdministrar} />
@@ -146,7 +146,7 @@ export default function KanbanSupervisores({ miembros, onAdministrar, usuarioAct
   if (columnas.length === 0) {
     return (
       <p style={{ color: "var(--color-text-muted)" }}>
-        No tienes equipo visible en ningún proyecto todavía.
+        No tienes equipo visible en ningún tema todavía.
       </p>
     );
   }

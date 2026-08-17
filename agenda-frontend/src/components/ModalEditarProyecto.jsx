@@ -31,7 +31,7 @@ export default function ModalEditarProyecto({ proyecto = null, parentId = null, 
       }
       await onGuardado();
     } catch (err) {
-      setError(err.response?.data?.detail || "No se pudo guardar el proyecto.");
+      setError(err.response?.data?.detail || "No se pudo guardar el tema.");
     } finally {
       setGuardando(false);
     }
@@ -39,12 +39,12 @@ export default function ModalEditarProyecto({ proyecto = null, parentId = null, 
 
   return (
     <Modal
-      titulo={esEdicion ? "Editar proyecto" : parentId ? "Nuevo subtema" : "Crear proyecto"}
+      titulo={esEdicion ? "Editar tema" : parentId ? "Nuevo subtema" : "Crear tema"}
       onCerrar={onCerrar}
     >
       <form className="stack" onSubmit={handleGuardar}>
         <label className="stack" style={{ gap: 4 }}>
-          <span style={{ fontSize: "0.85rem" }}>Nombre del proyecto</span>
+          <span style={{ fontSize: "0.85rem" }}>Nombre del tema</span>
           <input
             className="input"
             value={nombre}
@@ -62,7 +62,7 @@ export default function ModalEditarProyecto({ proyecto = null, parentId = null, 
         </label>
         {esEdicion && (
           <label className="list-inline" style={{ borderBottom: "none", paddingBottom: 0 }}>
-            <span style={{ fontSize: "0.85rem" }}>Proyecto activo</span>
+            <span style={{ fontSize: "0.85rem" }}>Tema activo</span>
             <input
               type="checkbox"
               checked={activo}
@@ -78,7 +78,7 @@ export default function ModalEditarProyecto({ proyecto = null, parentId = null, 
           <p style={{ color: "var(--color-text-muted)", fontSize: "0.8rem" }}>
             {parentId
               ? "Quedarás como administrador de este subtema y podrás agregar a otras personas desde \"Administrar equipo\"."
-              : "Quedarás como Dirección de este proyecto y podrás agregar al resto del equipo desde \"Administrar equipo\"."}
+              : "Quedarás como Dirección de este tema y podrás agregar al resto del equipo desde \"Administrar equipo\"."}
           </p>
         )}
       </form>

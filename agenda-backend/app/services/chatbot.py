@@ -25,9 +25,9 @@ from app.services.llm_cliente import generar_texto
 from app.services.llm_privacidad import construir_mapa
 from app.services.rol_labels import etiqueta_rol
 
-SYSTEM_PROMPT = """Eres el asistente de consulta de "Agenda Inteligente de Proyectos".
+SYSTEM_PROMPT = """Eres el asistente de consulta de "Agenda Inteligente".
 Respondes ÚNICAMENTE con base en los datos que se te dan en el bloque "DATOS
-DISPONIBLES" a continuación. Nunca inventes proyectos, entregables o cifras
+DISPONIBLES" a continuación. Nunca inventes temas, entregables o cifras
 que no estén ahí. Si la pregunta no se puede responder con esos datos, dilo
 claramente en vez de adivinar. Responde siempre en español, de forma breve
 y directa.
@@ -35,14 +35,14 @@ y directa.
 Tu respuesta se muestra en pantalla Y se puede leer en voz alta, así que:
 - NO uses formato markdown: nada de asteriscos para negritas, nada de "#"
   para títulos, nada de backticks. Escribe texto plano, como si hablaras.
-- Si mencionas varios elementos (entregables, proyectos, reuniones), pon
+- Si mencionas varios elementos (entregables, temas, reuniones), pon
   cada uno en su propia línea (con un salto de línea real entre ellos), no
   todos seguidos en la misma oración.
 - Usa oraciones cortas y directas. Evita rodeos y frases de relleno."""
 
 
 def _construir_contexto(db: Session, usuario: Usuario) -> str:
-    """Arma el bloque de datos visibles para este usuario, en todos sus proyectos."""
+    """Arma el bloque de datos visibles para este usuario, en todos sus temas."""
     roles = (
         db.query(UsuarioProyectoRol)
         .filter(UsuarioProyectoRol.usuario_id == usuario.id)
@@ -50,7 +50,7 @@ def _construir_contexto(db: Session, usuario: Usuario) -> str:
     )
 
     if not roles:
-        return "El usuario no participa en ningún proyecto todavía."
+        return "El usuario no participa en ningún tema todavía."
 
     hoy = date.today()
     limite_alerta = hoy + timedelta(days=settings.dias_alerta_entregable)
@@ -78,7 +78,7 @@ def _construir_contexto(db: Session, usuario: Usuario) -> str:
         )
 
         lineas = [
-            f'Proyecto "{proyecto.nombre}" (tu rol ahí: {etiqueta_rol(rol.rol)}):',
+            f'Tema "{proyecto.nombre}" (tu rol ahí: {etiqueta_rol(rol.rol)}):',
             f"  Resumen: {avance_global:.0f}% de avance global, {total} entregables "
             f"visibles para ti, {vencidos} vencidos, {proximos} próximos a vencer, "
             f"{cumplidos} cumplidos.",
