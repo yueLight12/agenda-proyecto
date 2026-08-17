@@ -23,6 +23,7 @@ from app.models.usuario import Usuario
 from app.models.usuario_proyecto_rol import UsuarioProyectoRol
 from app.services.llm_cliente import generar_texto
 from app.services.llm_privacidad import construir_mapa
+from app.services.rol_labels import etiqueta_rol
 
 SYSTEM_PROMPT = """Eres el asistente de consulta de "Agenda Inteligente de Proyectos".
 Respondes ÚNICAMENTE con base en los datos que se te dan en el bloque "DATOS
@@ -77,7 +78,7 @@ def _construir_contexto(db: Session, usuario: Usuario) -> str:
         )
 
         lineas = [
-            f'Proyecto "{proyecto.nombre}" (tu rol ahí: {rol.rol.value}):',
+            f'Proyecto "{proyecto.nombre}" (tu rol ahí: {etiqueta_rol(rol.rol)}):',
             f"  Resumen: {avance_global:.0f}% de avance global, {total} entregables "
             f"visibles para ti, {vencidos} vencidos, {proximos} próximos a vencer, "
             f"{cumplidos} cumplidos.",

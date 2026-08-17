@@ -55,6 +55,37 @@ def _es_autoreferencia(texto: str) -> bool:
     return _normalizar(texto) in _PALABRAS_AUTORREFERENCIA
 
 
+def _coincide_nombre(normalizado: str, nombre_candidato: str) -> bool:
+    """Decide si el texto ya normalizado (`normalizado`) identifica a
+    `nombre_candidato` (también ya normalizado). Usado por los 3 resolvers
+    de personas (resolver_persona_en_equipo, resolver_persona_organizacion,
+    resolver_miembro_mi_equipo) — antes cada uno duplicaba esta misma lógica.
+
+    Tres casos, todos por PALABRA completa (nunca substring de caracteres
+    suelto -- un substring libre hace que "Ana" empate con "Diana",
+    "di-ANA", bug real encontrado antes):
+      1. Coincide el nombre completo tal cual.
+      2. Se dijo una sola palabra que es prefijo de alguna palabra del
+         candidato (ej. "Jos" -> "Jose").
+      3. Se dijeron 2+ palabras que aparecen SEGUIDAS y en orden dentro del
+         candidato (ej. "Juan Jose" -> "Juan Jose Flores Sedano") -- sin
+         esto, decir nombre+segundo-nombre o nombre+apellido sin el nombre
+         completo de 4 palabras nunca resolvía a nadie (bug real reportado
+         por Yue el 2026-08-16: "Juan Jose" no encontraba a "Juan Jose
+         Flores Sedano", solo el nombre completo funcionaba)."""
+    if normalizado == nombre_candidato:
+        return True
+    palabras_candidato = nombre_candidato.split()
+    palabras_dichas = normalizado.split()
+    if len(palabras_dichas) == 1:
+        return any(palabra.startswith(normalizado) for palabra in palabras_candidato)
+    n = len(palabras_dichas)
+    return any(
+        palabras_candidato[i : i + n] == palabras_dichas
+        for i in range(len(palabras_candidato) - n + 1)
+    )
+
+
 def _candidatos_por_similitud(nombre_hablado: str, candidatos: list, cutoff: float = 0.65) -> list:
     """Fallback cuando el match exacto por prefijo de palabra no encuentra a
     nadie: compara lo que se dijo contra el nombre de cada candidato con
@@ -166,19 +197,7 @@ def resolver_persona_en_equipo(
 
     equipo = listar_equipo_visible(db, usuario, proyecto_id)
     normalizado = _normalizar(nombre_hablado)
-    # Match por PALABRA completa (nombre o apellido), no substring libre —
-    # un substring libre hace que "Ana" empate con "Diana" ("di-ANA"), lo
-    # que resuelve al nombre equivocado en silencio en vez de fallar o
-    # preguntar (encontrado probando editar_reunion con nombres cortos). Se
-    # incluye también el nombre completo exacto, porque decir el nombre y
-    # apellido completos de corrido no matchea con "empieza con" de una sola
-    # palabra (se resolvería igual vía el fallback difuso, pero de una vez
-    # sin pedir confirmación de más).
-    candidatos = [
-        m for m in equipo
-        if _normalizar(m.nombre) == normalizado
-        or any(palabra.startswith(normalizado) for palabra in _normalizar(m.nombre).split())
-    ]
+    candidatos = [m for m in equipo if _coincide_nombre(normalizado, _normalizar(m.nombre))]
 
     if len(candidatos) == 1:
         return ResolucionResultado(resuelto=True, valor=candidatos[0].usuario_id)
@@ -221,11 +240,7 @@ def resolver_persona_organizacion(
 
     usuarios = db.query(Usuario).all()
     normalizado = _normalizar(nombre_hablado)
-    candidatos = [
-        u for u in usuarios
-        if _normalizar(u.nombre) == normalizado
-        or any(palabra.startswith(normalizado) for palabra in _normalizar(u.nombre).split())
-    ]
+    candidatos = [u for u in usuarios if _coincide_nombre(normalizado, _normalizar(u.nombre))]
 
     if len(candidatos) == 1:
         return ResolucionResultado(resuelto=True, valor=candidatos[0].id)
@@ -490,11 +505,7 @@ def resolver_miembro_mi_equipo(
         )
 
     normalizado = _normalizar(nombre_hablado)
-    candidatos = [
-        m for m in plantilla
-        if _normalizar(m.usuario.nombre) == normalizado
-        or any(palabra.startswith(normalizado) for palabra in _normalizar(m.usuario.nombre).split())
-    ]
+    candidatos = [m for m in plantilla if _coincide_nombre(normalizado, _normalizar(m.usuario.nombre))]
 
     if len(candidatos) == 1:
         return ResolucionResultado(resuelto=True, valor=candidatos[0].usuario_id)

@@ -83,6 +83,7 @@ from app.services.proyectos import (
     listar_equipo_visible,
 )
 from app.services.reuniones import actualizar_reunion, crear_reunion, eliminar_reunion
+from app.services.rol_labels import etiqueta_rol as _etiqueta_rol
 
 
 @dataclass
@@ -118,17 +119,9 @@ def _pendiente(campo: str, resolucion) -> ResultadoInterpretacion:
 # muestra Y se lee en voz alta -- ahí SÍ hace falta la palabra en español,
 # igual que ya se hizo para el resto de los mensajes del asistente (ver
 # CLAUDE.md, "Etiquetas N1-N4 también quitadas de mensajes generados por
-# backend").
-_ETIQUETAS_ROL = {
-    RolEnum.N1: "dirección",
-    RolEnum.N2: "líder",
-    RolEnum.N3: "colaborador interno",
-    RolEnum.N4: "colaborador externo",
-}
-
-
-def _etiqueta_rol(rol: RolEnum) -> str:
-    return _ETIQUETAS_ROL.get(rol, rol.value)
+# backend"). Vive en rol_labels.py (no aquí, ver import arriba) porque
+# chatbot.py también lo necesita y este módulo ya importa de chatbot.py --
+# un import al revés crearía un ciclo.
 
 
 @dataclass
@@ -307,18 +300,18 @@ def _resolver_crear_proyecto(
     rol, supervisor_id = rol_default_para_nuevo_proyecto(db, usuario)
     equipo = [{"usuario_id": usuario.id, "nombre": usuario.nombre, "rol": rol.value}]
     if rol == RolEnum.N1:
-        resumen = f'Voy a crear el proyecto "{nombre}". Quedarás como dirección. ¿Confirmas?'
+        resumen = f'Voy a crear el proyecto "{nombre}". Quedarás como {_etiqueta_rol(rol)}. ¿Confirmas?'
     else:
         supervisor = db.query(Usuario).filter(Usuario.id == supervisor_id).first() if supervisor_id else None
         if supervisor:
             equipo.append({"usuario_id": supervisor.id, "nombre": supervisor.nombre, "rol": RolEnum.N2.value})
             resumen = (
-                f'Voy a crear el proyecto "{nombre}". Quedarás como {rol.value} y {supervisor.nombre} '
-                f"como {RolEnum.N2.value} (tu supervisor). ¿Confirmas?"
+                f'Voy a crear el proyecto "{nombre}". Quedarás como {_etiqueta_rol(rol)} y {supervisor.nombre} '
+                f"como {_etiqueta_rol(RolEnum.N2)} (tu supervisor). ¿Confirmas?"
             )
         else:
             resumen = (
-                f'Voy a crear el proyecto "{nombre}". Quedarás como {rol.value} '
+                f'Voy a crear el proyecto "{nombre}". Quedarás como {_etiqueta_rol(rol)} '
                 "(según tu equipo guardado). ¿Confirmas?"
             )
     preview = {
