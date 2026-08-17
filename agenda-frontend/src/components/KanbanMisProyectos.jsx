@@ -98,7 +98,7 @@ function TarjetaMiembro({ miembro, entregables, reuniones }) {
   );
 }
 
-function TarjetaProyecto({ proyecto, rol, esN1, onEditar, onEliminar }) {
+function TarjetaProyecto({ proyecto, rol, puedeAdministrar, onEditar, onEliminar }) {
   const [abierto, setAbierto] = useState(false);
   const [cargado, setCargado] = useState(false);
   const [cargando, setCargando] = useState(false);
@@ -137,7 +137,7 @@ function TarjetaProyecto({ proyecto, rol, esN1, onEditar, onEliminar }) {
         <Link to={`/proyectos/${proyecto.id}`} style={{ color: "inherit", textDecoration: "none" }}>
           {proyecto.nombre}
         </Link>
-        {esN1 && (
+        {puedeAdministrar && (
           <div style={{ display: "flex", gap: 6 }}>
             <button
               className="btn btn--ghost"
@@ -210,7 +210,7 @@ function TarjetaProyecto({ proyecto, rol, esN1, onEditar, onEliminar }) {
   );
 }
 
-export default function KanbanMisProyectos({ proyectos, rolDeProyecto, esN1DelProyecto, onEditar, onEliminar }) {
+export default function KanbanMisProyectos({ proyectos, rolDeProyecto, puedeAdministrarProyecto, onEditar, onEliminar }) {
   if (proyectos.length === 0) {
     return (
       <p style={{ color: "var(--color-text-muted)" }}>No tienes proyectos asignados todavía.</p>
@@ -225,7 +225,7 @@ export default function KanbanMisProyectos({ proyectos, rolDeProyecto, esN1DelPr
             key={p.id}
             proyecto={p}
             rol={rolDeProyecto(p.id)}
-            esN1={esN1DelProyecto(p.id)}
+            puedeAdministrar={puedeAdministrarProyecto(p.id)}
             onEditar={onEditar}
             onEliminar={onEliminar}
           />

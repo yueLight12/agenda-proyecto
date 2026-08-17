@@ -92,7 +92,10 @@ def actualizar_proyecto(db: Session, usuario: Usuario, proyecto_id: int, campos:
 def eliminar_proyecto(db: Session, usuario: Usuario, proyecto_id: int) -> None:
     """
     Elimina el proyecto y todo lo que cuelga de él (equipo, entregables,
-    reuniones, minutas/acuerdos, notas). Requiere N1.
+    reuniones, minutas/acuerdos, notas). Requiere N1 o N2 -- igual que
+    editar (actualizar_proyecto): un líder (N2) puede administrar por
+    completo los proyectos que lidera, aunque no los haya creado él.
+    Decisión explícita de Yue, 2026-08-16 (antes era solo N1).
 
     Notificacion no tiene relación ORM hacia Entregable/Reunion (es más un
     log/bandeja que un hijo propiamente dicho), así que sus filas se limpian
@@ -101,7 +104,7 @@ def eliminar_proyecto(db: Session, usuario: Usuario, proyecto_id: int) -> None:
     declaradas en los modelos.
     """
     rol = requerir_participacion_en_proyecto(db, usuario, proyecto_id)
-    requerir_rol_minimo(rol, [RolEnum.N1])
+    requerir_rol_minimo(rol, [RolEnum.N1, RolEnum.N2])
 
     proyecto = obtener_proyecto_o_404(db, proyecto_id)
 

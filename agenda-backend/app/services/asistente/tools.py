@@ -1835,7 +1835,7 @@ TOOLS: dict[str, ToolSpec] = {
         nombre="eliminar_proyecto",
         descripcion=(
             "Eliminar un proyecto completo y todo lo que tiene (entregables, reuniones, minutas, "
-            "equipo) — acción irreversible. Requiere ser dirección del proyecto."
+            "equipo) — acción irreversible. Requiere ser dirección o líder del proyecto."
         ),
         parametros_llm={"proyecto": "nombre del proyecto a eliminar, tal como se mencionó"},
         ejemplos=[("elimina el proyecto Escuelas", {"proyecto": "Escuelas"})],

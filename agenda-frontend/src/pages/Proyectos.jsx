@@ -27,10 +27,13 @@ export default function Proyectos() {
     cargarProyectos();
   }, []);
 
-  const esN1DelProyecto = (proyectoId) => {
+  // Editar y eliminar proyecto son ambos N1 o N2 (líder) -- decisión
+  // explícita de Yue, 2026-08-16: un líder puede administrar por completo
+  // los proyectos que lidera, aunque no los haya creado él.
+  const puedeAdministrarProyecto = (proyectoId) => {
     if (usuario?.es_super_admin) return true;
     return usuario?.roles_por_proyecto.some(
-      (r) => r.proyecto_id === proyectoId && r.rol === "N1"
+      (r) => r.proyecto_id === proyectoId && (r.rol === "N1" || r.rol === "N2")
     );
   };
 
@@ -75,7 +78,7 @@ export default function Proyectos() {
       <KanbanMisProyectos
         proyectos={proyectos}
         rolDeProyecto={rolDelViewer}
-        esN1DelProyecto={esN1DelProyecto}
+        puedeAdministrarProyecto={puedeAdministrarProyecto}
         onEditar={setModalProyecto}
         onEliminar={setConfirmandoEliminar}
       />
