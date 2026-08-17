@@ -288,12 +288,21 @@ def agregar_item_agenda(
                 detail="Debes elegir un pendiente existente (pendiente_id) o escribir uno "
                 "nuevo (pendiente_contenido)",
             )
-        nuevo_pendiente = crear_pendiente(
-            db,
-            usuario,
-            PendienteCrear(contenido=pendiente_contenido, proyecto_id=seccion_proyecto_id),
-        )
-        pendiente_id = nuevo_pendiente.id
+        if seccion_proyecto_id is not None:
+            # Con tema: se guarda como Pendiente reutilizable (requiere
+            # proyecto_id, ver app/models/pendiente.py).
+            nuevo_pendiente = crear_pendiente(
+                db,
+                usuario,
+                PendienteCrear(contenido=pendiente_contenido, proyecto_id=seccion_proyecto_id),
+            )
+            pendiente_id = nuevo_pendiente.id
+        else:
+            # Sin tema (junta general sin sección): comportamiento previo a
+            # que existiera Pendiente -- queda como texto libre suelto en
+            # el propio AgendaItem, sin entidad reutilizable (Pendiente
+            # exige un proyecto_id del que no hay aquí).
+            texto = pendiente_contenido
 
     max_orden = (
         db.query(AgendaItem)

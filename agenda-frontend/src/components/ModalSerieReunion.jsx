@@ -193,6 +193,22 @@ export default function ModalSerieReunion({ proyectoId = null, serie = null, mie
   const handleGuardarItem = async (e) => {
     e.preventDefault();
     setError("");
+
+    if (!itemEditandoId) {
+      if (item.tipo === "tema" && !item.seccionId) {
+        setError("Elige el tema/subtema que quieres agregar.");
+        return;
+      }
+      if (item.tipo === "entregable" && !item.entregableId) {
+        setError(item.seccionId ? "Elige un entregable de la lista." : "Elige primero una sección.");
+        return;
+      }
+      if (item.tipo === "acuerdo" && !item.acuerdoId) {
+        setError(item.seccionId ? "Elige un acuerdo de la lista." : "Elige primero una sección.");
+        return;
+      }
+    }
+
     setAgregandoItem(true);
     try {
       if (itemEditandoId) {
@@ -494,6 +510,12 @@ export default function ModalSerieReunion({ proyectoId = null, serie = null, mie
                   </option>
                 ))}
               </select>
+              {!item.seccionId && ["entregable", "acuerdo", "nota"].includes(item.tipo) && !itemEditandoId && (
+                <p style={{ color: "var(--color-text-muted)", fontSize: "0.75rem", margin: 0 }}>
+                  Elige una sección (tema/subtema) arriba para poder elegir{" "}
+                  {item.tipo === "entregable" ? "un entregable" : item.tipo === "acuerdo" ? "un acuerdo" : "una nota"}.
+                </p>
+              )}
 
               {item.tipo === "pendiente" && !itemEditandoId && (
                 <>
@@ -518,10 +540,13 @@ export default function ModalSerieReunion({ proyectoId = null, serie = null, mie
                     <textarea
                       className="input"
                       rows={2}
-                      placeholder="O escribe un pendiente nuevo sobre este tema..."
+                      placeholder={
+                        item.seccionId
+                          ? "O escribe un pendiente nuevo sobre este tema..."
+                          : "Describe el pendiente (sin tema, no se guarda para reutilizar después)..."
+                      }
                       value={item.pendienteContenido}
                       onChange={(e) => setItem({ ...item, pendienteContenido: e.target.value })}
-                      disabled={!item.seccionId}
                       required={!item.pendienteId}
                     />
                   )}
@@ -544,7 +569,7 @@ export default function ModalSerieReunion({ proyectoId = null, serie = null, mie
                   value={item.entregableId}
                   onChange={(e) => setItem({ ...item, entregableId: e.target.value })}
                   required
-                  disabled={!item.seccionId || entregablesSeccion.length === 0}
+                  disabled={!item.seccionId}
                 >
                   <option value="" disabled>
                     {!item.seccionId
@@ -567,7 +592,7 @@ export default function ModalSerieReunion({ proyectoId = null, serie = null, mie
                   value={item.acuerdoId}
                   onChange={(e) => setItem({ ...item, acuerdoId: e.target.value })}
                   required
-                  disabled={!item.seccionId || acuerdosSeccion.length === 0}
+                  disabled={!item.seccionId}
                 >
                   <option value="" disabled>
                     {!item.seccionId
