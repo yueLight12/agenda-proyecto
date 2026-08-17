@@ -7,6 +7,10 @@ const normalizar = (texto) =>
     .toLowerCase()
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
+    // Whisper transcribe CON puntuación ("Sí, confirmo."): sin esto, el
+    // token real es "confirmo." (con punto) y nunca matchea "confirmo" de
+    // la lista — bug real reportado por Yue el 2026-08-16.
+    .replace(/[^\p{L}\p{N}\s]/gu, "")
     .trim();
 
 /**

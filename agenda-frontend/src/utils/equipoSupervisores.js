@@ -28,6 +28,10 @@ export function agruparPorSupervisor(miembros) {
           nombre: info.nombre,
           puesto: info.puesto,
           reportes: new Map(),
+          // El propio rol del supervisor en cada proyecto (ej. David es
+          // líder de "Cubo") — se usa para etiquetar los proyectos
+          // agregados de su columna, ver proyectosAgregados().
+          rolesPropios: new Map(info.proyectos.map((pp) => [pp.proyecto_id, pp.rol])),
         });
       }
 
@@ -63,7 +67,7 @@ export function agruparPorSupervisor(miembros) {
 // duplican (cada uno tiene un solo responsable), pero una reunión sí puede
 // repetirse si varios reportes están invitados a la misma — se deduplica
 // por id de reunión al juntar.
-function proyectosAgregados(personas) {
+function proyectosAgregados(personas, rolesPropios) {
   const porProyecto = new Map();
 
   for (const persona of personas) {
@@ -85,6 +89,12 @@ function proyectosAgregados(personas) {
   return Array.from(porProyecto.values()).map((e) => ({
     proyecto_id: e.proyecto_id,
     proyecto_nombre: e.proyecto_nombre,
+    // El rol de cada reporte individual se pierde al fusionar (pueden ser
+    // distintos entre sí), pero el rol del SUPERVISOR de esta columna en
+    // este proyecto sí es un solo valor conocido — se muestra ese en vez
+    // de dejarlo vacío (bug real: la columna de un supervisor nunca
+    // mostraba "(Líder)" aunque sí lo fuera, ver armarColumnasEquipo).
+    rol: rolesPropios?.get(e.proyecto_id) ?? null,
     entregables: e.entregables,
     reuniones: Array.from(e.reunionesPorId.values()),
   }));
@@ -131,7 +141,7 @@ export function armarColumnasEquipo(miembros, usuarioActualId) {
       usuario_id: s.usuario_id,
       nombre: s.nombre,
       puesto: s.puesto,
-      proyectos: proyectosAgregados(s.reportes),
+      proyectos: proyectosAgregados(s.reportes, s.rolesPropios),
     }));
 
   // Cobertura de OTROS supervisores (nunca del propio grupo del viewer —
