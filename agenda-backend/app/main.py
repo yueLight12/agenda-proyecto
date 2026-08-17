@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.database import Base, SessionLocal, engine
+from app.database import SessionLocal
 from app.routers import (
     admin,
     asistente,
@@ -34,10 +34,16 @@ from app.services.recordatorios import (
     generar_recordatorios_reuniones_hoy,
 )
 
-# Crea las tablas si no existen (para desarrollo rápido).
-# En un entorno con más de un desarrollador o ya en AWS, esto se reemplaza
-# por migraciones de Alembic (ver carpeta alembic/ una vez inicializada).
-Base.metadata.create_all(bind=engine)
+# El esquema ya no se crea/actualiza aquí -- desde el 2026-08-17 se maneja
+# con Alembic (ver agenda-backend/migrations/), corrido explícitamente
+# antes de reiniciar este contenedor (ver CLAUDE.md sección 4). Dejar
+# `Base.metadata.create_all()` aquí competía con Alembic: al agregar un
+# modelo nuevo, create_all lo creaba en silencio en el próximo arranque
+# ANTES de que la migración correspondiente corriera, dejando el historial
+# de Alembic desincronizado del estado real (encontrado de la forma dura
+# al agregar las tablas de Fase 2/3 -- create_all ya las había creado por
+# su cuenta cuando se generó la migración, que por eso solo detectó el
+# ALTER TABLE de la columna nueva, no el CREATE TABLE de las 4 tablas).
 
 app = FastAPI(
     title="Agenda Inteligente de Proyectos",
