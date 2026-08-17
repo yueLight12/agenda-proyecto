@@ -44,15 +44,31 @@ class AgendaItem(Base):
     id = Column(Integer, primary_key=True, index=True)
     serie_id = Column(Integer, ForeignKey("series_reunion.id"), nullable=False)
     tipo = Column(Enum(TipoAgendaItem), nullable=False)
-    proyecto_id = Column(Integer, ForeignKey("proyectos.id"), nullable=True)
-    entregable_id = Column(Integer, ForeignKey("entregables.id"), nullable=True)
-    acuerdo_id = Column(Integer, ForeignKey("acuerdos_minuta.id"), nullable=True)
+    # Las 4 referencias de abajo usan ON DELETE SET NULL a propósito, única
+    # excepción en este repo al patrón usual de "limpiar a mano en cada
+    # servicio de eliminar" (ver Notificacion/AgendaItemRevision) -- un
+    # AgendaItem representa la BITÁCORA de lo que se ha revisado a lo largo
+    # de varias reuniones, así que borrar el tema/entregable/acuerdo que
+    # referencia NO debe borrar ni bloquear el borrado de ese origen; el
+    # ítem sobrevive con la referencia en null (ver
+    # services/series_reunion.py::_nombre_agenda_item, cae a "(tema
+    # eliminado)" etc.) en vez de arrastrar limpieza manual a cada lugar
+    # del código que borra un proyecto/entregable/acuerdo/reunión.
+    proyecto_id = Column(Integer, ForeignKey("proyectos.id", ondelete="SET NULL"), nullable=True)
+    entregable_id = Column(
+        Integer, ForeignKey("entregables.id", ondelete="SET NULL"), nullable=True
+    )
+    acuerdo_id = Column(
+        Integer, ForeignKey("acuerdos_minuta.id", ondelete="SET NULL"), nullable=True
+    )
     texto = Column(String(500), nullable=True)
     orden = Column(Integer, default=0, nullable=False)
     activo = Column(Boolean, default=True, nullable=False)  # "archivado" si False
     # De qué ocurrencia salió este ítem (ej. un pendiente que surgió en la
     # plática) -- trazabilidad, no afecta permisos ni visibilidad.
-    creado_en_reunion_id = Column(Integer, ForeignKey("reuniones.id"), nullable=True)
+    creado_en_reunion_id = Column(
+        Integer, ForeignKey("reuniones.id", ondelete="SET NULL"), nullable=True
+    )
     fecha_creacion = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     serie = relationship("SerieReunion", back_populates="agenda_items")
@@ -69,8 +85,17 @@ class AgendaItemRevision(Base):
     __tablename__ = "agenda_item_revisiones"
 
     id = Column(Integer, primary_key=True, index=True)
-    agenda_item_id = Column(Integer, ForeignKey("agenda_items.id"), nullable=False)
-    reunion_id = Column(Integer, ForeignKey("reuniones.id"), nullable=False)
+    agenda_item_id = Column(
+        Integer, ForeignKey("agenda_items.id", ondelete="CASCADE"), nullable=False
+    )
+    # CASCADE a propósito (a diferencia de las columnas de AgendaItem de
+    # arriba): una revisión SÍ es un hijo propiamente dicho de la reunión
+    # puntual donde se registró -- no tiene sentido como bitácora huérfana
+    # sin saber de qué ocurrencia salió. Cubre también el borrado en
+    # cascada de un tema completo (eliminar_proyecto -> Proyecto.reuniones
+    # -> cada Reunion), donde no hay un solo lugar de código que limpiar a
+    # mano; Postgres lo garantiza sin importar el camino de borrado.
+    reunion_id = Column(Integer, ForeignKey("reuniones.id", ondelete="CASCADE"), nullable=False)
     estado = Column(Enum(EstadoRevision), nullable=False)
     nota = Column(Text, nullable=True)
     registrado_por = Column(Integer, ForeignKey("usuarios.id"), nullable=False)

@@ -118,6 +118,11 @@ def eliminar_reunion(db: Session, usuario: Usuario, reunion_id: int) -> None:
         )
     # Notificacion no cascada por relación ORM (no es un hijo propiamente
     # dicho) — se limpia a mano, igual que en eliminar_proyecto.
+    # AgendaItemRevision SÍ cascada, pero a nivel de base de datos (ON
+    # DELETE CASCADE en la FK, ver app/models/agenda_item.py) en vez de
+    # relación ORM -- cubre también el borrado en cascada de un tema
+    # completo, sin depender de que cada lugar que borra una Reunion se
+    # acuerde de limpiarlo a mano.
     db.query(Notificacion).filter(Notificacion.reunion_id == reunion.id).delete(
         synchronize_session=False
     )

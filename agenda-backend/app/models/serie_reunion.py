@@ -38,7 +38,7 @@ class SerieReunion(Base):
     activa = Column(Boolean, default=True, nullable=False)
     fecha_creacion = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-    proyecto = relationship("Proyecto")
+    proyecto = relationship("Proyecto", back_populates="series_reunion")
     organizador = relationship("Usuario", foreign_keys=[organizador_id])
     participantes = relationship(
         "SerieReunionParticipante", back_populates="serie", cascade="all, delete-orphan"

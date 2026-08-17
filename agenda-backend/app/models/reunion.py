@@ -35,7 +35,13 @@ class Reunion(Base):
     # app/models/serie_reunion.py) -- None para una reunión suelta, sin
     # cambio de comportamiento. La agenda persistente/checklist de la serie
     # se resuelve por este id, no hay nada más que cambie aquí.
-    serie_id = Column(Integer, ForeignKey("series_reunion.id"), nullable=True)
+    # ON DELETE SET NULL: al borrar la serie (eliminar_serie), sus
+    # ocurrencias YA materializadas sobreviven como reuniones sueltas
+    # normales (documentado ahí) -- esto lo garantiza también a nivel de
+    # base de datos, sin depender de que el código lo limpie a mano antes.
+    serie_id = Column(
+        Integer, ForeignKey("series_reunion.id", ondelete="SET NULL"), nullable=True
+    )
 
     proyecto = relationship("Proyecto", back_populates="reuniones")
     serie = relationship("SerieReunion", back_populates="ocurrencias")

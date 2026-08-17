@@ -42,3 +42,6 @@ class Proyecto(Base):
     reuniones = relationship(
         "Reunion", back_populates="proyecto", cascade="all, delete-orphan"
     )
+    series_reunion = relationship(
+        "SerieReunion", back_populates="proyecto", cascade="all, delete-orphan"
+    )
