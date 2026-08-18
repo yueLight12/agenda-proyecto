@@ -32,10 +32,15 @@ def listar_notas(
     reunion_id: Optional[int] = None,
     minuta_id: Optional[int] = None,
     proyecto_id: Optional[int] = None,
+    nota_padre_id: Optional[int] = None,
+    pendiente_padre_id: Optional[int] = None,
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(obtener_usuario_actual),
 ):
-    notas = listar_notas_servicio(db, usuario, entregable_id, reunion_id, minuta_id, proyecto_id)
+    notas = listar_notas_servicio(
+        db, usuario, entregable_id, reunion_id, minuta_id, proyecto_id,
+        nota_padre_id, pendiente_padre_id,
+    )
     return [nota_a_out(n) for n in notas]
 
 

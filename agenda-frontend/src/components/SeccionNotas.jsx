@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { notasApi, pendientesApi } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
 import ConfirmDialog from "./ConfirmDialog";
+import HiloComentarios from "./HiloComentarios";
 
 // Miniatura de la captura de pantalla de una nota -- pide el blob
 // autenticado (no se puede usar la URL del endpoint directo en <img src>,
@@ -220,6 +221,7 @@ export default function SeccionNotas({
                   })}
                 </span>
                 {n.tiene_imagen && <ImagenNota notaId={n.id} />}
+                <HiloComentarios padreParams={{ nota_padre_id: n.id }} />
               </div>
               {(n.autor_id === usuario?.id || puedeAdministrar) && (
                 <button className="btn btn--ghost" type="button" onClick={() => handleEliminar(n.id)}>

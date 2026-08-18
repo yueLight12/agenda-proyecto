@@ -5,6 +5,12 @@ poder "jalarse" como un punto más del checklist de una junta recurrente
 retipearlo cada vez -- mismo espíritu que Nota, pero siempre cuelga de UN
 proyecto/tema (no de entregable/reunión/minuta, esos casos ya los cubre
 Nota).
+
+Comentarios anidados (2026-08-18, ver Nota.pendiente_padre_id): un
+Pendiente no tiene imagen propia -- anexar una imagen o dejar un comentario
+sobre un Pendiente ya existente se guarda como una Nota hija (comentarios),
+reutilizando la infraestructura de Nota que ya soporta imagen, en vez de
+duplicar ese campo aquí.
 """
 from datetime import datetime
 
@@ -29,3 +35,7 @@ class Pendiente(Base):
 
     proyecto = relationship("Proyecto", back_populates="pendientes")
     autor = relationship("Usuario", foreign_keys=[autor_id])
+    comentarios = relationship(
+        "Nota", foreign_keys="Nota.pendiente_padre_id", back_populates="pendiente_padre",
+        cascade="all, delete-orphan",
+    )
