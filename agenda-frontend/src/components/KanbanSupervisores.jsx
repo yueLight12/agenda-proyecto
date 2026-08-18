@@ -491,17 +491,16 @@ function AvisosPendientesPersona({
   );
 
   return (
-    // margin-top: auto -- empuja este bloque al fondo de la tarjeta
-    // (2026-08-18, a petición de Yue: con distinto número de temas por
-    // persona, Avisos/Pendientes quedaba a distinta altura entre columnas;
-    // .kanban-column ya estira todas las tarjetas a la misma altura, esto
-    // hace que el bloque quede siempre alineado en la misma fila abajo).
-    // El expandir/colapsar de Avisos/Pendientes es COMPARTIDO entre todas
-    // las columnas de la vista (estado en KanbanSupervisores, no aquí) --
-    // sin esto, expandir el de una sola persona la hacía crecer mientras
-    // las demás se quedaban con espacio vacío abajo, descuadrado (2026-08-18,
-    // reportado por Yue).
-    <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 6, marginTop: "auto" }}>
+    // Ya NO se empuja al fondo con margin-top:auto (2026-08-18, revertido
+    // a petición de Yue): con una diferencia grande de temas entre
+    // personas -- ej. Jasso con 1 tema vs. Diana con 6 -- .kanban-column
+    // estira todas las columnas a la altura de la más alta, y empujar este
+    // bloque al fondo dejaba un hueco enorme en las columnas cortas, peor
+    // que el desalineo original que se quiso arreglar. Ahora aparece en
+    // flujo normal, justo debajo de la lista de temas de cada quien.
+    // El expandir/colapsar de Avisos/Pendientes se mantiene COMPARTIDO
+    // entre todas las columnas (estado en KanbanSupervisores, no aquí).
+    <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 6, marginTop: 8 }}>
       <CajaLista
         titulo="Avisos"
         items={avisos}
