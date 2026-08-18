@@ -58,7 +58,12 @@ export default function TableroProyecto() {
   const [entregableHistorial, setEntregableHistorial] = useState(null);
   const [error, setError] = useState("");
   const [errorAvance, setErrorAvance] = useState("");
-  const [vista, setVista] = useState("tabla"); // "tabla" | "calendario" | "kanban"
+  // Solo queda "kanban" visible (2026-08-18, a petición de Yue: quitar el
+  // toggle Tabla/Kanban y los stats numéricos, dejar solo el Kanban de
+  // abajo) -- "tabla"/"calendario" siguen en el código, sin ningún botón
+  // que las active, mismo criterio ya usado para ocultar Calendario el
+  // 2026-08-17.
+  const [vista] = useState("kanban"); // "tabla" | "calendario" | "kanban"
 
   // Calculado en servidor (rol_efectivo/puede_administrar ya consideran
   // herencia desde un ancestro -- ver Fase 1 de jerarquía, 2026-08-16).
@@ -177,22 +182,9 @@ export default function TableroProyecto() {
       <div className="topbar">
         <h1>{proyecto?.nombre}</h1>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-            <button
-              className={vista === "tabla" ? "btn btn--primary" : "btn btn--ghost"}
-              onClick={() => setVista("tabla")}
-            >
-              Tabla
-            </button>
-            <button
-              className={vista === "kanban" ? "btn btn--primary" : "btn btn--ghost"}
-              onClick={() => setVista("kanban")}
-            >
-              Kanban
-            </button>
-            {/* Calendario sigue oculto a petición de Yue (2026-08-17) -- el
-                código sigue abajo intacto, reactivar es solo devolver ese botón. */}
-          </div>
+          {/* Toggle Tabla/Kanban y Calendario ocultos a petición de Yue
+              (2026-08-17/18) -- el código de esas vistas sigue abajo
+              intacto, reactivar es solo devolver esos botones. */}
           {puedeAdministrar && (
             <button className="btn btn--ghost" onClick={() => setMostrarModalEquipo(true)}>
               Administrar equipo
@@ -279,27 +271,6 @@ export default function TableroProyecto() {
       <div className="card">
         <SeccionNotas proyectoId={proyecto?.id} puedeAdministrar={puedeAdministrar} />
       </div>
-
-      {resumen && (
-        <div className="grid-summary">
-          <div className="stat">
-            <div className="stat__value">{resumen.porcentaje_avance_global}%</div>
-            <div className="stat__label">Avance global (según tu visibilidad)</div>
-          </div>
-          <div className="stat">
-            <div className="stat__value">{resumen.entregables_proximos_a_vencer}</div>
-            <div className="stat__label">Próximos a vencer</div>
-          </div>
-          <div className="stat">
-            <div className="stat__value">{resumen.entregables_vencidos}</div>
-            <div className="stat__label">Vencidos</div>
-          </div>
-          <div className="stat">
-            <div className="stat__value">{resumen.entregables_cumplidos}</div>
-            <div className="stat__label">Cumplidos</div>
-          </div>
-        </div>
-      )}
 
       <div className="card">
         <div className="list-inline" style={{ borderBottom: "none", paddingBottom: 0 }}>

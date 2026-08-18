@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
 import { miEquipoApi, usuariosApi } from "../api/endpoints";
 import ConfirmDialog from "../components/ConfirmDialog";
+import Modal from "../components/Modal";
 import ResumenEquipo from "../components/ResumenEquipo";
+import VistaEstatusEquipo from "../components/VistaEstatusEquipo";
 import { ROL_LABELS, etiquetaRol } from "../utils/rolLabels";
 
 const ROLES = ["N1", "N2", "N3", "N4"];
 
 export default function Equipo() {
-  const [tab, setTab] = useState("resumen"); // "resumen" | "plantilla"
+  const [vista, setVista] = useState("equipo"); // "equipo" | "estatus"
+  const [mostrarPlantilla, setMostrarPlantilla] = useState(false);
 
   return (
     <div className="stack">
@@ -15,23 +18,32 @@ export default function Equipo() {
         <h1>Equipo</h1>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button
-            className={`btn ${tab === "resumen" ? "btn--primary" : "btn--ghost"}`}
+            className={`btn ${vista === "equipo" ? "btn--primary" : "btn--ghost"}`}
             type="button"
-            onClick={() => setTab("resumen")}
+            onClick={() => setVista("equipo")}
           >
-            Resumen de mi equipo
+            Vista Equipo
           </button>
           <button
-            className={`btn ${tab === "plantilla" ? "btn--primary" : "btn--ghost"}`}
+            className={`btn ${vista === "estatus" ? "btn--primary" : "btn--ghost"}`}
             type="button"
-            onClick={() => setTab("plantilla")}
+            onClick={() => setVista("estatus")}
           >
-            Plantilla (Mi equipo)
+            Vista Estatus
+          </button>
+          <button className="btn btn--ghost" type="button" onClick={() => setMostrarPlantilla(true)}>
+            Administrar equipo
           </button>
         </div>
       </div>
 
-      {tab === "resumen" ? <ResumenEquipo /> : <PlantillaEquipo />}
+      {vista === "equipo" ? <ResumenEquipo /> : <VistaEstatusEquipo />}
+
+      {mostrarPlantilla && (
+        <Modal titulo="Administrar equipo (Plantilla)" onCerrar={() => setMostrarPlantilla(false)}>
+          <PlantillaEquipo />
+        </Modal>
+      )}
     </div>
   );
 }
@@ -126,6 +138,20 @@ function PlantillaEquipo() {
     setConfirmandoQuitar(usuarioIdAQuitar);
   };
 
+  // Un reporte real (guardado=false, ver listar_mi_equipo_efectivo en el
+  // backend) ya aparece en la lista sin guardarse a mano -- este botón solo
+  // ofrece fijarlo en la plantilla de verdad, por si se quiere conservar
+  // aunque deje de ser tu reporte real más adelante.
+  const handleGuardarReporteReal = async (miembro) => {
+    setErrorQuitar("");
+    try {
+      await miEquipoApi.agregar({ usuario_id: miembro.usuario_id, rol: miembro.rol });
+      await cargar();
+    } catch {
+      setErrorQuitar("No se pudo guardar a esta persona en tu plantilla.");
+    }
+  };
+
   const confirmarQuitar = async () => {
     setQuitando(true);
     setErrorQuitar("");
@@ -172,11 +198,22 @@ function PlantillaEquipo() {
               )}{" "}
               <span style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
                 {m.email} — {etiquetaRol(m.rol)}
+                {!m.guardado && " — reporte real, sin guardar"}
               </span>
             </div>
-            <button className="btn btn--ghost" type="button" onClick={() => handleQuitar(m.usuario_id)}>
-              Quitar
-            </button>
+            {m.guardado ? (
+              <button className="btn btn--ghost" type="button" onClick={() => handleQuitar(m.usuario_id)}>
+                Quitar
+              </button>
+            ) : (
+              <button
+                className="btn btn--ghost"
+                type="button"
+                onClick={() => handleGuardarReporteReal(m)}
+              >
+                Guardar en plantilla
+              </button>
+            )}
           </div>
         ))}
       </div>

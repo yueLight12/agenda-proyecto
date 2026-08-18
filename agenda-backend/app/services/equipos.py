@@ -57,6 +57,54 @@ def equipo_miembro_a_out(registro: EquipoMiembro) -> EquipoMiembroOut:
     )
 
 
+def listar_mi_equipo_efectivo(db: Session, usuario: Usuario) -> list[EquipoMiembroOut]:
+    """Plantilla guardada + reportes reales (supervisor_id == usuario.id en
+    cualquier tema, ver UsuarioProyectoRol) que todavía no estén guardados
+    ahí -- para que "Administrar equipo" no obligue a guardar a mano a
+    alguien que ya es tu reporte real en un tema (2026-08-17, a petición de
+    Yue: Ana/Iván/Juan José debían aparecer bajo David sin tener que
+    guardarlos primero). Los reportes reales se listan de solo lectura
+    (`guardado=False`) -- no crean una fila EquipoMiembro nueva, así que
+    aplicar_mi_equipo (que sigue leyendo solo la plantilla guardada, sin
+    cambios) no se ve afectado por este merge de solo-listado."""
+    plantilla = db.query(EquipoMiembro).filter(EquipoMiembro.propietario_id == usuario.id).all()
+    resultado = [
+        EquipoMiembroOut(
+            usuario_id=m.usuario.id,
+            nombre=m.usuario.nombre,
+            puesto=m.usuario.puesto,
+            email=m.usuario.email,
+            rol=m.rol,
+            guardado=True,
+        )
+        for m in plantilla
+    ]
+    ids_ya = {m.usuario_id for m in plantilla}
+
+    reportes = (
+        db.query(UsuarioProyectoRol)
+        .filter(UsuarioProyectoRol.supervisor_id == usuario.id)
+        .order_by(UsuarioProyectoRol.usuario_id, UsuarioProyectoRol.id)
+        .all()
+    )
+    vistos = set()
+    for fila in reportes:
+        if fila.usuario_id in ids_ya or fila.usuario_id in vistos:
+            continue
+        vistos.add(fila.usuario_id)
+        resultado.append(
+            EquipoMiembroOut(
+                usuario_id=fila.usuario.id,
+                nombre=fila.usuario.nombre,
+                puesto=fila.usuario.puesto,
+                email=fila.usuario.email,
+                rol=fila.rol,
+                guardado=False,
+            )
+        )
+    return resultado
+
+
 def agregar_a_mi_equipo(db: Session, usuario: Usuario, usuario_id: int, rol: RolEnum) -> EquipoMiembro:
     """Agrega (o reasigna el rol de) una persona en la plantilla personal de
     `usuario` — extraído del router para que el asistente de voz pueda

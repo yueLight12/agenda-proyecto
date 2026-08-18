@@ -19,6 +19,7 @@ from app.services.equipos import (
     agregar_a_mi_equipo as agregar_a_mi_equipo_servicio,
     aplicar_mi_equipo as aplicar_mi_equipo_servicio,
     crear_persona_y_agregar_a_mi_equipo as crear_persona_y_agregar_a_mi_equipo_servicio,
+    listar_mi_equipo_efectivo,
     quitar_de_mi_equipo as quitar_de_mi_equipo_servicio,
 )
 
@@ -39,10 +40,9 @@ def _a_out(registro: EquipoMiembro) -> EquipoMiembroOut:
 def listar_mi_equipo(
     db: Session = Depends(get_db), usuario: Usuario = Depends(obtener_usuario_actual)
 ):
-    registros = (
-        db.query(EquipoMiembro).filter(EquipoMiembro.propietario_id == usuario.id).all()
-    )
-    return [_a_out(r) for r in registros]
+    """Plantilla guardada + tus reportes reales (supervisor_id en algún
+    tema), ver listar_mi_equipo_efectivo."""
+    return listar_mi_equipo_efectivo(db, usuario)
 
 
 @router.post("/mi-equipo", response_model=EquipoMiembroOut, status_code=status.HTTP_201_CREATED)
