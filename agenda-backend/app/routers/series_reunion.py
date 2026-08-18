@@ -10,7 +10,9 @@ from app.database import get_db
 from app.dependencies import obtener_usuario_actual
 from app.models.agenda_item import AgendaItem
 from app.models.usuario import Usuario
+from app.schemas.proyecto import ProyectoArbolOut
 from app.schemas.serie_reunion import (
+    ActualizarTemasRequest,
     AgendaItemActualizar,
     AgendaItemCrear,
     AgendaItemOut,
@@ -19,10 +21,13 @@ from app.schemas.serie_reunion import (
     SerieReunionCrear,
     SerieReunionOut,
 )
+from app.services.materializar_series import materializar_ocurrencias
 from app.services.series_reunion import (
+    actualizar_temas as actualizar_temas_servicio,
     agenda_actual_de_serie,
     agregar_item_agenda as agregar_item_agenda_servicio,
     archivar_item_agenda as archivar_item_agenda_servicio,
+    arbol_temas_relevantes_de_junta,
     crear_serie as crear_serie_servicio,
     actualizar_serie as actualizar_serie_servicio,
     editar_item_agenda as editar_item_agenda_servicio,
@@ -69,6 +74,15 @@ def crear_serie(
     )
     db.commit()
     db.refresh(nueva)
+    # Sin esto, la primera ocurrencia solo aparecía en el calendario hasta
+    # el siguiente barrido del scheduler (cada
+    # settings.horas_entre_barridos_recordatorios, hasta 6 horas) --
+    # reportado por Yue como "agrego una reunión que se repite pero no se
+    # agrega": la SerieReunion sí se creaba, pero no había ninguna Reunion
+    # materializada todavía que mostrar en el calendario. Materializar aquí
+    # mismo, justo tras crear la serie, hace que la primera ocurrencia
+    # aparezca de inmediato.
+    materializar_ocurrencias(db)
     return serie_a_out(db, usuario, nueva)
 
 
@@ -82,16 +96,24 @@ def actualizar_serie(
     serie = actualizar_serie_servicio(db, usuario, serie_id, datos.model_dump(exclude_unset=True))
     db.commit()
     db.refresh(serie)
+    # Mismo motivo que en el POST de creación: si esto reactiva una serie
+    # pausada (activa=False -> True, ej. "Activar junta 1:1"), sin esto la
+    # primera ocurrencia no aparece hasta el siguiente barrido del
+    # scheduler (hasta 6 horas). materializar_ocurrencias ya es idempotente
+    # y filtra por activa=True, así que llamarla aquí siempre es seguro
+    # aunque la serie siga pausada (no hace nada en ese caso).
+    materializar_ocurrencias(db)
     return serie_a_out(db, usuario, serie)
 
 
 @router.delete("/{serie_id}", status_code=status.HTTP_204_NO_CONTENT)
 def eliminar_serie(
     serie_id: int,
+    eliminar_ocurrencias: bool = Query(default=False),
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(obtener_usuario_actual),
 ):
-    eliminar_serie_servicio(db, usuario, serie_id)
+    eliminar_serie_servicio(db, usuario, serie_id, eliminar_ocurrencias=eliminar_ocurrencias)
     db.commit()
 
 
@@ -102,6 +124,31 @@ def obtener_agenda(
     usuario: Usuario = Depends(obtener_usuario_actual),
 ):
     return agenda_actual_de_serie(db, usuario, serie_id)
+
+
+@router.get("/{serie_id}/temas-relevantes", response_model=list[ProyectoArbolOut])
+def obtener_temas_relevantes(
+    serie_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Árbol de temas acotado a organizador+invitados de esta serie, para
+    el selector "Temas de esta junta" -- ver
+    app.services.series_reunion.arbol_temas_relevantes_de_junta."""
+    return arbol_temas_relevantes_de_junta(db, usuario, serie_id=serie_id)
+
+
+@router.put("/{serie_id}/temas", status_code=status.HTTP_204_NO_CONTENT)
+def actualizar_temas(
+    serie_id: int,
+    datos: ActualizarTemasRequest,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Elige qué temas cubre esta junta en particular -- ver
+    app.services.series_reunion.actualizar_temas."""
+    actualizar_temas_servicio(db, usuario, serie_id, None, datos.proyecto_ids)
+    db.commit()
 
 
 @router.post(

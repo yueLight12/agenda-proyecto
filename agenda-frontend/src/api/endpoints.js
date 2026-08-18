@@ -62,6 +62,9 @@ export const dashboardApi = {
 
 export const equipoResumenApi = {
   resumen: async () => (await api.get("/equipo/resumen")).data,
+  misJefes: async () => (await api.get("/equipo/mis-jefes")).data,
+  pendientesRevision: async () => (await api.get("/equipo/pendientes-revision")).data,
+  temasResueltos: async () => (await api.get("/equipo/temas-resueltos")).data,
 };
 
 export const reunionesApi = {
@@ -84,6 +87,10 @@ export const reunionesApi = {
     (await api.post(`/reuniones/${reunionId}/agenda`, datos)).data,
   invitables: async (proyectoId) =>
     (await api.get("/reuniones/invitables", { params: { proyecto_id: proyectoId } })).data,
+  actualizarTemas: async (reunionId, proyectoIds) =>
+    api.put(`/reuniones/${reunionId}/temas`, { proyecto_ids: proyectoIds }),
+  temasRelevantes: async (reunionId) =>
+    (await api.get(`/reuniones/${reunionId}/temas-relevantes`)).data,
 };
 
 export const usuariosApi = {
@@ -119,7 +126,8 @@ export const seriesReunionApi = {
   crear: async (datos) => (await api.post("/series-reuniones", datos)).data,
   actualizar: async (serieId, datos) =>
     (await api.patch(`/series-reuniones/${serieId}`, datos)).data,
-  eliminar: async (serieId) => api.delete(`/series-reuniones/${serieId}`),
+  eliminar: async (serieId, eliminarOcurrencias = false) =>
+    api.delete(`/series-reuniones/${serieId}`, { params: { eliminar_ocurrencias: eliminarOcurrencias } }),
   agenda: async (serieId) => (await api.get(`/series-reuniones/${serieId}/agenda`)).data,
   agregarItemAgenda: async (serieId, datos) =>
     (await api.post(`/series-reuniones/${serieId}/agenda`, datos)).data,
@@ -128,6 +136,10 @@ export const seriesReunionApi = {
   moverItemAgenda: async (itemId, direccion) =>
     (await api.post(`/series-reuniones/agenda-items/${itemId}/mover`, { direccion })).data,
   archivarItemAgenda: async (itemId) => api.delete(`/series-reuniones/agenda-items/${itemId}`),
+  actualizarTemas: async (serieId, proyectoIds) =>
+    api.put(`/series-reuniones/${serieId}/temas`, { proyecto_ids: proyectoIds }),
+  temasRelevantes: async (serieId) =>
+    (await api.get(`/series-reuniones/${serieId}/temas-relevantes`)).data,
 };
 
 export const eventosEmpresaApi = {
@@ -139,6 +151,23 @@ export const notasApi = {
   listar: async (params) => (await api.get("/notas", { params })).data,
   crear: async (datos) => (await api.post("/notas", datos)).data,
   eliminar: async (notaId) => api.delete(`/notas/${notaId}`),
+  subirImagen: async (notaId, archivo) => {
+    const form = new FormData();
+    form.append("archivo", archivo);
+    return (
+      await api.post(`/notas/${notaId}/imagen`, form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      })
+    ).data;
+  },
+  // Devuelve un object URL (blob) listo para <img src>, no la URL directa
+  // del endpoint -- ese exige el header Authorization (JWT), que un <img>
+  // plano no manda; quien lo use debe liberar la URL con
+  // URL.revokeObjectURL al desmontar.
+  imagenBlobUrl: async (notaId) => {
+    const { data } = await api.get(`/notas/${notaId}/imagen`, { responseType: "blob" });
+    return URL.createObjectURL(data);
+  },
 };
 
 export const pendientesApi = {

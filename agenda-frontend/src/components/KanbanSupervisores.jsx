@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { armarColumnasEquipo } from "../utils/equipoSupervisores";
 import { fechaLocal, textoDiasRelativos } from "../utils/fechas";
@@ -86,16 +86,34 @@ function MenuAcciones({ acciones }) {
 // usuario.roles_por_proyecto, se rompe con herencia) muestra un botón
 // "Administrar" que abre ModalEquipo — el Dashboard ("Tu equipo") no lo
 // pasa y por tanto no muestra ese botón, sin cambio de comportamiento ahí.
+//
+// `soloTemas` (2026-08-17, Vista Equipo de /equipo): el Dashboard
+// ("Tu equipo", vía DashboardSimplificado.jsx) sigue usando este mismo
+// componente para mostrar entregables/reuniones inline con el árbol
+// siempre expandido -- NO tocar ese comportamiento. Vista Equipo en
+// cambio quiere el árbol colapsable mostrando solo temas/subtemas (los
+// entregables se ven en Vista Estatus) más cajas de Avisos/Pendientes por
+// persona; soloTemas=true activa ese modo sin afectar al Dashboard, que
+// no pasa la prop.
 // Arma un árbol a partir de la lista PLANA de proyectos que trae cada
 // columna (ya viene con `parent_id` desde el backend, ver
 // ProyectoDeMiembroOut en app/schemas/equipo_resumen.py). Un nodo cuyo
 // `parent_id` no está en la propia lista (el padre no es visible para el
 // viewer) se trata como raíz, para no perder proyectos de la vista.
-function construirArbol(proyectos) {
-  const idsVisibles = new Set(proyectos.map((p) => p.proyecto_id));
+// `temasResueltos` (2026-08-18, a petición de Yue -- "si se marcó como
+// revisado, ocultarlo"): oculta del árbol los temas que YA tuvieron algo
+// agendado en alguna junta y quedaron sin nada pendiente, mismo ciclo
+// semanal que ya trabajan a mano (lo resuelto sale de la vista hasta que
+// algo nuevo quede pendiente ahí). Un tema con un hijo que SÍ sigue
+// pendiente no se pierde -- si el padre se oculta, el hijo se promueve a
+// raíz (mismo criterio ya existente para "el padre no es visible para el
+// viewer", ver comentario original de idsVisibles).
+function construirArbol(proyectos, temasResueltos) {
+  const visibles = temasResueltos ? proyectos.filter((p) => !temasResueltos.has(p.proyecto_id)) : proyectos;
+  const idsVisibles = new Set(visibles.map((p) => p.proyecto_id));
   const hijosPorPadre = new Map();
   const raices = [];
-  proyectos.forEach((p) => {
+  visibles.forEach((p) => {
     const esRaiz = !p.parent_id || !idsVisibles.has(p.parent_id);
     if (esRaiz) {
       raices.push(p);
@@ -107,20 +125,68 @@ function construirArbol(proyectos) {
   return { raices, hijosPorPadre };
 }
 
-function NodoProyecto({ proyecto, hijosPorPadre, onAdministrar, onEditarTema, onEliminarTema, nivel }) {
+function NodoProyecto({
+  proyecto,
+  hijosPorPadre,
+  onAdministrar,
+  onEditarTema,
+  onEliminarTema,
+  nivel,
+  soloTemas,
+  expandidos,
+  onToggle,
+  pendientesRevision,
+  onMarcarRevisado,
+  marcandoRevisado,
+}) {
   const hoyIso = new Date().toISOString().slice(0, 10);
   const hijos = hijosPorPadre.get(proyecto.proyecto_id) || [];
+  const tieneHijos = hijos.length > 0;
+  // Fuera de Vista Equipo (Dashboard) el árbol sigue siempre expandido,
+  // igual que antes -- el colapso por nodo es exclusivo de soloTemas.
+  const colapsable = soloTemas && tieneHijos;
+  const expandido = !colapsable || expandidos.has(proyecto.proyecto_id);
+  // Botón "Marcar revisado" (2026-08-18, a petición de Yue: poder
+  // marcarlo directo desde Vista Equipo, sin ir a buscar la reunión) --
+  // solo aparece si este tema tiene algo pendiente de revisar en alguna
+  // junta donde el usuario puede editarla (ver /equipo/pendientes-revision).
+  const pendiente = soloTemas && pendientesRevision ? pendientesRevision[proyecto.proyecto_id] : null;
+  const marcando = marcandoRevisado === proyecto.proyecto_id;
 
   return (
     <div style={nivel > 0 ? { marginLeft: 14, borderLeft: "2px solid var(--color-border)", paddingLeft: 10, marginTop: 6 } : undefined}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-        <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--color-text-muted)" }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: "0.8rem", fontWeight: 600, color: "var(--color-text-muted)" }}>
+          {colapsable && (
+            <button
+              type="button"
+              className="btn btn--ghost"
+              style={{ padding: "0 4px", fontSize: "0.7rem", lineHeight: 1.4 }}
+              onClick={() => onToggle(proyecto.proyecto_id)}
+              aria-expanded={expandido}
+              aria-label={expandido ? "Colapsar tema" : "Expandir tema"}
+            >
+              {expandido ? "▼" : "▶"}
+            </button>
+          )}
           <Link to={`/proyectos/${proyecto.proyecto_id}`} style={{ color: "inherit" }}>
             {proyecto.proyecto_nombre}
           </Link>
-          {proyecto.rol && <span style={{ fontWeight: 400 }}> ({etiquetaRol(proyecto.rol)})</span>}
+          {!soloTemas && proyecto.rol && <span style={{ fontWeight: 400 }}> ({etiquetaRol(proyecto.rol)})</span>}
         </span>
-        <MenuAcciones
+        <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          {pendiente && (
+            <button
+              type="button"
+              className="btn btn--ghost"
+              style={{ fontSize: "0.72rem", padding: "2px 8px", whiteSpace: "nowrap" }}
+              disabled={marcando}
+              onClick={() => onMarcarRevisado(proyecto.proyecto_id)}
+            >
+              {marcando ? "Marcando..." : "✅ Marcar revisado"}
+            </button>
+          )}
+          <MenuAcciones
           acciones={
             proyecto.viewer_puede_administrar
               ? [
@@ -139,81 +205,111 @@ function NodoProyecto({ proyecto, hijosPorPadre, onAdministrar, onEditarTema, on
                 ].filter(Boolean)
               : []
           }
-        />
+          />
+        </span>
       </div>
-      {proyecto.entregables.length === 0 && proyecto.reuniones.length === 0 && (
+      {!soloTemas && proyecto.entregables.length === 0 && proyecto.reuniones.length === 0 && (
         <p style={{ fontSize: "0.8rem", color: "var(--color-text-muted)", margin: "2px 0" }}>
           Sin entregables ni reuniones aquí.
         </p>
       )}
-      {proyecto.entregables.map((e) => {
-        const vencido = e.estatus !== "cumplido" && e.fecha_entrega < hoyIso;
-        return (
-          <div key={`entregable-${e.id}`} style={{ padding: "3px 0" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: "0.8rem" }}>
-              <Link
-                to={`/proyectos/${proyecto.proyecto_id}?entregable=${e.id}`}
-                style={{ color: "inherit", textDecoration: "none", flex: 1 }}
-              >
-                {vencido && "🔴 "}
-                {e.nombre}
-                {e.sensible && (
-                  <span className="badge badge--sensible" style={{ marginLeft: 6, fontSize: "0.65rem" }}>
-                    Sensible
-                  </span>
-                )}
-              </Link>
-              <EstatusBadge estatus={e.estatus} />
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <div className="progress-bar" style={{ flex: 1 }}>
-                <div className="progress-bar__fill" style={{ width: `${e.porcentaje_avance}%` }} />
+      {!soloTemas &&
+        proyecto.entregables.map((e) => {
+          const vencido = e.estatus !== "cumplido" && e.fecha_entrega < hoyIso;
+          return (
+            <div key={`entregable-${e.id}`} style={{ padding: "3px 0" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: "0.8rem" }}>
+                <Link
+                  to={`/proyectos/${proyecto.proyecto_id}?entregable=${e.id}`}
+                  style={{ color: "inherit", textDecoration: "none", flex: 1 }}
+                >
+                  {vencido && "🔴 "}
+                  {e.nombre}
+                  {e.sensible && (
+                    <span className="badge badge--sensible" style={{ marginLeft: 6, fontSize: "0.65rem" }}>
+                      Sensible
+                    </span>
+                  )}
+                </Link>
+                <EstatusBadge estatus={e.estatus} />
               </div>
-              <span style={{ fontSize: "0.7rem", color: "var(--color-text-muted)", whiteSpace: "nowrap" }}>
-                {fechaLocal(e.fecha_entrega).toLocaleDateString("es-MX", { dateStyle: "short" })} ·{" "}
-                {textoDiasRelativos(e.fecha_entrega)}
-              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div className="progress-bar" style={{ flex: 1 }}>
+                  <div className="progress-bar__fill" style={{ width: `${e.porcentaje_avance}%` }} />
+                </div>
+                <span style={{ fontSize: "0.7rem", color: "var(--color-text-muted)", whiteSpace: "nowrap" }}>
+                  {fechaLocal(e.fecha_entrega).toLocaleDateString("es-MX", { dateStyle: "short" })} ·{" "}
+                  {textoDiasRelativos(e.fecha_entrega)}
+                </span>
+              </div>
             </div>
-          </div>
-        );
-      })}
-      {proyecto.reuniones.map((r) => (
-        <Link
-          key={`reunion-${r.id}`}
-          to={`/proyectos/${proyecto.proyecto_id}?reunion=${r.id}`}
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            gap: 8,
-            fontSize: "0.8rem",
-            padding: "2px 0",
-            color: "var(--color-text-muted)",
-            textDecoration: "none",
-          }}
-        >
-          <span>🗓️ {r.titulo}</span>
-          <span style={{ whiteSpace: "nowrap" }}>
-            {new Date(r.fecha_inicio).toLocaleDateString("es-MX", { dateStyle: "short" })}
-          </span>
-        </Link>
-      ))}
-      {hijos.map((h) => (
-        <NodoProyecto
-          key={h.proyecto_id}
-          proyecto={h}
-          hijosPorPadre={hijosPorPadre}
-          onAdministrar={onAdministrar}
-          onEditarTema={onEditarTema}
-          onEliminarTema={onEliminarTema}
-          nivel={nivel + 1}
-        />
-      ))}
+          );
+        })}
+      {!soloTemas &&
+        proyecto.reuniones.map((r) => (
+          <Link
+            key={`reunion-${r.id}`}
+            to={`/proyectos/${proyecto.proyecto_id}?reunion=${r.id}`}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 8,
+              fontSize: "0.8rem",
+              padding: "2px 0",
+              color: "var(--color-text-muted)",
+              textDecoration: "none",
+            }}
+          >
+            <span>🗓️ {r.titulo}</span>
+            <span style={{ whiteSpace: "nowrap" }}>
+              {new Date(r.fecha_inicio).toLocaleDateString("es-MX", { dateStyle: "short" })}
+            </span>
+          </Link>
+        ))}
+      {expandido &&
+        hijos.map((h) => (
+          <NodoProyecto
+            key={h.proyecto_id}
+            proyecto={h}
+            hijosPorPadre={hijosPorPadre}
+            onAdministrar={onAdministrar}
+            onEditarTema={onEditarTema}
+            onEliminarTema={onEliminarTema}
+            nivel={nivel + 1}
+            soloTemas={soloTemas}
+            expandidos={expandidos}
+            onToggle={onToggle}
+            pendientesRevision={pendientesRevision}
+            onMarcarRevisado={onMarcarRevisado}
+            marcandoRevisado={marcandoRevisado}
+          />
+        ))}
     </div>
   );
 }
 
-function EntregablesYReuniones({ proyectos, onAdministrar, onEditarTema, onEliminarTema }) {
-  const { raices, hijosPorPadre } = construirArbol(proyectos);
+function ArbolProyectos({
+  proyectos,
+  onAdministrar,
+  onEditarTema,
+  onEliminarTema,
+  soloTemas,
+  expandidos,
+  onToggle,
+  pendientesRevision,
+  onMarcarRevisado,
+  marcandoRevisado,
+  temasResueltos,
+}) {
+  const { raices, hijosPorPadre } = construirArbol(proyectos, temasResueltos);
+
+  if (raices.length === 0) {
+    return (
+      <p style={{ fontSize: "0.8rem", color: "var(--color-text-muted)", margin: "4px 0" }}>
+        Sin temas pendientes por ahora -- todo lo agendado ya se revisó.
+      </p>
+    );
+  }
 
   return (
     <div className="stack" style={{ gap: 8, padding: "4px 0 4px 12px" }}>
@@ -226,74 +322,302 @@ function EntregablesYReuniones({ proyectos, onAdministrar, onEditarTema, onElimi
           onEditarTema={onEditarTema}
           onEliminarTema={onEliminarTema}
           nivel={0}
+          soloTemas={soloTemas}
+          expandidos={expandidos}
+          onToggle={onToggle}
+          pendientesRevision={pendientesRevision}
+          onMarcarRevisado={onMarcarRevisado}
+          marcandoRevisado={marcandoRevisado}
         />
       ))}
     </div>
   );
 }
 
-function TarjetaColumna({ columna, onAdministrar, onEditarTema, onEliminarTema }) {
+// Caja "Avisos" o "Pendientes" de una persona en Vista Equipo -- ambos
+// modelos (Nota/Pendiente) cuelgan de un proyecto_id (tema), no de una
+// persona, así que agregar uno nuevo pide elegir a cuál de los temas de
+// esa persona se asocia (preseleccionado si solo tiene uno).
+function CajaLista({ titulo, items, temas, onAgregar }) {
+  const [temaId, setTemaId] = useState(temas[0]?.proyecto_id ?? "");
+  const [contenido, setContenido] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (temas.length > 0 && !temas.some((t) => t.proyecto_id === temaId)) {
+      setTemaId(temas[0].proyecto_id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [temas]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!contenido.trim() || !temaId || !onAgregar) return;
+    setEnviando(true);
+    setError("");
+    try {
+      await onAgregar(Number(temaId), contenido.trim());
+      setContenido("");
+    } catch (err) {
+      setError(err.response?.data?.detail || `No se pudo agregar ${titulo.toLowerCase()}.`);
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  return (
+    <div className="stack" style={{ gap: 4, marginTop: 8 }}>
+      <h4 style={{ fontSize: "0.78rem", margin: 0, color: "var(--color-text-muted)" }}>{titulo}</h4>
+      {items.length === 0 ? (
+        <p style={{ fontSize: "0.78rem", color: "var(--color-text-muted)", margin: 0 }}>
+          Sin {titulo.toLowerCase()}.
+        </p>
+      ) : (
+        items.map((it) => (
+          <p key={it.id} style={{ fontSize: "0.78rem", margin: 0 }}>
+            {it.contenido}
+            {temas.length > 1 && <span style={{ color: "var(--color-text-muted)" }}> — {it.proyecto_nombre}</span>}
+          </p>
+        ))
+      )}
+      {error && <p className="error-text" style={{ fontSize: "0.75rem", margin: 0 }}>{error}</p>}
+      {onAgregar && temas.length > 0 && (
+        <form onSubmit={handleSubmit} className="stack" style={{ gap: 4 }}>
+          {temas.length > 1 && (
+            <select
+              className="input"
+              value={temaId}
+              onChange={(e) => setTemaId(e.target.value)}
+              style={{ fontSize: "0.78rem" }}
+            >
+              {temas.map((t) => (
+                <option key={t.proyecto_id} value={t.proyecto_id}>
+                  {t.proyecto_nombre}
+                </option>
+              ))}
+            </select>
+          )}
+          <div style={{ display: "flex", gap: 4 }}>
+            <input
+              className="input"
+              style={{ fontSize: "0.78rem" }}
+              placeholder={`Agregar ${titulo.toLowerCase()}...`}
+              value={contenido}
+              onChange={(e) => setContenido(e.target.value)}
+            />
+            <button
+              className="btn btn--ghost"
+              type="submit"
+              disabled={enviando || !contenido.trim()}
+              style={{ fontSize: "0.75rem" }}
+            >
+              +
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
+function AvisosPendientesPersona({ columna, notasPorProyecto, pendientesPorProyecto, onAgregarNota, onAgregarPendiente }) {
+  const avisos = columna.proyectos.flatMap((p) =>
+    (notasPorProyecto[p.proyecto_id] || []).map((n) => ({ ...n, proyecto_nombre: p.proyecto_nombre }))
+  );
+  const pendientes = columna.proyectos.flatMap((p) =>
+    (pendientesPorProyecto[p.proyecto_id] || []).map((pd) => ({ ...pd, proyecto_nombre: p.proyecto_nombre }))
+  );
+
+  return (
+    <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 6 }}>
+      <CajaLista titulo="Avisos" items={avisos} temas={columna.proyectos} onAgregar={onAgregarNota} />
+      <CajaLista titulo="Pendientes" items={pendientes} temas={columna.proyectos} onAgregar={onAgregarPendiente} />
+    </div>
+  );
+}
+
+function TarjetaColumna({
+  columna,
+  onAdministrar,
+  onEditarTema,
+  onEliminarTema,
+  soloTemas,
+  notasPorProyecto,
+  pendientesPorProyecto,
+  onAgregarNota,
+  onAgregarPendiente,
+  pendientesRevision,
+  onMarcarRevisado,
+  marcandoRevisado,
+  temasResueltos,
+}) {
   const hoyIso = new Date().toISOString().slice(0, 10);
   const vencidos = columna.proyectos.reduce(
     (acc, p) => acc + p.entregables.filter((e) => e.estatus !== "cumplido" && e.fecha_entrega < hoyIso).length,
     0
   );
+  const [expandidos, setExpandidos] = useState(new Set());
+  const toggle = (id) =>
+    setExpandidos((prev) => {
+      const siguiente = new Set(prev);
+      if (siguiente.has(id)) siguiente.delete(id);
+      else siguiente.add(id);
+      return siguiente;
+    });
+  // Columna completa colapsable (2026-08-17, a petición de Yue -- con
+  // varios temas/avisos/pendientes por persona la lista se hacía muy
+  // larga) -- mismo patrón ▼/▶ que ArbolProyectos, colapsada por default.
+  const [abierta, setAbierta] = useState(false);
 
   return (
     <div className="kanban-column">
-      <div className="kanban-column__header">
+      <div className="kanban-column__header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <Link to={`/perfil/${columna.usuario_id}`} style={{ color: "inherit" }}>
           {columna.nombre}
         </Link>
-        <span className="kanban-column__contador">{columna.proyectos.length}</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span className="kanban-column__contador">{columna.proyectos.length}</span>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            style={{ padding: "0 4px", fontSize: "0.7rem" }}
+            onClick={() => setAbierta((a) => !a)}
+            aria-expanded={abierta}
+            aria-label={abierta ? "Colapsar" : "Expandir"}
+          >
+            {abierta ? "▼" : "▶"}
+          </button>
+        </span>
       </div>
       {vencidos > 0 && (
         <p style={{ fontSize: "0.78rem", color: "var(--color-danger)", margin: "2px 0 6px" }}>
           🔴 {vencidos} entregable{vencidos === 1 ? "" : "s"} vencido{vencidos === 1 ? "" : "s"}
         </p>
       )}
-      <div className="kanban-column__lista">
-        {columna.proyectos.length === 0 ? (
-          <p style={{ fontSize: "0.8rem", color: "var(--color-text-muted)", margin: "4px 0" }}>
-            Sin temas asignados todavía.
-          </p>
-        ) : (
-          <EntregablesYReuniones
-            proyectos={columna.proyectos}
-            onAdministrar={onAdministrar}
-            onEditarTema={onEditarTema}
-            onEliminarTema={onEliminarTema}
-          />
-        )}
-      </div>
+      {abierta && (
+        <>
+          {columna.proyectos.length > 0 ? (
+            <div className="kanban-column__lista">
+              <ArbolProyectos
+                proyectos={columna.proyectos}
+                onAdministrar={onAdministrar}
+                onEditarTema={onEditarTema}
+                onEliminarTema={onEliminarTema}
+                soloTemas={soloTemas}
+                expandidos={expandidos}
+                onToggle={toggle}
+                pendientesRevision={pendientesRevision}
+                onMarcarRevisado={onMarcarRevisado}
+                marcandoRevisado={marcandoRevisado}
+                temasResueltos={temasResueltos}
+              />
+            </div>
+          ) : (
+            <p style={{ fontSize: "0.8rem", color: "var(--color-text-muted)", margin: "4px 0" }}>
+              Sin temas asignados todavía.
+            </p>
+          )}
+          {soloTemas && columna.proyectos.length > 0 && (
+            <AvisosPendientesPersona
+              columna={columna}
+              notasPorProyecto={notasPorProyecto}
+              pendientesPorProyecto={pendientesPorProyecto}
+              onAgregarNota={onAgregarNota}
+              onAgregarPendiente={onAgregarPendiente}
+            />
+          )}
+        </>
+      )}
     </div>
   );
 }
 
-export default function KanbanSupervisores({ miembros, onAdministrar, onEditarTema, onEliminarTema, usuarioActualId }) {
+export default function KanbanSupervisores({
+  miembros,
+  onAdministrar,
+  onEditarTema,
+  onEliminarTema,
+  usuarioActualId,
+  soloTemas = false,
+  notasPorProyecto = {},
+  pendientesPorProyecto = {},
+  onAgregarNota,
+  onAgregarPendiente,
+  // Columnas del/los jefe(s) directo(s) del viewer (2026-08-18, a petición
+  // de Yue: "se tiene que ver el jefe siempre, con el kanban de todos los
+  // temas") -- ya vienen armadas con la misma forma que `columna` (ver
+  // ResumenEquipo.jsx), se renderizan con el mismo TarjetaColumna que
+  // cualquier otra, PRIMERO en el tablero. Independientes de
+  // armarColumnasEquipo (que puede devolver 0 columnas -- ej. alguien sin
+  // reportes -- sin que eso deba ocultar la caja del jefe).
+  columnasExtra = [],
+  // Botón "Marcar revisado" en el árbol de temas (2026-08-18, a petición
+  // de Yue) -- pendientesRevision es un mapa proyecto_id -> {item_id,
+  // reunion_id} (ver /equipo/pendientes-revision), onMarcarRevisado(proyectoId)
+  // dispara la llamada real. Solo ResumenEquipo.jsx los pasa (Vista
+  // Equipo); el Dashboard ("Tu equipo") no soloTemas, así que ahí ni se usan.
+  pendientesRevision = {},
+  onMarcarRevisado,
+  marcandoRevisado = null,
+  temasResueltos = new Set(),
+}) {
   const columnas = armarColumnasEquipo(miembros, usuarioActualId);
 
-  if (columnas.length === 0) {
-    return (
-      <p style={{ color: "var(--color-text-muted)" }}>
-        No tienes equipo visible en ningún tema todavía.
-      </p>
-    );
-  }
+  // Vista Equipo (soloTemas) es la vista de "mi equipo", no la mía propia
+  // -- quien ve la pantalla NUNCA se muestra a sí mismo ahí (2026-08-17, a
+  // petición de Yue: Bernardo no debe ver sus propios temas en esta
+  // pantalla, solo los de David/Diana/Jasso) -- sus propios temas siguen
+  // disponibles en /perfil, esta pantalla es sobre el equipo.
+  const columnasPropias = soloTemas
+    ? columnas.filter((c) => c.usuario_id !== usuarioActualId)
+    : columnas;
+
+  const tarjetaProps = {
+    onAdministrar,
+    onEditarTema,
+    onEliminarTema,
+    soloTemas,
+    notasPorProyecto,
+    pendientesPorProyecto,
+    onAgregarNota,
+    onAgregarPendiente,
+    pendientesRevision,
+    onMarcarRevisado,
+    marcandoRevisado,
+    temasResueltos,
+  };
 
   return (
-    <div className="kanban-responsive">
-      <div className="kanban-board">
-        {columnas.map((c) => (
-          <TarjetaColumna
-            key={c.usuario_id}
-            columna={c}
-            onAdministrar={onAdministrar}
-            onEditarTema={onEditarTema}
-            onEliminarTema={onEliminarTema}
-          />
-        ))}
-      </div>
+    <div className="stack" style={{ gap: 16 }}>
+      {/* Caja(s) del jefe -- ANCHA, en su propia fila arriba del tablero,
+          nunca metida como una columna más junto a los subordinados
+          (2026-08-18, a petición de Yue: "la caja del jefe debe quedar
+          arriba, y debajo los subordinados"). Cada una en su propio
+          kanban-board de un solo elemento para que ocupe el 100% del
+          ancho (mismo comportamiento ya usado cuando una columna está
+          sola, ver .kanban-column sin min-width fijo del padre). */}
+      {columnasExtra.map((c) => (
+        <div className="kanban-responsive" key={c.usuario_id}>
+          <div className="kanban-board">
+            <TarjetaColumna columna={c} {...tarjetaProps} />
+          </div>
+        </div>
+      ))}
+      {columnasPropias.length > 0 && (
+        <div className="kanban-responsive">
+          <div className="kanban-board">
+            {columnasPropias.map((c) => (
+              <TarjetaColumna key={c.usuario_id} columna={c} {...tarjetaProps} />
+            ))}
+          </div>
+        </div>
+      )}
+      {columnasExtra.length === 0 && columnasPropias.length === 0 && (
+        <p style={{ color: "var(--color-text-muted)" }}>
+          No tienes equipo visible en ningún tema todavía.
+        </p>
+      )}
     </div>
   );
 }

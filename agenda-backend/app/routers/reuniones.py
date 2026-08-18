@@ -20,8 +20,8 @@ from app.dependencies import obtener_usuario_actual
 from app.models.reunion import Reunion
 from app.models.usuario import Usuario
 from app.schemas.reunion import ReunionActualizar, ReunionCrear, ReunionOut
-from app.schemas.proyecto import MiembroEquipoOut
-from app.schemas.serie_reunion import AgendaItemCrear, AgendaItemOut
+from app.schemas.proyecto import MiembroEquipoOut, ProyectoArbolOut
+from app.schemas.serie_reunion import ActualizarTemasRequest, AgendaItemCrear, AgendaItemOut
 from app.services.reuniones import (
     actualizar_reunion as actualizar_reunion_servicio,
     crear_reunion as crear_reunion_servicio,
@@ -30,8 +30,10 @@ from app.services.reuniones import (
     reunion_a_out,
 )
 from app.services.series_reunion import (
+    actualizar_temas as actualizar_temas_servicio,
     agenda_actual_de_reunion,
     agregar_item_agenda as agregar_item_agenda_servicio,
+    arbol_temas_relevantes_de_junta,
     item_a_out,
 )
 
@@ -147,6 +149,18 @@ def obtener_agenda_reunion(
     return agenda_actual_de_reunion(db, usuario, reunion_id)
 
 
+@router.get("/reuniones/{reunion_id}/temas-relevantes", response_model=list[ProyectoArbolOut])
+def obtener_temas_relevantes_reunion(
+    reunion_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Árbol de temas acotado a organizador+invitados de esta reunión, para
+    el selector "Temas de esta junta" -- ver
+    app.services.series_reunion.arbol_temas_relevantes_de_junta."""
+    return arbol_temas_relevantes_de_junta(db, usuario, reunion_id=reunion_id)
+
+
 @router.post(
     "/reuniones/{reunion_id}/agenda", response_model=AgendaItemOut, status_code=status.HTTP_201_CREATED
 )
@@ -176,6 +190,19 @@ def agregar_item_agenda_reunion(
     db.commit()
     db.refresh(item)
     return item_a_out(item)
+
+
+@router.put("/reuniones/{reunion_id}/temas", status_code=status.HTTP_204_NO_CONTENT)
+def actualizar_temas_reunion(
+    reunion_id: int,
+    datos: ActualizarTemasRequest,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Elige qué temas cubre esta reunión suelta -- ver
+    app.services.series_reunion.actualizar_temas."""
+    actualizar_temas_servicio(db, usuario, None, reunion_id, datos.proyecto_ids)
+    db.commit()
 
 
 @router.patch("/reuniones/{reunion_id}", response_model=ReunionOut)

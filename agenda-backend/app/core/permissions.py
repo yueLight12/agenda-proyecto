@@ -83,6 +83,97 @@ def obtener_rol_local_en_proyecto(
     )
 
 
+def resolver_jefes_directos(db: Session, usuario_id: int) -> list[Usuario]:
+    """Para el checklist 1:1 ascendente de Vista Equipo: quién es el/los
+    jefe(s) directos de este usuario.
+      - N3/N4: su supervisor_id explícito EN ESE proyecto (ya es la fuente
+        de verdad, ver UsuarioProyectoRol.supervisor_id).
+      - N2: el N1 EXPLÍCITO LOCAL del MISMO proyecto_id (sin caminar
+        herencia -- misma convención "local" que supervisor_id). Si es N2
+        en temas con N1 local distinto, devuelve más de una persona (jefe
+        matricial legítimo) -- no se colapsa a una sola. Si un tema tiene
+        más de una fila N1 explícita (caso raro, co-dirección), se toma la
+        primera -- simplificación aceptada, no es el caso normal.
+      - N1: lista vacía (nadie por encima en este sistema).
+    Dedupe por usuario_id. NO es una regla de visibilidad -- no filtra lo
+    que el llamador puede ver, solo resuelve identidad."""
+    filas = db.query(UsuarioProyectoRol).filter(UsuarioProyectoRol.usuario_id == usuario_id).all()
+    jefes: dict[int, Usuario] = {}
+    for fila in filas:
+        if fila.rol in (RolEnum.N3, RolEnum.N4):
+            if fila.supervisor_id and fila.supervisor_id not in jefes:
+                jefes[fila.supervisor_id] = fila.supervisor
+        elif fila.rol == RolEnum.N2:
+            n1_local = (
+                db.query(UsuarioProyectoRol)
+                .filter(
+                    UsuarioProyectoRol.proyecto_id == fila.proyecto_id,
+                    UsuarioProyectoRol.rol == RolEnum.N1,
+                )
+                .first()
+            )
+            if n1_local and n1_local.usuario_id not in jefes:
+                jefes[n1_local.usuario_id] = n1_local.usuario
+    return list(jefes.values())
+
+
+def proyectos_del_par_jefe_reporte(db: Session, reporte_id: int, jefe_id: int) -> list[int]:
+    """De qué temas sale la relación de jefe directo entre ESTAS DOS
+    personas específicas -- N3/N4: los temas donde jefe_id es su
+    supervisor_id explícito. N2: los temas donde jefe_id es el N1 LOCAL
+    (mismo criterio "local" que resolver_jefes_directos). Movido aquí
+    2026-08-18 (antes vivía como función privada en
+    routers/equipo_resumen.py) para poder reutilizarlo también al filtrar
+    qué temas ofrecer en el checklist de una junta (ver
+    temas_relevantes_para_participantes) -- no otorga visibilidad nueva."""
+    filas = db.query(UsuarioProyectoRol).filter(UsuarioProyectoRol.usuario_id == reporte_id).all()
+    ids = []
+    for fila in filas:
+        if fila.rol in (RolEnum.N3, RolEnum.N4):
+            if fila.supervisor_id == jefe_id:
+                ids.append(fila.proyecto_id)
+        elif fila.rol == RolEnum.N2:
+            n1_local = (
+                db.query(UsuarioProyectoRol)
+                .filter(UsuarioProyectoRol.proyecto_id == fila.proyecto_id, UsuarioProyectoRol.rol == RolEnum.N1)
+                .first()
+            )
+            if n1_local and n1_local.usuario_id == jefe_id:
+                ids.append(fila.proyecto_id)
+    return ids
+
+
+def temas_relevantes_para_participantes(db: Session, participantes_ids: list[int]) -> set[int]:
+    """proyecto_id de los temas "de" esta junta según quién la organiza y
+    quién está invitado -- 2026-08-18, a petición de Yue: "si es entre
+    Diana y Bernardo, solo deberían aparecer los temas que tienen Diana y
+    Bernardo" (no TODO lo que Bernardo puede ver, que como Dirección global
+    es prácticamente todo el árbol).
+
+    Usa la misma relación jefe-directo ya construida para la "caja del
+    jefe" de Vista Equipo (proyectos_del_par_jefe_reporte), en ambas
+    direcciones para cada par de participantes -- así cubre tanto "Diana
+    organiza e invita a su jefe Bernardo" como "Bernardo organiza e invita
+    a su reporte Diana". Incluye también el subárbol completo de cada tema
+    encontrado (si Diana tiene el rol en la raíz "Despachos", sus subtemas
+    entran también, aunque ella no tenga una fila explícita ahí).
+
+    Límite conocido, aceptado a propósito: dos participantes SIN relación
+    jefe-subordinado entre sí (ej. dos colegas del mismo nivel en el mismo
+    tema) no aportan temas por esta vía -- no es el caso que motivó este
+    cambio; antes tampoco había ningún filtrado deliberado.
+    """
+    ids: set[int] = set()
+    indice = arbol_proyectos.cargar_indice(db)
+    for a in participantes_ids:
+        for b in participantes_ids:
+            if a == b:
+                continue
+            for pid in proyectos_del_par_jefe_reporte(db, a, b):
+                ids |= arbol_proyectos.ids_subarbol(indice, pid)
+    return ids
+
+
 def requerir_participacion_en_proyecto(
     db: Session, usuario: Usuario, proyecto_id: int
 ) -> UsuarioProyectoRol:
@@ -277,12 +368,18 @@ def puede_ver_reunion(db: Session, usuario: Usuario, reunion: Reunion) -> bool:
 def puede_editar_reunion(db: Session, usuario: Usuario, reunion: Reunion) -> bool:
     """N1/N2 (local o heredado) del proyecto/tema pueden editar cualquier
     reunión de su subárbol; el organizador puede editar la suya. Una
-    reunión general (proyecto_id None) no tiene N1/N2 posible -- solo su
-    organizador (o super_admin) puede editarla."""
+    reunión general (proyecto_id None) no tiene N1/N2 posible -- 2026-08-18,
+    a petición de Yue: CUALQUIER invitado puede editar/reagendar/cancelar
+    una reunión general, no solo el organizador (antes solo aplicaba a las
+    juntas 1:1; se amplió a cualquier reunión general). Agregar ítems al
+    checklist de una SERIE sigue siendo solo del organizador, sin cambios
+    ahí -- ver puede_editar_serie en series_reunion.py."""
     if usuario.es_super_admin:
         return True
     if reunion.proyecto_id is None:
-        return reunion.organizador_id == usuario.id
+        if reunion.organizador_id == usuario.id:
+            return True
+        return any(p.usuario_id == usuario.id for p in reunion.participantes)
     rol = obtener_rol_en_proyecto(db, usuario.id, reunion.proyecto_id)
     if rol is None:
         return False

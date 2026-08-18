@@ -99,6 +99,12 @@ class MoverItemAgendaRequest(BaseModel):
     direccion: str  # "arriba" | "abajo"
 
 
+class ActualizarTemasRequest(BaseModel):
+    # Reemplaza (no solo agrega) el conjunto de temas cubiertos por esta
+    # junta -- ver app.services.series_reunion.actualizar_temas.
+    proyecto_ids: list[int] = []
+
+
 class AgendaItemOut(BaseModel):
     id: int
     serie_id: Optional[int] = None
@@ -108,6 +114,11 @@ class AgendaItemOut(BaseModel):
     detalle: Optional[str] = None
     seccion_proyecto_id: Optional[int] = None
     seccion_nombre: Optional[str] = None  # None = "General" (sin sección)
+    # parent_id de la sección (2026-08-17, checklist como árbol en Vista
+    # Equipo) -- para que el frontend agrupe secciones como subtema/tema en
+    # vez de una lista plana. None si la sección es un tema raíz o si no
+    # hay sección (General).
+    seccion_parent_id: Optional[int] = None
     activo: bool
     orden: int
     # Estado derivado de la AgendaItemRevision más reciente (o "pendiente"
@@ -134,3 +145,14 @@ class RevisionAgendaItemOut(BaseModel):
     nota: Optional[str] = None
     fecha_registro: datetime
     nuevo_item: Optional[AgendaItemOut] = None
+
+
+class PendienteRevisionOut(BaseModel):
+    """Un tema con un ítem de agenda todavía activo en alguna junta donde
+    el usuario puede marcarlo revisado -- ver
+    app.services.minutas.listar_pendientes_revision."""
+
+    proyecto_id: int
+    proyecto_nombre: str
+    item_id: int
+    reunion_id: int

@@ -51,6 +51,10 @@ class ProyectoArbolOut(BaseModel):
     id: int
     nombre: str
     ruta: str  # "Tema > Subtema > Subtema hijo" -- para selectores planos
+    # 2026-08-18, selector de temas del checklist 1:1: para armar un árbol
+    # real (checkboxes con cascada padre->hijos) en vez de solo la lista
+    # plana con `ruta`. None si es un tema raíz.
+    parent_id: Optional[int] = None
 
 
 class MiembroEquipoOut(BaseModel):

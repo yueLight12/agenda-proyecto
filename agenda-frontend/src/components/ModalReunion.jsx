@@ -5,6 +5,7 @@ import ConfirmDialog from "./ConfirmDialog";
 import Modal from "./Modal";
 import SeccionAgendaChecklist from "./SeccionAgendaChecklist";
 import SeccionNotas from "./SeccionNotas";
+import SelectorTemasChecklist from "./SelectorTemasChecklist";
 
 const DIAS_ES = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
 const DIAS_ES_CAP = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
@@ -86,8 +87,34 @@ export default function ModalReunion({
   const [guardando, setGuardando] = useState(false);
   const [eliminando, setEliminando] = useState(false);
   const [confirmandoEliminar, setConfirmandoEliminar] = useState(false);
+  // Solo aplica al eliminar una serie (2026-08-18, a petición de Yue: "si
+  // quiero eliminarla, dame la opción de eliminar todas las reuniones que
+  // salieron de esa reunión recurrente, así no tengo que eliminar una por
+  // una") -- default false, para no sorprender a nadie borrando historial
+  // de golpe sin haberlo pedido explícitamente.
+  const [eliminarOcurrencias, setEliminarOcurrencias] = useState(false);
+  // Mismo checkbox que arriba, pero para cuando se elimina desde una
+  // OCURRENCIA puntual (clic en el calendario) que resulta pertenecer a
+  // una serie -- ofrece borrar la junta recurrente completa sin tener que
+  // ir a buscarla aparte. Default false, mismo criterio de no sorprender.
+  const [eliminarSerieCompleta, setEliminarSerieCompleta] = useState(false);
+  // Fuerza a SeccionAgendaChecklist a recargar tras guardar los temas
+  // elegidos -- más simple que exponer su `cargar` interno.
+  const [versionChecklist, setVersionChecklist] = useState(0);
 
   const puedeEliminar = esEdicion; // ambos, N1/N2/organizador, validado por el backend
+
+  // El checklist (temas/agenda) SIEMPRE vive en la serie cuando la junta
+  // es una ocurrencia materializada -- bug real encontrado 2026-08-18: al
+  // hacer clic en una ocurrencia desde el calendario, este modal solo
+  // recibe `reunion` (no `serie`), así que sin este cálculo el checklist
+  // se armaba anclado a ESA ocurrencia puntual (reunion_id) en vez de a la
+  // serie -- duplicaba todo (una copia por ocurrencia) y rompía la promesa
+  // central de "no hay que volver a agregar los temas cada semana".
+  // reunionActual.serie_id ya viene en ReunionOut aunque el modal no haya
+  // recibido el objeto `serie` completo.
+  const serieIdAgenda = serieActual?.id ?? reunionActual?.serie_id ?? null;
+  const reunionIdAgenda = serieIdAgenda ? null : reunionActual?.id ?? null;
   const invitables = miembros.filter((m) => m.usuario_id !== organizadorId);
 
   const toggleParticipante = (ids) => setParticipantesIds(ids);
@@ -153,8 +180,16 @@ export default function ModalReunion({
     setConfirmandoEliminar(false);
     setEliminando(true);
     try {
-      if (esEdicionSerie) await seriesReunionApi.eliminar(serieActual.id);
-      else await reunionesApi.eliminar(reunionActual.id);
+      if (esEdicionSerie) {
+        await seriesReunionApi.eliminar(serieActual.id, eliminarOcurrencias);
+      } else if (esEdicionReunion && reunionActual.serie_id && eliminarSerieCompleta) {
+        // Ocurrencia de una serie, pero el usuario pidió borrar la junta
+        // recurrente completa desde aquí mismo -- no hace falta pasar por
+        // la lista de "Juntas recurrentes" para llegar a esta opción.
+        await seriesReunionApi.eliminar(reunionActual.serie_id, true);
+      } else {
+        await reunionesApi.eliminar(reunionActual.id);
+      }
       await onGuardado();
       onCerrar();
     } catch {
@@ -300,6 +335,13 @@ export default function ModalReunion({
               </label>
             )}
 
+            {esEdicion && (reunionActual?.organizador_nombre || serieActual?.organizador_nombre) && (
+              <p style={{ fontSize: "0.85rem", margin: 0 }}>
+                <strong>Organiza:</strong>{" "}
+                {reunionActual?.organizador_nombre || serieActual?.organizador_nombre}
+              </p>
+            )}
+
             <div className="stack" style={{ gap: 4 }}>
               <span style={{ fontSize: "0.85rem" }}>Invitados</span>
               <p style={{ color: "var(--color-text-muted)", fontSize: "0.78rem", margin: 0 }}>
@@ -351,8 +393,39 @@ export default function ModalReunion({
           </div>
         )}
 
-        {reunionActual && <SeccionAgendaChecklist reunionId={reunionActual.id} />}
-        {serieActual && <SeccionAgendaChecklist serieId={serieActual.id} />}
+        {(reunionActual || serieActual) && (
+          <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 16 }}>
+            <h4 style={{ fontSize: "0.85rem", margin: "0 0 6px" }}>Temas de esta junta</h4>
+            <p style={{ fontSize: "0.78rem", color: "var(--color-text-muted)", margin: "0 0 8px" }}>
+              Marca los temas que se van a ver — marcar uno incluye también sus subtemas. Se
+              guarda solo, sin botón aparte.
+            </p>
+            <SelectorTemasChecklist
+              // El árbol que ofrece el selector depende de quién organiza +
+              // quién está invitado (ver backend: temas-relevantes) --
+              // forzamos un remount (y por tanto un refetch) cuando cambia
+              // el organizador o la lista de invitados YA GUARDADA, para
+              // que no se quede con la lista de temas de antes de invitar a
+              // alguien nuevo.
+              key={`${serieIdAgenda || reunionIdAgenda}-${
+                (serieActual || reunionActual)?.organizador_id
+              }-${((serieActual || reunionActual)?.participantes || [])
+                .map((p) => p.usuario_id)
+                .sort()
+                .join(",")}`}
+              serieId={serieIdAgenda}
+              reunionId={reunionIdAgenda}
+              defaultTodos
+              inline
+              onGuardado={async () => setVersionChecklist((v) => v + 1)}
+            />
+          </div>
+        )}
+
+        {serieIdAgenda && <SeccionAgendaChecklist key={versionChecklist} serieId={serieIdAgenda} />}
+        {!serieIdAgenda && reunionIdAgenda && (
+          <SeccionAgendaChecklist key={versionChecklist} reunionId={reunionIdAgenda} />
+        )}
       </div>
 
       {confirmandoEliminar && (
@@ -360,13 +433,40 @@ export default function ModalReunion({
           titulo={esEdicionSerie ? "Eliminar junta recurrente" : "Eliminar reunión"}
           mensaje={
             esEdicionSerie
-              ? "¿Eliminar esta junta recurrente? Las ocurrencias ya agendadas se quedan como reuniones sueltas, no se borran."
+              ? "¿Eliminar esta junta recurrente?"
               : "¿Eliminar esta reunión?"
           }
           textoConfirmar={eliminando ? "Eliminando..." : "Eliminar"}
           onConfirmar={handleEliminar}
           onCancelar={() => setConfirmandoEliminar(false)}
-        />
+        >
+          {esEdicionSerie && (
+            <label className="list-inline" style={{ borderBottom: "none", padding: 0, alignItems: "center" }}>
+              <span style={{ fontSize: "0.85rem" }}>
+                También eliminar las ocurrencias ya agendadas de esta junta (si no, se quedan
+                como reuniones sueltas con su historial intacto)
+              </span>
+              <input
+                type="checkbox"
+                checked={eliminarOcurrencias}
+                onChange={(e) => setEliminarOcurrencias(e.target.checked)}
+              />
+            </label>
+          )}
+          {esEdicionReunion && reunionActual.serie_id && (
+            <label className="list-inline" style={{ borderBottom: "none", padding: 0, alignItems: "center" }}>
+              <span style={{ fontSize: "0.85rem" }}>
+                Esta reunión es parte de una junta recurrente — eliminar también todas sus
+                demás ocurrencias (si no, solo se borra esta)
+              </span>
+              <input
+                type="checkbox"
+                checked={eliminarSerieCompleta}
+                onChange={(e) => setEliminarSerieCompleta(e.target.checked)}
+              />
+            </label>
+          )}
+        </ConfirmDialog>
       )}
     </Modal>
   );

@@ -9,9 +9,10 @@ ocurrencias se materializan como Reunion reales con serie_id puesto (ver
 app/services/materializar_series.py), corridas por el mismo scheduler que
 ya genera recordatorios (app/main.py).
 """
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from fastapi import HTTPException
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.permissions import (
@@ -21,9 +22,14 @@ from app.core.permissions import (
     query_reuniones_generales_visibles,
     query_reuniones_visibles,
     requerir_participacion_en_proyecto,
+    temas_relevantes_para_participantes,
 )
 from app.models.agenda_item import AgendaItem, AgendaItemRevision, EstadoRevision, TipoAgendaItem
-from app.models.reunion import Reunion
+from app.models.entregable import Entregable, EstatusEntregable
+from app.models.nota import Nota
+from app.models.notificacion import Notificacion
+from app.models.pendiente import Pendiente
+from app.models.reunion import Reunion, ReunionParticipante
 from app.models.serie_reunion import SerieReunion, SerieReunionParticipante, TipoRecurrencia
 from app.models.usuario import RolEnum, Usuario
 from app.schemas.nota import NotaCrear
@@ -35,17 +41,25 @@ from app.schemas.serie_reunion import (
 )
 from app.services.notas import crear_nota
 from app.services.pendientes import crear_pendiente
+from app.services.proyectos import listar_arbol_visible
 from app.services.reuniones import obtener_reunion_o_404
 
 
 def puede_editar_serie(db: Session, usuario: Usuario, serie: SerieReunion) -> bool:
     """Mismo criterio que puede_editar_reunion: N1/N2 (local o heredado)
-    del tema, o el organizador. Una serie general (proyecto_id None) solo
-    la edita su organizador (o super_admin)."""
+    del tema, o el organizador. Una serie general (proyecto_id None) la
+    edita su organizador o CUALQUIER invitado -- ensanchado 2026-08-18
+    (mismo criterio y misma fecha que puede_editar_reunion, ver el
+    ensanche de esa función) para que marcar/desmarcar temas de una junta
+    recurrente general no quede bloqueado solo al organizador (403
+    reportado por Yue: David, invitado pero no organizador de una junta
+    recurrente general, no podía guardar los temas de esa junta)."""
     if usuario.es_super_admin:
         return True
     if serie.proyecto_id is None:
-        return serie.organizador_id == usuario.id
+        return serie.organizador_id == usuario.id or any(
+            p.usuario_id == usuario.id for p in serie.participantes
+        )
     rol = obtener_rol_en_proyecto(db, usuario.id, serie.proyecto_id)
     if rol is None:
         return False
@@ -158,9 +172,9 @@ def actualizar_serie(db: Session, usuario: Usuario, serie_id: int, campos: dict)
         raise HTTPException(status_code=403, detail="No tienes permiso para editar esta serie")
 
     participantes_ids = campos.pop("participantes_ids", None)
-    for campo, valor in campos.items():
-        if valor is not None:
-            setattr(serie, campo, valor)
+    campos_aplicados = {campo: valor for campo, valor in campos.items() if valor is not None}
+    for campo, valor in campos_aplicados.items():
+        setattr(serie, campo, valor)
 
     if participantes_ids is not None:
         db.query(SerieReunionParticipante).filter(
@@ -169,19 +183,70 @@ def actualizar_serie(db: Session, usuario: Usuario, serie_id: int, campos: dict)
         for uid in set(participantes_ids) - {serie.organizador_id}:
             db.add(SerieReunionParticipante(serie_id=serie.id, usuario_id=uid))
 
+    # Sincronizar las ocurrencias YA MATERIALIZADAS que todavía no pasan
+    # (2026-08-18, a petición de Yue: corregir el nombre/hora de una serie
+    # debe corregir también lo que ya se había generado con antelación, no
+    # solo lo que se genere de aquí en adelante -- materializar_ocurrencias
+    # nunca vuelve a tocar una ocurrencia ya creada, ver
+    # app/services/materializar_series.py). Acotado a título/hora-del-día/
+    # duración/participantes -- NO a dia_semana/dia_mes/fecha_inicio,
+    # porque cambiar el día del patrón implicaría recalcular la FECHA de
+    # cada ocurrencia futura (qué día cae, no solo a qué hora), mucho más
+    # invasivo y fuera de lo pedido. Las ocurrencias que YA PASARON no se
+    # tocan -- son historial, no plantilla.
+    if {"titulo", "hora", "duracion_minutos"} & campos_aplicados.keys() or participantes_ids is not None:
+        ocurrencias_futuras = (
+            db.query(Reunion)
+            .filter(Reunion.serie_id == serie.id, Reunion.fecha_inicio > datetime.utcnow())
+            .all()
+        )
+        for ocurrencia in ocurrencias_futuras:
+            if "titulo" in campos_aplicados:
+                ocurrencia.titulo = serie.titulo
+            if "hora" in campos_aplicados:
+                ocurrencia.fecha_inicio = datetime.combine(ocurrencia.fecha_inicio.date(), serie.hora)
+            if "duracion_minutos" in campos_aplicados:
+                ocurrencia.duracion_minutos = serie.duracion_minutos
+            if participantes_ids is not None:
+                db.query(ReunionParticipante).filter(
+                    ReunionParticipante.reunion_id == ocurrencia.id
+                ).delete()
+                for uid in set(participantes_ids) - {ocurrencia.organizador_id}:
+                    db.add(ReunionParticipante(reunion_id=ocurrencia.id, usuario_id=uid))
+
     return serie
 
 
-def eliminar_serie(db: Session, usuario: Usuario, serie_id: int) -> None:
-    """Elimina la serie y su agenda persistente (cascade). Las ocurrencias
-    YA materializadas (Reunion.serie_id) NO se borran -- quedan como
-    reuniones sueltas normales, con su historial intacto; solo se les
-    limpia la referencia a la serie eliminada."""
+def eliminar_serie(
+    db: Session, usuario: Usuario, serie_id: int, eliminar_ocurrencias: bool = False
+) -> None:
+    """Elimina la serie y su agenda persistente (cascade). Por default las
+    ocurrencias YA materializadas (Reunion.serie_id) NO se borran -- quedan
+    como reuniones sueltas normales, con su historial intacto; solo se les
+    limpia la referencia a la serie eliminada.
+
+    `eliminar_ocurrencias=True` (2026-08-18, a petición de Yue: "si quiero
+    eliminarla, dame la opción de eliminar todas las reuniones que salieron
+    de esa reunión recurrente, así no tengo que eliminar una por una")
+    borra también cada ocurrencia ya agendada -- mismo criterio de limpieza
+    que `reuniones.eliminar_reunion` (Notificacion no cascada por relación
+    ORM, se limpia a mano; minuta/notas/agenda-items sí cascadan solos, ver
+    esa función). No se reutiliza `eliminar_reunion` directo para no
+    repetir el chequeo de permiso por cada ocurrencia -- ya se validó una
+    vez sobre la serie completa."""
     serie = obtener_serie_o_404(db, serie_id)
     if not puede_editar_serie(db, usuario, serie):
         raise HTTPException(status_code=403, detail="No tienes permiso para eliminar esta serie")
 
-    db.query(Reunion).filter(Reunion.serie_id == serie.id).update({Reunion.serie_id: None})
+    ocurrencias = db.query(Reunion).filter(Reunion.serie_id == serie.id).all()
+    if eliminar_ocurrencias:
+        for r in ocurrencias:
+            db.query(Notificacion).filter(Notificacion.reunion_id == r.id).delete(
+                synchronize_session=False
+            )
+            db.delete(r)
+    else:
+        db.query(Reunion).filter(Reunion.serie_id == serie.id).update({Reunion.serie_id: None})
     db.delete(serie)
 
 
@@ -255,6 +320,7 @@ def item_a_out(item: AgendaItem) -> AgendaItemOut:
         detalle=item.detalle,
         seccion_proyecto_id=item.seccion_proyecto_id,
         seccion_nombre=item.seccion.nombre if item.seccion else None,
+        seccion_parent_id=item.seccion.parent_id if item.seccion else None,
         activo=item.activo,
         orden=item.orden,
         estado_actual=ultima.estado if ultima else EstadoRevision.pendiente,
@@ -292,6 +358,39 @@ def agenda_actual_de_reunion(db: Session, usuario: Usuario, reunion_id: int) -> 
         .all()
     )
     return [item_a_out(i) for i in items]
+
+
+def arbol_temas_relevantes_de_junta(
+    db: Session, usuario: Usuario, serie_id: int | None = None, reunion_id: int | None = None
+) -> list[dict]:
+    """Árbol de temas para el selector "Temas de esta junta" -- acotado a
+    quién organiza + quién está invitado (ver
+    permissions.temas_relevantes_para_participantes), no el árbol COMPLETO
+    visible al usuario (que para alguien con Dirección global es
+    prácticamente todo el árbol de la empresa). 2026-08-18, a petición de
+    Yue: "si es entre Diana y Bernardo, solo deberían aparecer los temas
+    que tienen Diana y Bernardo -- los de David o Jasso, si no tienen nada
+    en común o ni siquiera están invitados, no necesitan aparecer".
+
+    Si la junta todavía tiene menos de 2 participantes (recién creada, sin
+    invitados aún), no hay ningún par jefe-reporte que resolver -- cae de
+    vuelta al árbol completo visible al usuario, para no dejar el selector
+    vacío antes de invitar a alguien. En cuanto se invite a alguien, se
+    recarga (misma `key` de SelectorTemasChecklist ya fuerza esto).
+    """
+    if serie_id is not None:
+        serie = obtener_serie_o_404(db, serie_id)
+        participantes_ids = {serie.organizador_id, *(p.usuario_id for p in serie.participantes)}
+    else:
+        reunion = obtener_reunion_o_404(db, reunion_id)
+        participantes_ids = {reunion.organizador_id, *(p.usuario_id for p in reunion.participantes)}
+
+    arbol_completo = listar_arbol_visible(db, usuario)
+    if len(participantes_ids) < 2:
+        return arbol_completo
+
+    relevantes = temas_relevantes_para_participantes(db, list(participantes_ids))
+    return [nodo for nodo in arbol_completo if nodo["id"] in relevantes]
 
 
 def agregar_item_agenda(
@@ -454,3 +553,155 @@ def archivar_item_agenda(db: Session, usuario: Usuario, item_id: int) -> None:
         raise HTTPException(status_code=404, detail="Ítem de agenda no encontrado")
     _verificar_puede_editar_item(db, usuario, item)
     item.activo = False
+
+
+def actualizar_temas(
+    db: Session,
+    usuario: Usuario,
+    serie_id: int | None,
+    reunion_id: int | None,
+    proyecto_ids: list[int],
+) -> None:
+    """Sincroniza los ítems tipo=tema de la agenda de una junta (serie
+    recurrente o reunión suelta -- exactamente uno de los dos ids) con el
+    conjunto elegido a mano en ModalReunion: los temas fuera de
+    `proyecto_ids` se archivan (activo=False), los que faltan se
+    agregan/reactivan. Generalizado 2026-08-18 desde el caso 1:1 original
+    (antes solo aplicaba a checklists es_agenda_1a1) a CUALQUIER junta --
+    "poner todos los temas y dejar elegir cuáles aplican a esta reunión".
+
+    Mismo permiso que agregar cualquier otro ítem de agenda
+    (puede_editar_serie / puede_editar_reunion, sin regla nueva) -- para
+    una serie sigue siendo solo el organizador; para una reunión suelta
+    general, cualquier invitado (ver el ensanche 2026-08-18 de
+    puede_editar_reunion)."""
+    if serie_id is not None:
+        serie = obtener_serie_o_404(db, serie_id)
+        if not puede_editar_serie(db, usuario, serie):
+            raise HTTPException(
+                status_code=403, detail="No tienes permiso para editar la agenda de esta serie"
+            )
+        filtro = AgendaItem.serie_id == serie_id
+    else:
+        reunion = obtener_reunion_o_404(db, reunion_id)
+        if not puede_editar_reunion(db, usuario, reunion):
+            raise HTTPException(
+                status_code=403, detail="No tienes permiso para editar la agenda de esta reunión"
+            )
+        filtro = AgendaItem.reunion_id == reunion_id
+
+    existentes = (
+        db.query(AgendaItem).filter(filtro, AgendaItem.tipo == TipoAgendaItem.tema).all()
+    )
+    # Solo los ítems ACTIVOS cuentan como "ya marcado" -- uno archivado
+    # (por desmarcarlo antes, o porque se marcó revisado, ver
+    # app.services.minutas.registrar_revision_agenda_item) NUNCA se
+    # reactiva solo porque el árbol de checkboxes lo vuelve a mandar
+    # marcado; si el usuario de verdad quiere retomar ese tema, se crea un
+    # ítem nuevo en vez de resucitar el archivado. Antes esta función
+    # indexaba TODOS los ítems (activos o no) en un dict por proyecto_id y
+    # forzaba `item.activo = pid in deseados` sobre ese único ítem
+    # encontrado -- eso resucitaba en cada guardado cualquier tema que
+    # `registrar_revision_agenda_item` acababa de archivar por "revisado",
+    # ya que el árbol de checkboxes del frontend no se refresca solo (carga
+    # su selección una vez al montar) y sigue mandando ese tema como
+    # marcado en el siguiente guardado de conjunto completo. También
+    # colapsaba de paso cualquier duplicado activo a uno solo (2026-08-18,
+    # bug reportado por Yue: un tema marcado aparecía dos veces en la
+    # agenda).
+    activos_por_proyecto: dict[int | None, AgendaItem] = {}
+    for i in existentes:
+        if not i.activo:
+            continue
+        if i.proyecto_id in activos_por_proyecto:
+            i.activo = False
+            continue
+        activos_por_proyecto[i.proyecto_id] = i
+    deseados = set(proyecto_ids)
+
+    for pid, item in activos_por_proyecto.items():
+        if pid not in deseados:
+            item.activo = False
+
+    # Savepoint por ítem + índice único parcial en BD
+    # (ix_agenda_items_tema_activo_unico, ver migración 87ff0608e076): si
+    # dos peticiones casi simultáneas llegan aquí a la vez (mismo tema
+    # marcado dos veces seguidas muy rápido), ambas pueden pasar el chequeo
+    # en memoria de arriba antes de que la otra haga commit -- sin esto,
+    # la segunda tronaría con IntegrityError y toda la petición fallaría.
+    # Con el savepoint, si eso pasa simplemente se descarta ese intento (el
+    # resultado deseado -- un tema activo para ese proyecto -- ya lo dejó
+    # la petición concurrente).
+    for pid in deseados - set(activos_por_proyecto.keys()):
+        try:
+            with db.begin_nested():
+                agregar_item_agenda(
+                    db, usuario, serie_id, tipo=TipoAgendaItem.tema, reunion_id=reunion_id, proyecto_id=pid
+                )
+        except IntegrityError:
+            pass
+
+    _sembrar_entregables_notas_pendientes(db, usuario, serie_id, reunion_id, list(deseados))
+
+
+HORIZONTE_ENTREGABLES_DIAS = 14
+
+
+def _sembrar_entregables_notas_pendientes(
+    db: Session,
+    usuario: Usuario,
+    serie_id: int | None,
+    reunion_id: int | None,
+    proyecto_ids: list[int],
+) -> None:
+    """Auto-siembra entregables próximos, notas y pendientes de los temas
+    marcados -- reemplaza por completo el picker manual "Agregar punto a
+    la agenda" (2026-08-18, a petición de Yue: marcar un tema ya trae lo
+    relevante, sin agregarlo uno por uno). Mismo patrón que
+    app.services.minuta_1a1._sembrar_items_1a1, generalizado a cualquier
+    junta -- a diferencia de esa, aquí no se filtra por responsable (no
+    hay un "reporte" único, se listan los entregables de CUALQUIER
+    responsable bajo esos temas). Idempotente: deduplica contra CUALQUIER
+    ítem ya existente (activo o archivado), para no resucitar algo que ya
+    se marcó revisado."""
+    if not proyecto_ids:
+        return
+    filtro = AgendaItem.serie_id == serie_id if serie_id is not None else AgendaItem.reunion_id == reunion_id
+    existentes = db.query(AgendaItem).filter(filtro).all()
+    entregables_existentes = {i.entregable_id for i in existentes if i.tipo == TipoAgendaItem.entregable}
+    notas_existentes = {i.nota_id for i in existentes if i.tipo == TipoAgendaItem.nota}
+    pendientes_existentes = {i.pendiente_id for i in existentes if i.tipo == TipoAgendaItem.pendiente}
+
+    limite = date.today() + timedelta(days=HORIZONTE_ENTREGABLES_DIAS)
+    entregables = (
+        db.query(Entregable)
+        .filter(
+            Entregable.proyecto_id.in_(proyecto_ids),
+            Entregable.estatus != EstatusEntregable.cumplido,
+            Entregable.fecha_entrega <= limite,
+        )
+        .all()
+    )
+    for e in entregables:
+        if e.id in entregables_existentes:
+            continue
+        agregar_item_agenda(
+            db, usuario, serie_id, tipo=TipoAgendaItem.entregable, reunion_id=reunion_id,
+            entregable_id=e.id, seccion_proyecto_id=e.proyecto_id,
+        )
+
+    for n in db.query(Nota).filter(Nota.proyecto_id.in_(proyecto_ids)).all():
+        if n.id in notas_existentes:
+            continue
+        agregar_item_agenda(
+            db, usuario, serie_id, tipo=TipoAgendaItem.nota, reunion_id=reunion_id,
+            nota_id=n.id, seccion_proyecto_id=n.proyecto_id,
+        )
+
+    for p in db.query(Pendiente).filter(Pendiente.proyecto_id.in_(proyecto_ids)).all():
+        if p.id in pendientes_existentes:
+            continue
+        agregar_item_agenda(
+            db, usuario, serie_id, tipo=TipoAgendaItem.pendiente, reunion_id=reunion_id,
+            pendiente_id=p.id, seccion_proyecto_id=p.proyecto_id,
+        )

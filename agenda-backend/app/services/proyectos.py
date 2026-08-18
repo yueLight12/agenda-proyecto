@@ -115,6 +115,7 @@ def listar_arbol_visible(db: Session, usuario: Usuario) -> list[dict]:
             "id": p.id,
             "nombre": p.nombre,
             "ruta": " > ".join(nombres.get(pid, "?") for pid in cadenas[p.id]),
+            "parent_id": p.parent_id,
         }
         for p in proyectos
     ]

@@ -25,7 +25,7 @@ from app.models.agenda_item import AgendaItem, AgendaItemRevision, EstadoRevisio
 from app.models.minuta import AcuerdoMinuta, Minuta
 from app.models.reunion import Reunion
 from app.schemas.minuta import AcuerdoOut, MinutaOut
-from app.schemas.serie_reunion import RevisionAgendaItemOut
+from app.schemas.serie_reunion import PendienteRevisionOut, RevisionAgendaItemOut
 from app.services.entregables import crear_entregable
 from app.services.proyectos import obtener_proyecto_o_404
 from app.services.reuniones import obtener_reunion_o_404
@@ -232,6 +232,39 @@ def registrar_revision_agenda_item(
     db.add(revision)
     db.flush()
 
+    # Un ítem revisado se archiva, así lo cerrado no vuelve a aparecer la
+    # siguiente semana -- lo no revisado sigue pendiente automáticamente
+    # (ver AgendaItemRevision más reciente en agenda_actual_de_serie).
+    # Generalizado 2026-08-18 (antes solo aplicaba a es_agenda_1a1, el
+    # checklist 1:1) a CUALQUIER junta recurrente -- mismo criterio
+    # "sticky" que ya tiene desmarcar un tema en el árbol de checkboxes
+    # (SelectorTemasChecklist): reportado por Yue, marcar revisado un tema
+    # seguía apareciendo pendiente en las siguientes juntas generales.
+    if estado == EstadoRevision.revisado:
+        if item.tipo == TipoAgendaItem.tema and item.proyecto_id:
+            # Un tema es una entidad compartida, no propiedad de una junta
+            # en particular (2026-08-18, a petición de Yue: "revisar un
+            # tema en cualquier junta debe quitarlo de todas") -- archiva
+            # TODAS las copias activas de este mismo proyecto_id
+            # (tipo=tema), sin importar en qué serie/reunión estén, para
+            # que desaparezca de cualquier otra junta donde también se
+            # haya agregado. Entregables/notas/pendientes NO comparten este
+            # comportamiento a propósito -- cada junta sigue rastreando su
+            # propia copia por separado, sin cambios.
+            db.query(AgendaItem).filter(
+                AgendaItem.proyecto_id == item.proyecto_id,
+                AgendaItem.tipo == TipoAgendaItem.tema,
+                AgendaItem.activo.is_(True),
+            ).update({AgendaItem.activo: False}, synchronize_session=False)
+            # El UPDATE en bloque no refresca el objeto ya cargado en la
+            # sesión -- sin esto, el resto de esta función (o el caller)
+            # podría seguir leyendo item.activo=True desde el identity map.
+            db.expire(item)
+        elif item.serie_id:
+            # Solo aplica a ítems de una SERIE -- una reunión suelta no se
+            # repite, ahí "revisado" ya solo es un registro histórico.
+            item.activo = False
+
     nuevo_item = None
     if nuevo_pendiente_texto:
         nuevo_item = AgendaItem(
@@ -253,3 +286,107 @@ def registrar_revision_agenda_item(
         fecha_registro=revision.fecha_registro,
         nuevo_item=item_a_out(nuevo_item) if nuevo_item else None,
     )
+
+
+def listar_pendientes_revision(db: Session, usuario: Usuario) -> list[PendienteRevisionOut]:
+    """Temas con un ítem de agenda todavía activo (no revisado) en alguna
+    junta donde el usuario puede editar la minuta -- para el botón "Marcar
+    revisado" directo desde Vista Equipo (2026-08-18, a petición de Yue:
+    "no quiero tener que ir a buscar la reunión para marcarlo").
+
+    Un tema puede estar agregado a varias juntas (series o reuniones
+    sueltas); solo hace falta UNA reunión concreta para poder llamar al
+    mismo endpoint de revisión de siempre (registrar_revision_agenda_item),
+    que ya archiva la copia en TODAS las juntas donde esté (ver arriba) --
+    así que aquí basta con encontrar, por cada proyecto_id, una sola
+    reunión donde el usuario tenga permiso de editar la minuta
+    (puede_editar_minuta, mismo gate que ya protege ese endpoint). Si el
+    usuario no puede editar la minuta de NINGUNA junta donde el tema esté
+    agregado, el tema simplemente no aparece aquí -- no se le ofrece un
+    botón que le daría 403 al usarlo.
+    """
+    from datetime import date
+
+    items = (
+        db.query(AgendaItem)
+        .filter(
+            AgendaItem.tipo == TipoAgendaItem.tema,
+            AgendaItem.activo.is_(True),
+            AgendaItem.proyecto_id.isnot(None),
+        )
+        .all()
+    )
+
+    hoy = date.today()
+    resultado: dict[int, PendienteRevisionOut] = {}
+    for item in items:
+        if item.proyecto_id in resultado:
+            continue
+
+        reunion = None
+        if item.reunion_id is not None:
+            candidata = db.query(Reunion).filter(Reunion.id == item.reunion_id).first()
+            if candidata and puede_editar_minuta(db, usuario, candidata):
+                reunion = candidata
+        elif item.serie_id is not None:
+            ocurrencias = db.query(Reunion).filter(Reunion.serie_id == item.serie_id).all()
+            visibles = [r for r in ocurrencias if puede_editar_minuta(db, usuario, r)]
+            if visibles:
+                # La ocurrencia más cercana a hoy -- mismo criterio que ya
+                # usa el asistente de voz para resolver "esta reunión" de
+                # una serie (ver app/services/asistente/tools.py).
+                reunion = min(visibles, key=lambda r: abs((r.fecha_inicio.date() - hoy).days))
+
+        if reunion is None:
+            continue
+
+        resultado[item.proyecto_id] = PendienteRevisionOut(
+            proyecto_id=item.proyecto_id,
+            proyecto_nombre=item.proyecto.nombre if item.proyecto else "(tema eliminado)",
+            item_id=item.id,
+            reunion_id=reunion.id,
+        )
+
+    return list(resultado.values())
+
+
+def listar_temas_resueltos(db: Session) -> list[int]:
+    """proyecto_id de temas que YA tuvieron algo agendado en alguna junta y
+    quedaron revisados, sin nada pendiente actualmente en ninguna otra --
+    2026-08-18, a petición de Yue: un tema resuelto se oculta del árbol de
+    Vista Equipo hasta que algo nuevo quede pendiente ahí otra vez (mismo
+    ciclo semanal que ya trabajan a mano: lo resuelto sale de la vista, lo
+    nuevo o lo que sigue pendiente se queda). Un tema que NUNCA se ha
+    agregado a ninguna junta NO cuenta como "resuelto" -- sigue
+    mostrándose, porque todavía nadie decidió si se agenda o no.
+
+    No aplica ningún chequeo de permisos: solo describe un estado
+    estructural (qué proyecto_ids ya no tienen ningún AgendaItem tipo=tema
+    activo, habiendo tenido alguno antes) -- el filtrado real de qué temas
+    puede VER cada quien lo sigue haciendo /equipo/resumen como siempre;
+    esta lista solo se usa para OCULTAR del lado del cliente, nunca para
+    mostrar algo que no fuera visible ya.
+    """
+    archivados = {
+        pid
+        for (pid,) in db.query(AgendaItem.proyecto_id)
+        .filter(
+            AgendaItem.tipo == TipoAgendaItem.tema,
+            AgendaItem.activo.is_(False),
+            AgendaItem.proyecto_id.isnot(None),
+        )
+        .distinct()
+        .all()
+    }
+    activos = {
+        pid
+        for (pid,) in db.query(AgendaItem.proyecto_id)
+        .filter(
+            AgendaItem.tipo == TipoAgendaItem.tema,
+            AgendaItem.activo.is_(True),
+            AgendaItem.proyecto_id.isnot(None),
+        )
+        .distinct()
+        .all()
+    }
+    return sorted(archivados - activos)
