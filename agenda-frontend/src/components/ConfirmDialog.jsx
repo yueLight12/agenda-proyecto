@@ -10,11 +10,13 @@ export default function ConfirmDialog({
   peligro = true,
   onConfirmar,
   onCancelar,
+  children,
 }) {
   return (
     <Modal titulo={titulo} onCerrar={onCancelar}>
       <div className="stack">
         <p style={{ margin: 0 }}>{mensaje}</p>
+        {children}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
           <button className="btn btn--ghost" type="button" onClick={onCancelar}>
             Cancelar

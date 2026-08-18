@@ -3,7 +3,6 @@ import { AuthProvider } from "./context/AuthContext";
 import RutaProtegida from "./components/RutaProtegida";
 import AppLayout from "./components/AppLayout";
 import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
 import TableroProyecto from "./pages/TableroProyecto";
 import Equipo from "./pages/Equipo";
 import MisPendientes from "./pages/MisPendientes";
@@ -25,7 +24,12 @@ export default function App() {
               </RutaProtegida>
             }
           >
-            <Route index element={<Dashboard />} />
+            {/* Dashboard oculto (2026-08-17, a petición de Yue) -- Equipo
+                pasa a ser la ventana principal. Dashboard.jsx se deja tal
+                cual, sin ruta que lo alcance, por si se retoma más
+                adelante (mismo criterio ya usado con DashboardCompleto.jsx
+                y su expansor "Ver todos los proyectos"). */}
+            <Route index element={<Equipo />} />
             {/* "Temas" (lista propia) se retiró 2026-08-17 -- se fusionó
                 con "Equipo" (columna "Yo"), ver KanbanSupervisores.jsx.
                 Redirect en vez de 404 por si alguien tiene el link guardado. */}

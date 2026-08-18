@@ -57,11 +57,13 @@ export default function AppLayout() {
       >
         <div className="sidebar__brand">Agenda Inteligente</div>
         <nav onClick={cerrarMenu}>
-          <NavLink to="/" end>
-            Dashboard
-          </NavLink>
+          {/* Dashboard oculto (2026-08-17) -- Equipo es la ventana
+              principal ("/" ahora renderiza Equipo, ver App.jsx), este
+              link ya cubre ambas rutas. */}
           <NavLink to="/equipo">Equipo</NavLink>
-          <NavLink to="/mis-pendientes">Mis pendientes</NavLink>
+          {/* "Mis pendientes" oculto del menú (2026-08-18) -- la ruta
+              /mis-pendientes sigue existiendo tal cual, solo se quitó el
+              link del sidebar. */}
           <NavLink to="/calendario">Calendario</NavLink>
           <NavLink to="/chatbot">Asistente</NavLink>
           <NavLink to="/perfil">Mi perfil</NavLink>
