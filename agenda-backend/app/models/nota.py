@@ -17,7 +17,7 @@ AgendaItem.nota_id, app/models/agenda_item.py).
 """
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, Column, DateTime, ForeignKey, Integer, Text
+from sqlalchemy import CheckConstraint, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -33,6 +33,12 @@ class Nota(Base):
     proyecto_id = Column(Integer, ForeignKey("proyectos.id"), nullable=True)
     contenido = Column(Text, nullable=False)
     autor_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    # Ruta relativa (dentro del volumen de uploads, ver
+    # app/services/almacenamiento.py) de UNA captura de pantalla adjunta a
+    # la nota -- opcional, una sola imagen por nota (no una galería). None
+    # = sin imagen. Servida solo vía GET /notas/{id}/imagen (hereda el
+    # mismo permiso de ver la nota, nunca un mount estático público).
+    imagen_path = Column(String(300), nullable=True)
     fecha_creacion = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     entregable = relationship("Entregable", back_populates="notas")

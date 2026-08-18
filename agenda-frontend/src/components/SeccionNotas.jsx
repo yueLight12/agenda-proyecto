@@ -3,6 +3,56 @@ import { notasApi, pendientesApi } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
 import ConfirmDialog from "./ConfirmDialog";
 
+// Miniatura de la captura de pantalla de una nota -- pide el blob
+// autenticado (no se puede usar la URL del endpoint directo en <img src>,
+// ver notasApi.imagenBlobUrl) y libera el object URL al desmontar/cambiar
+// de nota, para no ir acumulando memoria.
+function ImagenNota({ notaId }) {
+  const [url, setUrl] = useState(null);
+  const [ampliada, setAmpliada] = useState(false);
+
+  useEffect(() => {
+    let cancelado = false;
+    let objectUrl = null;
+    notasApi.imagenBlobUrl(notaId).then((u) => {
+      if (cancelado) {
+        URL.revokeObjectURL(u);
+        return;
+      }
+      objectUrl = u;
+      setUrl(u);
+    });
+    return () => {
+      cancelado = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [notaId]);
+
+  if (!url) return null;
+
+  return (
+    <>
+      <img
+        src={url}
+        alt="Captura de pantalla adjunta"
+        style={{ maxWidth: 160, maxHeight: 120, borderRadius: 6, marginTop: 6, cursor: "zoom-in", display: "block" }}
+        onClick={() => setAmpliada(true)}
+      />
+      {ampliada && (
+        <div
+          style={{
+            position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,0.75)",
+            display: "flex", alignItems: "center", justifyContent: "center", padding: 24,
+          }}
+          onClick={() => setAmpliada(false)}
+        >
+          <img src={url} alt="Captura de pantalla adjunta" style={{ maxWidth: "90%", maxHeight: "90%", borderRadius: 6 }} />
+        </div>
+      )}
+    </>
+  );
+}
+
 /**
  * Sección reutilizable de notas/avisos/pendientes, para colgar de un
  * entregable, una reunión, una minuta o un proyecto/tema (exactamente uno
@@ -47,6 +97,7 @@ export default function SeccionNotas({
   const [notasTema, setNotasTema] = useState([]);
   const [pendientesTema, setPendientesTema] = useState([]);
   const [reutilizarId, setReutilizarId] = useState("");
+  const [imagen, setImagen] = useState(null);
 
   const params = entregableId
     ? { entregable_id: entregableId }
@@ -102,9 +153,20 @@ export default function SeccionNotas({
     setError("");
     setEnviando(true);
     try {
-      await notasApi.crear({ ...params, contenido });
+      const nueva = await notasApi.crear({ ...params, contenido });
+      if (imagen) {
+        // Se sube aparte (POST /notas sigue siendo JSON puro) -- si la
+        // nota ya se creó pero la imagen falla, se avisa sin perder la
+        // nota (ya quedó guardada con su texto).
+        try {
+          await notasApi.subirImagen(nueva.id, imagen);
+        } catch {
+          setError("La nota se guardó, pero no se pudo subir la imagen.");
+        }
+      }
       setContenido("");
       setReutilizarId("");
+      setImagen(null);
       await cargar();
     } catch (err) {
       setError(err.response?.data?.detail || "No se pudo agregar la nota.");
@@ -157,6 +219,7 @@ export default function SeccionNotas({
                     timeStyle: "short",
                   })}
                 </span>
+                {n.tiene_imagen && <ImagenNota notaId={n.id} />}
               </div>
               {(n.autor_id === usuario?.id || puedeAdministrar) && (
                 <button className="btn btn--ghost" type="button" onClick={() => handleEliminar(n.id)}>
@@ -190,6 +253,15 @@ export default function SeccionNotas({
           value={contenido}
           onChange={(e) => setContenido(e.target.value)}
         />
+        <label style={{ fontSize: "0.78rem", color: "var(--color-text-muted)" }}>
+          Adjuntar captura de pantalla (opcional)
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            onChange={(e) => setImagen(e.target.files?.[0] || null)}
+            style={{ display: "block", marginTop: 4, fontSize: "0.78rem" }}
+          />
+        </label>
         <button
           className="btn btn--ghost"
           type="submit"

@@ -6,6 +6,10 @@ agenda-backend/.env
 agenda-backend/*.sqlite3
 agenda-backend/credenciales_reseteo.txt
 
+# Imágenes subidas por usuarios (capturas de pantalla en notas, ver
+# app/services/almacenamiento.py) — contenido real, no va a git.
+agenda-backend/uploads/
+
 # Archivos de carga con datos personales reales (cumpleaños/eventos de
 # empresa, ver cargar_eventos_empresa.py) — no se suben a git.
 *.xlsx

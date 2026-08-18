@@ -36,6 +36,10 @@ class NotaOut(BaseModel):
     autor_id: int
     autor_nombre: str
     fecha_creacion: datetime
+    # No expone la ruta cruda -- solo si hay o no imagen. La imagen en sí
+    # se pide vía GET /notas/{id}/imagen (autenticado, mismo permiso que
+    # ver la nota), nunca por una URL pública directa.
+    tiene_imagen: bool = False
 
     class Config:
         from_attributes = True

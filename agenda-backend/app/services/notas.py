@@ -19,7 +19,7 @@ enterarse: el responsable del entregable, el organizador + invitados de la
 reunión/minuta, o quien tenga rol N1/N2 local en el tema (para proyecto_id),
 excluyendo siempre al propio autor.
 """
-from fastapi import HTTPException
+from fastapi import HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.permissions import (
@@ -36,6 +36,7 @@ from app.models.notificacion import Notificacion, TipoNotificacion
 from app.models.usuario import RolEnum, Usuario
 from app.models.usuario_proyecto_rol import UsuarioProyectoRol
 from app.schemas.nota import NotaCrear, NotaOut
+from app.services.almacenamiento import eliminar_imagen, guardar_imagen
 from app.services.entregables import obtener_entregable_o_404
 from app.services.proyectos import obtener_proyecto_o_404
 from app.services.reuniones import obtener_reunion_o_404
@@ -52,6 +53,7 @@ def nota_a_out(nota: Nota) -> NotaOut:
         autor_id=nota.autor_id,
         autor_nombre=nota.autor.nombre,
         fecha_creacion=nota.fecha_creacion,
+        tiene_imagen=nota.imagen_path is not None,
     )
 
 
@@ -194,4 +196,38 @@ def eliminar_nota(db: Session, usuario: Usuario, nota_id: int) -> None:
     es_autor = nota.autor_id == usuario.id
     if not es_autor and not _puede_editar_padre(db, usuario, nota):
         raise HTTPException(status_code=403, detail="No tienes permiso para eliminar esta nota")
+    eliminar_imagen(nota.imagen_path)
     db.delete(nota)
+
+
+def obtener_nota_visible_o_404(db: Session, usuario: Usuario, nota_id: int) -> Nota:
+    """Trae una nota puntual validando el mismo criterio de visibilidad que
+    listar_notas -- usado para adjuntar/leer su imagen (ver
+    app/routers/notas.py)."""
+    nota = db.query(Nota).filter(Nota.id == nota_id).first()
+    if not nota:
+        raise HTTPException(status_code=404, detail="Nota no encontrada")
+    if not _puede_ver_padre(
+        db, usuario, nota.entregable_id, nota.reunion_id, nota.minuta_id, nota.proyecto_id
+    ):
+        raise HTTPException(status_code=403, detail="No tienes acceso a esta nota")
+    return nota
+
+
+async def agregar_imagen_a_nota(
+    db: Session, usuario: Usuario, nota_id: int, archivo: UploadFile
+) -> Nota:
+    """Adjunta (o reemplaza) la captura de pantalla de una nota ya
+    existente -- mismo criterio de permiso que borrarla: el autor, o quien
+    pueda editar el padre."""
+    nota = db.query(Nota).filter(Nota.id == nota_id).first()
+    if not nota:
+        raise HTTPException(status_code=404, detail="Nota no encontrada")
+    es_autor = nota.autor_id == usuario.id
+    if not es_autor and not _puede_editar_padre(db, usuario, nota):
+        raise HTTPException(status_code=403, detail="No tienes permiso para editar esta nota")
+
+    if nota.imagen_path:
+        eliminar_imagen(nota.imagen_path)
+    nota.imagen_path = await guardar_imagen(archivo, subcarpeta="notas")
+    return nota
