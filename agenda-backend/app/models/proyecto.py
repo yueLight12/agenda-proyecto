@@ -49,3 +49,8 @@ class Proyecto(Base):
     # confundir con las notas de un entregable/reunión/minuta de este
     # proyecto, que cuelgan de esas entidades, no de aquí.
     notas = relationship("Nota", back_populates="proyecto", cascade="all, delete-orphan")
+    # Pendientes reutilizables del tema (2026-08-17) -- sin esta relación,
+    # eliminar_proyecto (db.delete(proyecto)) no sabía que debía borrarlos
+    # también, y Postgres rechazaba el DELETE por la FK (bug real
+    # encontrado por Yue: no se podía borrar un tema con pendientes).
+    pendientes = relationship("Pendiente", back_populates="proyecto", cascade="all, delete-orphan")

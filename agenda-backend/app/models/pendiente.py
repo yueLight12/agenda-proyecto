@@ -18,10 +18,14 @@ class Pendiente(Base):
     __tablename__ = "pendientes"
 
     id = Column(Integer, primary_key=True, index=True)
-    proyecto_id = Column(Integer, ForeignKey("proyectos.id"), nullable=False)
+    # ondelete="CASCADE" además de Proyecto.pendientes (cascade="all,
+    # delete-orphan" a nivel ORM) -- defensivo a nivel de base de datos,
+    # mismo criterio que AgendaItem.reunion_id, para que borrar un tema no
+    # truene por una fila huérfana sin importar el camino de borrado.
+    proyecto_id = Column(Integer, ForeignKey("proyectos.id", ondelete="CASCADE"), nullable=False)
     contenido = Column(String(500), nullable=False)
     autor_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
     fecha_creacion = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-    proyecto = relationship("Proyecto")
+    proyecto = relationship("Proyecto", back_populates="pendientes")
     autor = relationship("Usuario", foreign_keys=[autor_id])

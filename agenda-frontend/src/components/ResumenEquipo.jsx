@@ -83,11 +83,7 @@ export default function ResumenEquipo() {
 
   return (
     <div className="stack">
-      <div className="list-inline" style={{ borderBottom: "none", padding: 0 }}>
-        <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem", margin: 0 }}>
-          Las reuniones que se muestran aquí son solo las que tú también puedes ver (donde tú
-          organizas o estás invitado) — no necesariamente todas las reuniones de cada persona.
-        </p>
+      <div className="list-inline" style={{ borderBottom: "none", padding: 0, justifyContent: "flex-end" }}>
         <button className="btn btn--primary" type="button" onClick={() => setCreandoTema(true)}>
           Crear tema
         </button>

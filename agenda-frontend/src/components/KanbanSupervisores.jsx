@@ -1,8 +1,72 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { armarColumnasEquipo } from "../utils/equipoSupervisores";
 import { fechaLocal, textoDiasRelativos } from "../utils/fechas";
 import { etiquetaRol } from "../utils/rolLabels";
 import EstatusBadge from "./EstatusBadge";
+
+// Menú "⋮" con las acciones de un tema (Administrar/Editar/Eliminar) --
+// 2026-08-17, reemplaza los 3 botones inline que se apretaban/desbordaban
+// en pantallas angostas. Mismo patrón de overlay que ya usa
+// BuscadorInvitados.jsx (position: absolute + .card), sin librería nueva.
+function MenuAcciones({ acciones }) {
+  const [abierto, setAbierto] = useState(false);
+  if (acciones.length === 0) return null;
+
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        type="button"
+        className="btn btn--ghost"
+        style={{ fontSize: "0.75rem", padding: "2px 8px" }}
+        onClick={() => setAbierto((a) => !a)}
+        aria-label="Acciones del tema"
+        aria-expanded={abierto}
+      >
+        ⋮
+      </button>
+      {abierto && (
+        <>
+          {/* Capa invisible para cerrar el menú al hacer clic afuera. */}
+          <div
+            style={{ position: "fixed", inset: 0, zIndex: 4 }}
+            onClick={() => setAbierto(false)}
+          />
+          <div
+            className="card"
+            style={{
+              position: "absolute",
+              zIndex: 5,
+              top: "100%",
+              right: 0,
+              marginTop: 4,
+              padding: 4,
+              minWidth: 140,
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+            }}
+          >
+            {acciones.map(({ etiqueta, onClick }) => (
+              <button
+                key={etiqueta}
+                type="button"
+                className="btn btn--ghost"
+                style={{ width: "100%", justifyContent: "flex-start", textAlign: "left", fontSize: "0.8rem" }}
+                onClick={() => {
+                  setAbierto(false);
+                  onClick();
+                }}
+              >
+                {etiqueta}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 // "Tu equipo" en tarjetas Kanban: una columna por cada persona directamente
 // debajo de quien ve la pantalla (ver armarColumnasEquipo en
@@ -56,38 +120,26 @@ function NodoProyecto({ proyecto, hijosPorPadre, onAdministrar, onEditarTema, on
           </Link>
           {proyecto.rol && <span style={{ fontWeight: 400 }}> ({etiquetaRol(proyecto.rol)})</span>}
         </span>
-        <div style={{ display: "flex", gap: 4 }}>
-          {onAdministrar && proyecto.viewer_puede_administrar && (
-            <button
-              className="btn btn--ghost"
-              type="button"
-              style={{ fontSize: "0.75rem", padding: "2px 8px" }}
-              onClick={() => onAdministrar(proyecto.proyecto_id, proyecto.proyecto_nombre)}
-            >
-              Administrar
-            </button>
-          )}
-          {onEditarTema && proyecto.viewer_puede_administrar && (
-            <button
-              className="btn btn--ghost"
-              type="button"
-              style={{ fontSize: "0.75rem", padding: "2px 8px" }}
-              onClick={() => onEditarTema(proyecto.proyecto_id)}
-            >
-              Editar
-            </button>
-          )}
-          {onEliminarTema && proyecto.viewer_puede_administrar && (
-            <button
-              className="btn btn--ghost"
-              type="button"
-              style={{ fontSize: "0.75rem", padding: "2px 8px" }}
-              onClick={() => onEliminarTema(proyecto.proyecto_id, proyecto.proyecto_nombre)}
-            >
-              Eliminar
-            </button>
-          )}
-        </div>
+        <MenuAcciones
+          acciones={
+            proyecto.viewer_puede_administrar
+              ? [
+                  onAdministrar && {
+                    etiqueta: "Administrar",
+                    onClick: () => onAdministrar(proyecto.proyecto_id, proyecto.proyecto_nombre),
+                  },
+                  onEditarTema && {
+                    etiqueta: "Editar",
+                    onClick: () => onEditarTema(proyecto.proyecto_id),
+                  },
+                  onEliminarTema && {
+                    etiqueta: "Eliminar",
+                    onClick: () => onEliminarTema(proyecto.proyecto_id, proyecto.proyecto_nombre),
+                  },
+                ].filter(Boolean)
+              : []
+          }
+        />
       </div>
       {proyecto.entregables.length === 0 && proyecto.reuniones.length === 0 && (
         <p style={{ fontSize: "0.8rem", color: "var(--color-text-muted)", margin: "2px 0" }}>
