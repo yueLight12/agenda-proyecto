@@ -622,6 +622,22 @@ def actualizar_temas(
     for pid, item in activos_por_proyecto.items():
         if pid not in deseados:
             item.activo = False
+            # Al desmarcar un tema, también se archivan los entregables/
+            # notas/pendientes que se habían sembrado bajo su sección
+            # (2026-08-18, bug reportado por Yue: "Correo para Manuel
+            # Delgado" se desmarcó pero sus ítems sembrados -- Tarea1, un
+            # pendiente -- se quedaban activos para siempre, como
+            # fantasmas). Sin esto, _sembrar_entregables_notas_pendientes
+            # solo agrega, nunca limpia lo que ya no aplica.
+            if pid is not None:
+                db.query(AgendaItem).filter(
+                    filtro,
+                    AgendaItem.seccion_proyecto_id == pid,
+                    AgendaItem.tipo.in_(
+                        [TipoAgendaItem.entregable, TipoAgendaItem.nota, TipoAgendaItem.pendiente]
+                    ),
+                    AgendaItem.activo.is_(True),
+                ).update({AgendaItem.activo: False}, synchronize_session=False)
 
     # Savepoint por ítem + índice único parcial en BD
     # (ix_agenda_items_tema_activo_unico, ver migración 87ff0608e076): si
