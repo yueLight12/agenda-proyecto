@@ -184,9 +184,14 @@ export default function TableroProyecto() {
             >
               Tabla
             </button>
-            {/* Calendario/Kanban ocultos a petición de Yue (2026-08-17) -- el
-                código sigue abajo intacto (estado `vista`, bloques de render,
-                componentes), reactivar es solo devolver estos dos botones. */}
+            <button
+              className={vista === "kanban" ? "btn btn--primary" : "btn btn--ghost"}
+              onClick={() => setVista("kanban")}
+            >
+              Kanban
+            </button>
+            {/* Calendario sigue oculto a petición de Yue (2026-08-17) -- el
+                código sigue abajo intacto, reactivar es solo devolver ese botón. */}
           </div>
           {puedeAdministrar && (
             <button className="btn btn--ghost" onClick={() => setMostrarModalEquipo(true)}>
