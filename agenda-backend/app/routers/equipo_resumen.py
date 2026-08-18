@@ -7,7 +7,9 @@ administrar su equipo rápido, sin entrar proyecto por proyecto. Reutiliza
 `query_reuniones_visibles` tal cual (ver app/services/equipo_resumen.py);
 no define ninguna regla de visibilidad nueva.
 """
-from fastapi import APIRouter, Depends
+from datetime import date
+
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -16,8 +18,9 @@ from app.database import get_db
 from app.dependencies import obtener_usuario_actual
 from app.models.usuario import Usuario
 from app.schemas.equipo_resumen import ResumenEquipoOut
-from app.schemas.serie_reunion import PendienteRevisionOut
+from app.schemas.serie_reunion import HistorialSemanaOut, PendienteRevisionOut
 from app.services.equipo_resumen import resumen_equipo_multiproyecto
+from app.services.historial_minutas import historial_semana
 from app.services.minutas import listar_pendientes_revision, listar_temas_resueltos
 
 router = APIRouter(prefix="/equipo", tags=["Resumen de equipo"])
@@ -80,3 +83,16 @@ def temas_resueltos(
     ninguna junta, habiendo tenido algo antes) -- para ocultarlos del árbol
     de Vista Equipo. Ver app.services.minutas.listar_temas_resueltos."""
     return listar_temas_resueltos(db)
+
+
+@router.get("/historial-semana", response_model=HistorialSemanaOut)
+def historial_semana_endpoint(
+    fecha: date = Query(default_factory=date.today),
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Historial global (todas las juntas) de la semana que contiene
+    `fecha` -- revisado/nuevo/sigue pendiente, para navegar semana por
+    semana (2026-08-18, a petición de Yue). Ver
+    app.services.historial_minutas.historial_semana."""
+    return historial_semana(db, usuario, fecha)

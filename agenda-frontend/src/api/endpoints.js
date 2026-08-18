@@ -65,6 +65,8 @@ export const equipoResumenApi = {
   misJefes: async () => (await api.get("/equipo/mis-jefes")).data,
   pendientesRevision: async () => (await api.get("/equipo/pendientes-revision")).data,
   temasResueltos: async () => (await api.get("/equipo/temas-resueltos")).data,
+  historialSemana: async (fechaIso) =>
+    (await api.get("/equipo/historial-semana", { params: { fecha: fechaIso } })).data,
 };
 
 export const reunionesApi = {
@@ -136,6 +138,7 @@ export const seriesReunionApi = {
   moverItemAgenda: async (itemId, direccion) =>
     (await api.post(`/series-reuniones/agenda-items/${itemId}/mover`, { direccion })).data,
   archivarItemAgenda: async (itemId) => api.delete(`/series-reuniones/agenda-items/${itemId}`),
+  revertirRevisado: async (itemId) => api.post(`/series-reuniones/agenda-items/${itemId}/revertir-revisado`),
   actualizarTemas: async (serieId, proyectoIds) =>
     api.put(`/series-reuniones/${serieId}/temas`, { proyecto_ids: proyectoIds }),
   temasRelevantes: async (serieId) =>

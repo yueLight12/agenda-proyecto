@@ -212,9 +212,6 @@ export default function TableroProyecto() {
           <button className="btn btn--primary" onClick={() => setModalEntregable("nuevo")}>
             {puedeAdministrar ? "Nuevo entregable" : "Agregarme una tarea"}
           </button>
-          <button className="btn btn--ghost" onClick={() => setModalReunion("nueva")}>
-            Nueva reunión
-          </button>
         </div>
       </div>
 

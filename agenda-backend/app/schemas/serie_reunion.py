@@ -156,3 +156,30 @@ class PendienteRevisionOut(BaseModel):
     proyecto_nombre: str
     item_id: int
     reunion_id: int
+
+
+class EventoHistorialOut(BaseModel):
+    """Una fila del historial semanal -- ver
+    app.services.historial_minutas.historial_semana."""
+
+    tema_nombre: str
+    junta_titulo: str
+    reunion_id: int
+    usuario_nombre: Optional[str] = None  # quién lo marcó/registró (None para "nuevo")
+    estado: Optional[EstadoRevision] = None  # None para "nuevo" (no es una revisión)
+    nota: Optional[str] = None
+    fecha: datetime
+    # Ítem tipo=tema al que corresponde esta fila -- solo presente en
+    # "revisados" (2026-08-18, botón "Revertir": ver
+    # app.services.series_reunion.revertir_revision_tema). None en "nuevos"/
+    # "pendientes", que no se revierten desde esta vista.
+    agenda_item_id: Optional[int] = None
+
+
+class HistorialSemanaOut(BaseModel):
+    numero_semana: int
+    fecha_inicio: date
+    fecha_fin: date
+    revisados: list[EventoHistorialOut] = []
+    nuevos: list[EventoHistorialOut] = []
+    pendientes: list[EventoHistorialOut] = []

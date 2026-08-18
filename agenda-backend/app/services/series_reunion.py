@@ -490,6 +490,14 @@ def agregar_item_agenda(
     )
     db.add(item)
     db.flush()
+    if tipo == TipoAgendaItem.tema and proyecto_id is not None:
+        # Siembra el contenido de este tema al agregarlo suelto -- mismo
+        # paso que ya hacía actualizar_temas al guardar el conjunto
+        # completo (2026-08-18, selector "+ Agregar tema a esta agenda" en
+        # SeccionAgendaChecklist.jsx: agrega UN tema a la vez, para cuando
+        # un invitado nuevo destapa un tema en común que la siembra inicial
+        # de la junta no incluyó). Idempotente, ver _sembrar_...
+        _sembrar_entregables_notas_pendientes(db, usuario, serie_id, reunion_id, [proyecto_id])
     return item
 
 
@@ -547,12 +555,34 @@ def mover_item_agenda(db: Session, usuario: Usuario, item_id: int, direccion: st
 
 def archivar_item_agenda(db: Session, usuario: Usuario, item_id: int) -> None:
     """No borra -- solo activo=False, para conservar su historial de
-    revisiones (la bitácora de lo que se habló no debe desaparecer)."""
+    revisiones (la bitácora de lo que se habló no debe desaparecer).
+
+    Si es un ítem tipo=tema (el botón "Quitar" del encabezado de sección en
+    SeccionAgendaChecklist -- 2026-08-18, reemplaza al checkbox que antes
+    hacía esto mismo desde el árbol visible), también archiva lo que se
+    había sembrado bajo su sección -- mismo bloque de limpieza que
+    actualizar_temas al desmarcar un tema, para no reintroducir el bug de
+    "fantasmas" (entregables/notas/pendientes que se quedaban activos para
+    siempre tras quitar su tema)."""
     item = db.query(AgendaItem).filter(AgendaItem.id == item_id).first()
     if not item:
         raise HTTPException(status_code=404, detail="Ítem de agenda no encontrado")
     _verificar_puede_editar_item(db, usuario, item)
     item.activo = False
+    if item.tipo == TipoAgendaItem.tema and item.proyecto_id is not None:
+        filtro = (
+            AgendaItem.serie_id == item.serie_id
+            if item.serie_id is not None
+            else AgendaItem.reunion_id == item.reunion_id
+        )
+        db.query(AgendaItem).filter(
+            filtro,
+            AgendaItem.seccion_proyecto_id == item.proyecto_id,
+            AgendaItem.tipo.in_(
+                [TipoAgendaItem.entregable, TipoAgendaItem.nota, TipoAgendaItem.pendiente]
+            ),
+            AgendaItem.activo.is_(True),
+        ).update({AgendaItem.activo: False}, synchronize_session=False)
 
 
 def actualizar_temas(
@@ -658,6 +688,29 @@ def actualizar_temas(
             pass
 
     _sembrar_entregables_notas_pendientes(db, usuario, serie_id, reunion_id, list(deseados))
+
+
+def revertir_revision_tema(db: Session, usuario: Usuario, agenda_item_id: int) -> None:
+    """Deshace un "Marcar revisado" hecho por error (2026-08-18, botón
+    "Revertir" en la pestaña Historial) -- vuelve a dejar el tema activo
+    (pendiente) en la junta a la que pertenecía ese ítem, con el mismo
+    mecanismo que "+ Agregar tema a esta agenda" (agregar_item_agenda ya
+    siembra su contenido solo). El registro de que se marcó revisado por
+    error NO se borra -- AgendaItemRevision es la bitácora, se queda como
+    historial de todas formas."""
+    item = db.query(AgendaItem).filter(AgendaItem.id == agenda_item_id).first()
+    if not item or item.tipo != TipoAgendaItem.tema or item.proyecto_id is None:
+        raise HTTPException(status_code=404, detail="Tema no encontrado")
+    if item.activo:
+        return  # ya está pendiente, nada que revertir
+    agregar_item_agenda(
+        db,
+        usuario,
+        item.serie_id,
+        tipo=TipoAgendaItem.tema,
+        reunion_id=item.reunion_id,
+        proyecto_id=item.proyecto_id,
+    )
 
 
 HORIZONTE_ENTREGABLES_DIAS = 14

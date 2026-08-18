@@ -168,6 +168,13 @@ export default function ModalReunion({
         });
         setSerieActual(nueva);
       }
+      // Fuerza a SeccionAgendaChecklist a remontar y volver a pedir la
+      // agenda + temas relevantes (2026-08-18, bug reportado por Yue: al
+      // invitar a alguien nuevo -- ej. Diana -- y guardar, "Agenda de esta
+      // junta" seguía mostrando lo cargado en el primer render, así que el
+      // selector "+ Agregar tema a esta agenda" nunca se enteraba de los
+      // temas que la nueva invitada destapó).
+      setVersionChecklist((v) => v + 1);
       await onGuardado();
     } catch (err) {
       setError(err.response?.data?.detail || "No se pudo guardar la reunión.");
@@ -394,32 +401,26 @@ export default function ModalReunion({
         )}
 
         {(reunionActual || serieActual) && (
-          <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 16 }}>
-            <h4 style={{ fontSize: "0.85rem", margin: "0 0 6px" }}>Temas de esta junta</h4>
-            <p style={{ fontSize: "0.78rem", color: "var(--color-text-muted)", margin: "0 0 8px" }}>
-              Marca los temas que se van a ver — marcar uno incluye también sus subtemas. Se
-              guarda solo, sin botón aparte.
-            </p>
-            <SelectorTemasChecklist
-              // El árbol que ofrece el selector depende de quién organiza +
-              // quién está invitado (ver backend: temas-relevantes) --
-              // forzamos un remount (y por tanto un refetch) cuando cambia
-              // el organizador o la lista de invitados YA GUARDADA, para
-              // que no se quede con la lista de temas de antes de invitar a
-              // alguien nuevo.
-              key={`${serieIdAgenda || reunionIdAgenda}-${
-                (serieActual || reunionActual)?.organizador_id
-              }-${((serieActual || reunionActual)?.participantes || [])
-                .map((p) => p.usuario_id)
-                .sort()
-                .join(",")}`}
-              serieId={serieIdAgenda}
-              reunionId={reunionIdAgenda}
-              defaultTodos
-              inline
-              onGuardado={async () => setVersionChecklist((v) => v + 1)}
-            />
-          </div>
+          <SelectorTemasChecklist
+            // El árbol que ofrece el selector depende de quién organiza +
+            // quién está invitado (ver backend: temas-relevantes) --
+            // forzamos un remount (y por tanto un refetch) cuando cambia
+            // el organizador o la lista de invitados YA GUARDADA, para
+            // que no se quede con la lista de temas de antes de invitar a
+            // alguien nuevo.
+            key={`${serieIdAgenda || reunionIdAgenda}-${
+              (serieActual || reunionActual)?.organizador_id
+            }-${((serieActual || reunionActual)?.participantes || [])
+              .map((p) => p.usuario_id)
+              .sort()
+              .join(",")}`}
+            serieId={serieIdAgenda}
+            reunionId={reunionIdAgenda}
+            defaultTodos
+            inline
+            oculto
+            onGuardado={async () => setVersionChecklist((v) => v + 1)}
+          />
         )}
 
         {serieIdAgenda && <SeccionAgendaChecklist key={versionChecklist} serieId={serieIdAgenda} />}

@@ -105,19 +105,54 @@ export default function SeccionAgendaChecklist({ serieId = null, reunionId = nul
   const [item, setItem] = useState(ITEM_VACIO);
   const [guardandoItem, setGuardandoItem] = useState(false);
 
+  // Temas en común entre organizador+invitados que TODAVÍA no están en la
+  // agenda -- 2026-08-18, a petición de Yue: si después de crear la junta
+  // se invita a alguien y eso destapa un tema nuevo en común, antes no
+  // había forma de agregarlo (el checklist visible se quitó por
+  // repetitivo, ver SelectorTemasChecklist `oculto`). Este selector solo
+  // aparece cuando de verdad falta algo, así no vuelve a duplicar el
+  // árbol completo de antes.
+  const [temasFaltantes, setTemasFaltantes] = useState([]);
+  const [temaFaltanteId, setTemaFaltanteId] = useState("");
+  const [agregandoTema, setAgregandoTema] = useState(false);
+  const [errorTema, setErrorTema] = useState("");
+
   const cargarAgenda = async () => {
     setCargandoAgenda(true);
     try {
-      const [ag, arbolVisible] = await Promise.all([
+      const [ag, arbolVisible, relevantes] = await Promise.all([
         serieId ? seriesReunionApi.agenda(serieId) : reunionesApi.agenda(reunionId),
         proyectosApi.arbolVisible(),
+        serieId ? seriesReunionApi.temasRelevantes(serieId) : reunionesApi.temasRelevantes(reunionId),
       ]);
       setAgenda(ag);
       setArbol(arbolVisible);
+      const idsYaEnAgenda = new Set(
+        ag.filter((i) => i.tipo === "tema").map((i) => i.seccion_proyecto_id)
+      );
+      setTemasFaltantes(relevantes.filter((t) => !idsYaEnAgenda.has(t.id)));
     } catch {
       setError("No se pudo cargar la agenda.");
     } finally {
       setCargandoAgenda(false);
+    }
+  };
+
+  const handleAgregarTema = async (e) => {
+    e.preventDefault();
+    if (!temaFaltanteId) return;
+    setAgregandoTema(true);
+    setErrorTema("");
+    try {
+      const datos = { tipo: "tema", proyecto_id: Number(temaFaltanteId) };
+      if (serieId) await seriesReunionApi.agregarItemAgenda(serieId, datos);
+      else await reunionesApi.agregarItemAgenda(reunionId, datos);
+      setTemaFaltanteId("");
+      await cargarAgenda();
+    } catch (err) {
+      setErrorTema(err.response?.data?.detail || "No se pudo agregar el tema.");
+    } finally {
+      setAgregandoTema(false);
     }
   };
 
@@ -199,14 +234,15 @@ export default function SeccionAgendaChecklist({ serieId = null, reunionId = nul
     <div className="stack" style={{ borderTop: "1px solid var(--color-border)", paddingTop: 12 }}>
       <h3 style={{ fontSize: "0.9rem", margin: 0 }}>Agenda de esta {serieId ? "junta" : "reunión"}</h3>
       <p style={{ color: "var(--color-text-muted)", fontSize: "0.78rem", margin: 0 }}>
-        Se llena sola con lo que haya bajo los temas marcados arriba — entregables próximos,
-        notas y pendientes. Lo que no se revise sigue pendiente la próxima vez.
+        Se llena sola con los temas de esta junta — entregables próximos, notas y pendientes.
+        Usa "Quitar" en un tema si no aplica a esta reunión. Lo que no se revise sigue
+        pendiente la próxima vez.
       </p>
 
       {cargandoAgenda && <p style={{ fontSize: "0.85rem" }}>Cargando...</p>}
       {!cargandoAgenda && agenda.length === 0 && (
         <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
-          Todavía no hay ítems en la agenda — marca un tema arriba para traer lo que tenga.
+          Todavía no hay temas en común entre quien organiza y los invitados.
         </p>
       )}
 
@@ -333,6 +369,37 @@ export default function SeccionAgendaChecklist({ serieId = null, reunionId = nul
       })}
 
       {error && !itemEditandoId && <p className="error-text">{error}</p>}
+
+      {!cargandoAgenda && temasFaltantes.length > 0 && (
+        <form
+          onSubmit={handleAgregarTema}
+          className="list-inline"
+          style={{ borderBottom: "none", padding: 0, gap: 6, marginTop: 4 }}
+        >
+          <select
+            className="input"
+            value={temaFaltanteId}
+            onChange={(e) => setTemaFaltanteId(e.target.value)}
+            style={{ fontSize: "0.8rem" }}
+          >
+            <option value="">Agregar un tema a esta agenda...</option>
+            {temasFaltantes.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.ruta}
+              </option>
+            ))}
+          </select>
+          <button
+            className="btn btn--ghost"
+            type="submit"
+            disabled={!temaFaltanteId || agregandoTema}
+            style={{ fontSize: "0.75rem", whiteSpace: "nowrap" }}
+          >
+            {agregandoTema ? "Agregando..." : "+ Agregar"}
+          </button>
+        </form>
+      )}
+      {errorTema && <p className="error-text">{errorTema}</p>}
     </div>
   );
 }

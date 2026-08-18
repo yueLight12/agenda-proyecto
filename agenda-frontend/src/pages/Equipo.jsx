@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { miEquipoApi, usuariosApi } from "../api/endpoints";
 import ConfirmDialog from "../components/ConfirmDialog";
+import HistorialMinutas from "../components/HistorialMinutas";
 import Modal from "../components/Modal";
 import ResumenEquipo from "../components/ResumenEquipo";
 import VistaEstatusEquipo from "../components/VistaEstatusEquipo";
@@ -9,7 +10,7 @@ import { ROL_LABELS, etiquetaRol } from "../utils/rolLabels";
 const ROLES = ["N1", "N2", "N3", "N4"];
 
 export default function Equipo() {
-  const [vista, setVista] = useState("equipo"); // "equipo" | "estatus"
+  const [vista, setVista] = useState("equipo"); // "equipo" | "estatus" | "historial"
   const [mostrarPlantilla, setMostrarPlantilla] = useState(false);
 
   return (
@@ -31,13 +32,22 @@ export default function Equipo() {
           >
             Vista Estatus
           </button>
+          <button
+            className={`btn ${vista === "historial" ? "btn--primary" : "btn--ghost"}`}
+            type="button"
+            onClick={() => setVista("historial")}
+          >
+            Historial
+          </button>
           <button className="btn btn--ghost" type="button" onClick={() => setMostrarPlantilla(true)}>
             Administrar equipo
           </button>
         </div>
       </div>
 
-      {vista === "equipo" ? <ResumenEquipo /> : <VistaEstatusEquipo />}
+      {vista === "equipo" && <ResumenEquipo />}
+      {vista === "estatus" && <VistaEstatusEquipo />}
+      {vista === "historial" && <HistorialMinutas />}
 
       {mostrarPlantilla && (
         <Modal titulo="Administrar equipo (Plantilla)" onCerrar={() => setMostrarPlantilla(false)}>

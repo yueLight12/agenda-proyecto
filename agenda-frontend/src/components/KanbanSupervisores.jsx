@@ -4,6 +4,7 @@ import { armarColumnasEquipo } from "../utils/equipoSupervisores";
 import { fechaLocal, textoDiasRelativos } from "../utils/fechas";
 import { etiquetaRol } from "../utils/rolLabels";
 import EstatusBadge from "./EstatusBadge";
+import HiloComentarios from "./HiloComentarios";
 
 // Menú "⋮" con las acciones de un tema (Administrar/Editar/Eliminar) --
 // 2026-08-17, reemplaza los 3 botones inline que se apretaban/desbordaban
@@ -334,11 +335,12 @@ function ArbolProyectos({
   );
 }
 
+
 // Caja "Avisos" o "Pendientes" de una persona en Vista Equipo -- ambos
 // modelos (Nota/Pendiente) cuelgan de un proyecto_id (tema), no de una
 // persona, así que agregar uno nuevo pide elegir a cuál de los temas de
 // esa persona se asocia (preseleccionado si solo tiene uno).
-function CajaLista({ titulo, items, temas, onAgregar }) {
+function CajaLista({ titulo, items, temas, onAgregar, expandido, onToggle, tipoPadre }) {
   const [temaId, setTemaId] = useState(temas[0]?.proyecto_id ?? "");
   const [contenido, setContenido] = useState("");
   const [enviando, setEnviando] = useState(false);
@@ -368,60 +370,119 @@ function CajaLista({ titulo, items, temas, onAgregar }) {
 
   return (
     <div className="stack" style={{ gap: 4, marginTop: 8 }}>
-      <h4 style={{ fontSize: "0.78rem", margin: 0, color: "var(--color-text-muted)" }}>{titulo}</h4>
-      {items.length === 0 ? (
-        <p style={{ fontSize: "0.78rem", color: "var(--color-text-muted)", margin: 0 }}>
-          Sin {titulo.toLowerCase()}.
-        </p>
-      ) : (
-        items.map((it) => (
-          <p key={it.id} style={{ fontSize: "0.78rem", margin: 0 }}>
-            {it.contenido}
-            {temas.length > 1 && <span style={{ color: "var(--color-text-muted)" }}> — {it.proyecto_nombre}</span>}
-          </p>
-        ))
-      )}
-      {error && <p className="error-text" style={{ fontSize: "0.75rem", margin: 0 }}>{error}</p>}
-      {onAgregar && temas.length > 0 && (
-        <form onSubmit={handleSubmit} className="stack" style={{ gap: 4 }}>
-          {temas.length > 1 && (
-            <select
-              className="input"
-              value={temaId}
-              onChange={(e) => setTemaId(e.target.value)}
-              style={{ fontSize: "0.78rem" }}
+      <button
+        type="button"
+        onClick={onToggle}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          background: "none",
+          border: "none",
+          padding: 0,
+          cursor: "pointer",
+          color: "var(--color-text-muted)",
+        }}
+      >
+        <h4 style={{ fontSize: "0.78rem", margin: 0 }}>
+          {titulo} ({items.length})
+        </h4>
+        <span style={{ fontSize: "0.7rem" }}>{expandido ? "▲" : "▼"}</span>
+      </button>
+      {expandido && (
+        <>
+          {items.length === 0 ? (
+            <p style={{ fontSize: "0.78rem", color: "var(--color-text-muted)", margin: 0 }}>
+              Sin {titulo.toLowerCase()}.
+            </p>
+          ) : (
+            <div
+              className="stack"
+              // Altura máxima + scroll interno (2026-08-18, a petición de
+              // Yue: "entre más avisos/pendientes haya, más grande se ve" --
+              // sin este tope, la caja crecía con el conteo de cada persona
+              // y las columnas se veían disparejas). Con el tope, la caja
+              // siempre ocupa el mismo espacio -- quien tenga más de lo que
+              // cabe hace scroll adentro, en vez de estirar toda la tarjeta.
+              style={{ gap: 4, maxHeight: 200, overflowY: "auto", paddingRight: 2 }}
             >
-              {temas.map((t) => (
-                <option key={t.proyecto_id} value={t.proyecto_id}>
-                  {t.proyecto_nombre}
-                </option>
+              {items.map((it) => (
+                <div
+                  key={it.id}
+                  style={{
+                    fontSize: "0.78rem",
+                    padding: "6px 8px",
+                    background: "var(--color-surface)",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: "var(--radius-sm, 6px)",
+                  }}
+                >
+                  {it.contenido}
+                  {temas.length > 1 && (
+                    <div style={{ color: "var(--color-text-muted)", fontSize: "0.72rem", marginTop: 2 }}>
+                      {it.proyecto_nombre}
+                    </div>
+                  )}
+                  <HiloComentarios
+                    padreParams={tipoPadre === "nota" ? { nota_padre_id: it.id } : { pendiente_padre_id: it.id }}
+                  />
+                </div>
               ))}
-            </select>
+            </div>
           )}
-          <div style={{ display: "flex", gap: 4 }}>
-            <input
-              className="input"
-              style={{ fontSize: "0.78rem" }}
-              placeholder={`Agregar ${titulo.toLowerCase()}...`}
-              value={contenido}
-              onChange={(e) => setContenido(e.target.value)}
-            />
-            <button
-              className="btn btn--ghost"
-              type="submit"
-              disabled={enviando || !contenido.trim()}
-              style={{ fontSize: "0.75rem" }}
-            >
-              +
-            </button>
-          </div>
-        </form>
+          {error && <p className="error-text" style={{ fontSize: "0.75rem", margin: 0 }}>{error}</p>}
+          {onAgregar && temas.length > 0 && (
+            <form onSubmit={handleSubmit} className="stack" style={{ gap: 4 }}>
+              {temas.length > 1 && (
+                <select
+                  className="input"
+                  value={temaId}
+                  onChange={(e) => setTemaId(e.target.value)}
+                  style={{ fontSize: "0.78rem" }}
+                >
+                  {temas.map((t) => (
+                    <option key={t.proyecto_id} value={t.proyecto_id}>
+                      {t.proyecto_nombre}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <div style={{ display: "flex", gap: 4 }}>
+                <input
+                  className="input"
+                  style={{ fontSize: "0.78rem" }}
+                  placeholder={`Agregar ${titulo.toLowerCase()}...`}
+                  value={contenido}
+                  onChange={(e) => setContenido(e.target.value)}
+                />
+                <button
+                  className="btn btn--ghost"
+                  type="submit"
+                  disabled={enviando || !contenido.trim()}
+                  style={{ fontSize: "0.75rem" }}
+                >
+                  +
+                </button>
+              </div>
+            </form>
+          )}
+        </>
       )}
     </div>
   );
 }
 
-function AvisosPendientesPersona({ columna, notasPorProyecto, pendientesPorProyecto, onAgregarNota, onAgregarPendiente }) {
+function AvisosPendientesPersona({
+  columna,
+  notasPorProyecto,
+  pendientesPorProyecto,
+  onAgregarNota,
+  onAgregarPendiente,
+  avisosAbiertos,
+  pendientesAbiertos,
+  onToggleAvisos,
+  onTogglePendientes,
+}) {
   const avisos = columna.proyectos.flatMap((p) =>
     (notasPorProyecto[p.proyecto_id] || []).map((n) => ({ ...n, proyecto_nombre: p.proyecto_nombre }))
   );
@@ -430,9 +491,35 @@ function AvisosPendientesPersona({ columna, notasPorProyecto, pendientesPorProye
   );
 
   return (
-    <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 6 }}>
-      <CajaLista titulo="Avisos" items={avisos} temas={columna.proyectos} onAgregar={onAgregarNota} />
-      <CajaLista titulo="Pendientes" items={pendientes} temas={columna.proyectos} onAgregar={onAgregarPendiente} />
+    // margin-top: auto -- empuja este bloque al fondo de la tarjeta
+    // (2026-08-18, a petición de Yue: con distinto número de temas por
+    // persona, Avisos/Pendientes quedaba a distinta altura entre columnas;
+    // .kanban-column ya estira todas las tarjetas a la misma altura, esto
+    // hace que el bloque quede siempre alineado en la misma fila abajo).
+    // El expandir/colapsar de Avisos/Pendientes es COMPARTIDO entre todas
+    // las columnas de la vista (estado en KanbanSupervisores, no aquí) --
+    // sin esto, expandir el de una sola persona la hacía crecer mientras
+    // las demás se quedaban con espacio vacío abajo, descuadrado (2026-08-18,
+    // reportado por Yue).
+    <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 6, marginTop: "auto" }}>
+      <CajaLista
+        titulo="Avisos"
+        items={avisos}
+        temas={columna.proyectos}
+        onAgregar={onAgregarNota}
+        expandido={avisosAbiertos}
+        onToggle={onToggleAvisos}
+        tipoPadre="nota"
+      />
+      <CajaLista
+        titulo="Pendientes"
+        items={pendientes}
+        temas={columna.proyectos}
+        onAgregar={onAgregarPendiente}
+        expandido={pendientesAbiertos}
+        onToggle={onTogglePendientes}
+        tipoPadre="pendiente"
+      />
     </div>
   );
 }
@@ -451,6 +538,10 @@ function TarjetaColumna({
   onMarcarRevisado,
   marcandoRevisado,
   temasResueltos,
+  avisosAbiertos,
+  pendientesAbiertos,
+  onToggleAvisos,
+  onTogglePendientes,
 }) {
   const hoyIso = new Date().toISOString().slice(0, 10);
   const vencidos = columna.proyectos.reduce(
@@ -467,8 +558,11 @@ function TarjetaColumna({
     });
   // Columna completa colapsable (2026-08-17, a petición de Yue -- con
   // varios temas/avisos/pendientes por persona la lista se hacía muy
-  // larga) -- mismo patrón ▼/▶ que ArbolProyectos, colapsada por default.
-  const [abierta, setAbierta] = useState(false);
+  // larga) -- mismo patrón ▼/▶ que ArbolProyectos. Abierta por default
+  // desde 2026-08-18 (a petición de Yue: al entrar a Equipo debe verse
+  // todo desplegado de una vez, sin tener que darle clic a cada persona) --
+  // el botón sigue disponible para quien prefiera colapsar.
+  const [abierta, setAbierta] = useState(true);
 
   return (
     <div className="kanban-column">
@@ -525,6 +619,10 @@ function TarjetaColumna({
               pendientesPorProyecto={pendientesPorProyecto}
               onAgregarNota={onAgregarNota}
               onAgregarPendiente={onAgregarPendiente}
+              avisosAbiertos={avisosAbiertos}
+              pendientesAbiertos={pendientesAbiertos}
+              onToggleAvisos={onToggleAvisos}
+              onTogglePendientes={onTogglePendientes}
             />
           )}
         </>
@@ -562,6 +660,14 @@ export default function KanbanSupervisores({
   marcandoRevisado = null,
   temasResueltos = new Set(),
 }) {
+  // Compartido entre TODAS las columnas de esta vista (2026-08-18, a
+  // petición de Yue: expandir Avisos/Pendientes de una sola persona la
+  // hacía crecer mientras las demás columnas se quedaban con espacio vacío
+  // abajo, descuadrado) -- un solo clic en cualquier columna expande/
+  // colapsa la misma sección en todas a la vez, así crecen juntas.
+  const [avisosAbiertos, setAvisosAbiertos] = useState(false);
+  const [pendientesAbiertos, setPendientesAbiertos] = useState(false);
+
   const columnas = armarColumnasEquipo(miembros, usuarioActualId);
 
   // Vista Equipo (soloTemas) es la vista de "mi equipo", no la mía propia
@@ -586,6 +692,10 @@ export default function KanbanSupervisores({
     onMarcarRevisado,
     marcandoRevisado,
     temasResueltos,
+    avisosAbiertos,
+    pendientesAbiertos,
+    onToggleAvisos: () => setAvisosAbiertos((v) => !v),
+    onTogglePendientes: () => setPendientesAbiertos((v) => !v),
   };
 
   return (

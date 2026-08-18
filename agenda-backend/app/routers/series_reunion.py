@@ -36,6 +36,7 @@ from app.services.series_reunion import (
     listar_series_visibles,
     mover_item_agenda as mover_item_agenda_servicio,
     obtener_serie_o_404,
+    revertir_revision_tema as revertir_revision_tema_servicio,
     serie_a_out,
 )
 
@@ -214,4 +215,16 @@ def archivar_item_agenda(
     usuario: Usuario = Depends(obtener_usuario_actual),
 ):
     archivar_item_agenda_servicio(db, usuario, item_id)
+    db.commit()
+
+
+@router.post("/agenda-items/{item_id}/revertir-revisado", status_code=status.HTTP_204_NO_CONTENT)
+def revertir_revision_tema(
+    item_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Deshace un "Marcar revisado" -- botón "Revertir" en Historial. Ver
+    app.services.series_reunion.revertir_revision_tema."""
+    revertir_revision_tema_servicio(db, usuario, item_id)
     db.commit()

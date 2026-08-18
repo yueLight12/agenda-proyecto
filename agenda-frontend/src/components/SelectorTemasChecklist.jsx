@@ -82,12 +82,21 @@ function NodoCheckbox({ proyecto, hijosPorPadre, seleccionados, onToggle, nivel,
  * Solo quien puede editar la agenda de esa junta puede usarlo -- el
  * backend lo valida (puede_editar_serie / puede_editar_reunion), este
  * componente solo se muestra desde donde ya se sabe que aplica.
+ *
+ * `oculto` (2026-08-18, a petición de Yue -- "se ve repetitivo mostrar el
+ * árbol de checks Y la agenda con todo abajo"): no dibuja nada, pero sigue
+ * cargando y, si la junta es nueva (agenda vacía) y `defaultTodos` está
+ * activo, guarda sola la selección completa -- así "Agenda de esta junta"
+ * abajo (SeccionAgendaChecklist) ya nace con todos los temas, y quitar uno
+ * que no aplique se hace con su botón "Quitar" en esa lista, sin un
+ * segundo control redundante arriba.
  */
 export default function SelectorTemasChecklist({
   serieId = null,
   reunionId = null,
   defaultTodos = false,
   inline = false,
+  oculto = false,
   onGuardado,
   onCerrar,
 }) {
@@ -117,9 +126,10 @@ export default function SelectorTemasChecklist({
           .filter((i) => i.tipo === "tema")
           .map((i) => i.seccion_proyecto_id)
           .filter((id) => id != null);
-        setSeleccionados(
-          new Set(idsActuales.length === 0 && defaultTodos ? lista.map((p) => p.id) : idsActuales)
-        );
+        const arranqueVacio = idsActuales.length === 0 && defaultTodos;
+        const inicial = arranqueVacio ? lista.map((p) => p.id) : idsActuales;
+        setSeleccionados(new Set(inicial));
+        if (oculto && arranqueVacio && inicial.length > 0) guardar(new Set(inicial));
       })
       .catch(() => setError("No se pudo cargar la lista de temas."))
       .finally(() => setCargando(false));
@@ -152,6 +162,8 @@ export default function SelectorTemasChecklist({
       return siguiente;
     });
   };
+
+  if (oculto) return null;
 
   const contenido = (
     <div className="stack" style={{ gap: 10 }}>
