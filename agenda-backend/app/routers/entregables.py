@@ -21,12 +21,14 @@ from app.schemas.entregable import (
     EntregableCrear,
     EntregableOut,
     HistorialAvanceOut,
+    MoverEntregableRequest,
 )
 from app.services.entregables import actualizar_avance as actualizar_avance_servicio
 from app.services.entregables import actualizar_entregable as actualizar_entregable_servicio
 from app.services.entregables import crear_entregable as crear_entregable_servicio
 from app.services.entregables import eliminar_entregable as eliminar_entregable_servicio
 from app.services.entregables import entregable_a_out
+from app.services.entregables import mover_entregable as mover_entregable_servicio
 
 router = APIRouter(tags=["Entregables"])
 
@@ -37,7 +39,11 @@ def listar_entregables(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(obtener_usuario_actual),
 ):
-    entregables = query_entregables_visibles(db, usuario, proyecto_id).all()
+    entregables = (
+        query_entregables_visibles(db, usuario, proyecto_id)
+        .order_by(Entregable.orden, Entregable.id)
+        .all()
+    )
     return [entregable_a_out(db, usuario, e) for e in entregables]
 
 
@@ -114,6 +120,21 @@ def eliminar_entregable(
     """Elimina un entregable. Requiere N1/N2."""
     eliminar_entregable_servicio(db, usuario, entregable_id)
     db.commit()
+
+
+@router.patch("/entregables/{entregable_id}/mover", response_model=EntregableOut)
+def mover_entregable(
+    entregable_id: int,
+    datos: MoverEntregableRequest,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Reordena el entregable entre sus hermanos del mismo proyecto/tema
+    (↑/↓, igual que mover_proyecto). Requiere N1/N2."""
+    mover_entregable_servicio(db, usuario, entregable_id, datos.direccion)
+    db.commit()
+    entregable = db.query(Entregable).filter(Entregable.id == entregable_id).first()
+    return entregable_a_out(db, usuario, entregable)
 
 
 @router.patch("/entregables/{entregable_id}/avance", response_model=EntregableOut)

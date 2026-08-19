@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 
 // Pila de módulo con los modales abiertos ahora mismo (puede haber más de
 // uno, ej. un ConfirmDialog sobre un formulario) — Escape solo cierra el de
@@ -27,7 +28,13 @@ export default function Modal({ titulo, onCerrar, children }) {
     return () => document.removeEventListener("keydown", alPresionarTecla);
   }, [onCerrar]);
 
-  return (
+  // Portal a document.body (2026-08-19) -- quien abre un Modal puede estar
+  // en cualquier parte del árbol, incluida dentro de un <tbody> (ver
+  // FilaEntregables en KanbanSupervisores.jsx) -- un overlay position:fixed
+  // ahí sería HTML inválido dentro de una fila de tabla, con reparenting
+  // impredecible del navegador. El portal lo saca limpiamente del DOM de
+  // origen sin cambiar dónde vive en el árbol de React ni cómo se ve.
+  return createPortal(
     <div className="modal-overlay" onClick={onCerrar}>
       <div className="modal-card card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-card__header">
@@ -38,6 +45,7 @@ export default function Modal({ titulo, onCerrar, children }) {
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

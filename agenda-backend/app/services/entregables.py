@@ -35,8 +35,19 @@ def entregable_a_out(db: Session, usuario: Usuario, entregable: Entregable) -> E
         estatus=entregable.estatus,
         creado_por=entregable.creado_por,
         fecha_creacion=entregable.fecha_creacion,
+        orden=entregable.orden,
         puede_editar=puede_editar_entregable(db, usuario, entregable),
     )
+
+
+def _siguiente_orden_entregable(db: Session, proyecto_id: int) -> int:
+    maximo = (
+        db.query(Entregable.orden)
+        .filter(Entregable.proyecto_id == proyecto_id)
+        .order_by(Entregable.orden.desc())
+        .first()
+    )
+    return (maximo[0] if maximo else 0) + 1
 
 
 def crear_entregable(
@@ -70,6 +81,7 @@ def crear_entregable(
         fecha_entrega=fecha_entrega,
         sensible=sensible,
         creado_por=usuario.id,
+        orden=_siguiente_orden_entregable(db, proyecto_id),
     )
     db.add(nuevo)
     db.flush()  # para tener nuevo.id antes de crear la notificación
@@ -116,6 +128,36 @@ def actualizar_entregable(
         setattr(entregable, campo, valor)
 
     return entregable
+
+
+def mover_entregable(db: Session, usuario: Usuario, entregable_id: int, direccion: str) -> None:
+    """Intercambia el `orden` de este entregable con su vecino más cercano
+    DENTRO DEL MISMO proyecto/tema (2026-08-19, a petición de Yue: "que
+    quede igual que temas/subtemas") -- mismo patrón que mover_proyecto
+    (app/services/proyectos.py). Requiere N1/N2, igual que
+    actualizar_entregable/eliminar_entregable."""
+    entregable = obtener_entregable_o_404(db, entregable_id)
+
+    rol = requerir_participacion_en_proyecto(db, usuario, entregable.proyecto_id)
+    requerir_rol_minimo(rol, [RolEnum.N1, RolEnum.N2])
+
+    if direccion not in ("arriba", "abajo"):
+        raise HTTPException(status_code=400, detail="direccion debe ser 'arriba' o 'abajo'")
+
+    hermanos = (
+        db.query(Entregable)
+        .filter(Entregable.proyecto_id == entregable.proyecto_id)
+        .order_by(Entregable.orden, Entregable.id)
+        .all()
+    )
+    posicion = next((i for i, h in enumerate(hermanos) if h.id == entregable.id), None)
+    if posicion is None:
+        return
+    vecino_pos = posicion - 1 if direccion == "arriba" else posicion + 1
+    if vecino_pos < 0 or vecino_pos >= len(hermanos):
+        return
+    vecino = hermanos[vecino_pos]
+    entregable.orden, vecino.orden = vecino.orden, entregable.orden
 
 
 def eliminar_entregable(db: Session, usuario: Usuario, entregable_id: int) -> None:

@@ -42,6 +42,10 @@ class Entregable(Base):
     sensible = Column(Boolean, default=False, nullable=False)
     creado_por = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
     fecha_creacion = Column(DateTime, default=datetime.utcnow, nullable=False)
+    # Orden de prioridad entre los entregables del MISMO proyecto/tema
+    # (2026-08-19, a petición de Yue: "que quede igual que temas/subtemas")
+    # -- mismo patrón que Proyecto.orden, con flechas ↑/↓ en vez de fecha.
+    orden = Column(Integer, default=0, nullable=False)
 
     proyecto = relationship("Proyecto", back_populates="entregables")
     responsable = relationship("Usuario", foreign_keys=[responsable_id])

@@ -34,6 +34,10 @@ class ActualizarAvanceRequest(BaseModel):
     porcentaje_avance: int = Field(ge=0, le=100)
 
 
+class MoverEntregableRequest(BaseModel):
+    direccion: str  # "arriba" | "abajo"
+
+
 class HistorialAvanceOut(BaseModel):
     id: int
     porcentaje_avance: int
@@ -51,6 +55,7 @@ class EntregableOut(EntregableBase):
     estatus: EstatusEntregable
     creado_por: int
     fecha_creacion: datetime
+    orden: int
     # Calculado en servidor (2026-08-16, generalización a árbol de temas) --
     # el frontend nunca debe recalcular permiso cruzando
     # usuario.roles_por_proyecto, que se rompe con herencia. Ver
