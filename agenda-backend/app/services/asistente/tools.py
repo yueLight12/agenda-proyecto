@@ -77,6 +77,8 @@ from app.services.minutas import (
     convertir_acuerdo_a_entregable,
     crear_o_actualizar_minuta,
     eliminar_acuerdo,
+    listar_pendientes_revision,
+    listar_temas_resueltos,
     registrar_revision_agenda_item,
 )
 from app.services.notas import crear_nota
@@ -92,7 +94,7 @@ from app.services.proyectos import (
 )
 from app.services.reuniones import actualizar_reunion, crear_reunion, eliminar_reunion
 from app.services.rol_labels import etiqueta_rol as _etiqueta_rol
-from app.services.series_reunion import agenda_actual_de_serie, crear_serie
+from app.services.series_reunion import agenda_actual_de_serie, crear_serie, revertir_revision_tema
 
 
 @dataclass
@@ -305,6 +307,11 @@ def _resolver_crear_proyecto(
             listo=False, campo="nombre", pregunta="¿Cómo se llama el tema?", tipo_entrada="texto"
         )
 
+    # Prioridad 1 al crear (2026-08-19, a petición de Yue -- mismo
+    # al_frente=True que ya usa la fila "+ Agregar tema" de Vista Equipo).
+    # Aplica tanto a un tema raíz como a un subtema.
+    al_frente = bool(parametros_llm.get("prioridad_maxima") or False)
+
     # tema_padre es OPCIONAL -- si no se menciona, es un proyecto/tema raíz
     # (comportamiento de siempre). Solo se resuelve si el LLM mandó texto o
     # si ya se está respondiendo una aclaración pendiente de este campo.
@@ -322,8 +329,13 @@ def _resolver_crear_proyecto(
             "nombre": nombre,
             "descripcion": parametros_llm.get("descripcion") or None,
             "parent_id": parent_id,
+            "al_frente": al_frente,
         }
-        resumen = f'Voy a crear el subtema "{nombre}" dentro de "{padre.nombre if padre else "ese tema"}". ¿Confirmas?'
+        prioridad_texto = ", como prioridad 1" if al_frente else ""
+        resumen = (
+            f'Voy a crear el subtema "{nombre}" dentro de "{padre.nombre if padre else "ese tema"}"'
+            f"{prioridad_texto}. ¿Confirmas?"
+        )
         preview = {
             "tipo": "proyecto",
             "nombre": nombre,
@@ -332,11 +344,17 @@ def _resolver_crear_proyecto(
         }
         return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen, preview=preview)
 
-    parametros = {"nombre": nombre, "descripcion": parametros_llm.get("descripcion") or None, "parent_id": None}
+    parametros = {
+        "nombre": nombre,
+        "descripcion": parametros_llm.get("descripcion") or None,
+        "parent_id": None,
+        "al_frente": al_frente,
+    }
     rol, dueno_id = rol_default_para_nuevo_proyecto(db, usuario)
     equipo = [{"usuario_id": usuario.id, "nombre": usuario.nombre, "rol": rol.value}]
+    prioridad_texto = ", como prioridad 1" if al_frente else ""
     if rol == RolEnum.N1:
-        resumen = f'Voy a crear el tema "{nombre}". Quedarás como {_etiqueta_rol(rol)}. ¿Confirmas?'
+        resumen = f'Voy a crear el tema "{nombre}"{prioridad_texto}. Quedarás como {_etiqueta_rol(rol)}. ¿Confirmas?'
     else:
         dueno = db.query(Usuario).filter(Usuario.id == dueno_id).first() if dueno_id else None
         if dueno:
@@ -344,12 +362,12 @@ def _resolver_crear_proyecto(
             equipo.append({"usuario_id": dueno.id, "nombre": dueno.nombre, "rol": rol_dueno.value})
             aclaracion = "" if rol_dueno == RolEnum.N1 else " (tu supervisor)"
             resumen = (
-                f'Voy a crear el tema "{nombre}". Quedarás como {_etiqueta_rol(rol)} y {dueno.nombre} '
+                f'Voy a crear el tema "{nombre}"{prioridad_texto}. Quedarás como {_etiqueta_rol(rol)} y {dueno.nombre} '
                 f"como {_etiqueta_rol(rol_dueno)}{aclaracion}. ¿Confirmas?"
             )
         else:
             resumen = (
-                f'Voy a crear el tema "{nombre}". Quedarás como {_etiqueta_rol(rol)} '
+                f'Voy a crear el tema "{nombre}"{prioridad_texto}. Quedarás como {_etiqueta_rol(rol)} '
                 "(según tu equipo guardado). ¿Confirmas?"
             )
     preview = {
@@ -363,7 +381,12 @@ def _resolver_crear_proyecto(
 
 def _ejecutar_crear_proyecto(db: Session, usuario: Usuario, parametros: dict) -> dict:
     nuevo = crear_proyecto(
-        db, usuario, parametros["nombre"], parametros.get("descripcion"), parametros.get("parent_id")
+        db,
+        usuario,
+        parametros["nombre"],
+        parametros.get("descripcion"),
+        parametros.get("parent_id"),
+        parametros.get("al_frente", False),
     )
     db.commit()
     db.refresh(nuevo)
@@ -1300,6 +1323,82 @@ def _ejecutar_mover_tema(db: Session, usuario: Usuario, parametros: dict) -> dic
     return {"mensaje": f'"{proyecto.nombre}" se movió correctamente.', "resultado": {"id": proyecto.id}}
 
 
+# --- marcar_tema_seguimiento ----------------------------------------------
+# Equivalente por voz del clic directo en el badge de status de Vista
+# Equipo (2026-08-19, a petición de Yue) -- NO pide serie/reunión como
+# marcar_revision_agenda de abajo, solo el nombre del tema: encuentra la
+# reunión representativa sola, igual que ya hace el botón "Marcar
+# revisado"/"Marcar pendiente" del frontend (ver marcarTemaRevisado/
+# marcarTemaPendiente en ResumenEquipo.jsx).
+
+def _resolver_marcar_tema_seguimiento(
+    db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
+) -> ResultadoInterpretacion:
+    tema_res = resolver_campo(
+        "proyecto_id", aclaraciones, parametros_llm.get("tema"),
+        lambda t: resolver_proyecto(db, usuario, t, proyecto_id_contexto),
+    )
+    if not tema_res.resuelto:
+        return _pendiente("proyecto_id", tema_res)
+    proyecto_id = tema_res.valor
+    proyecto = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
+    nombre_tema = proyecto.nombre if proyecto else "ese tema"
+
+    texto_accion = (
+        aclaraciones.get("accion") if isinstance(aclaraciones.get("accion"), str) else parametros_llm.get("accion")
+    )
+    accion = (texto_accion or "").strip().lower()
+    es_revisado = any(p in accion for p in ("revisad", "listo", "complet", "toc", "cerra"))
+    es_pendiente = not es_revisado and "pendient" in accion
+    if not es_revisado and not es_pendiente:
+        return ResultadoInterpretacion(
+            listo=False, campo="accion",
+            pregunta=f'¿"{nombre_tema}" queda como revisado o vuelve a pendiente?',
+            tipo_entrada="texto",
+        )
+
+    if es_revisado:
+        pendiente = next((p for p in listar_pendientes_revision(db, usuario) if p.proyecto_id == proyecto_id), None)
+        if not pendiente:
+            return ResultadoInterpretacion(
+                listo=False, campo="accion",
+                pregunta=f'"{nombre_tema}" no tiene nada pendiente por revisar ahorita (o ya está revisado).',
+                tipo_entrada="texto",
+            )
+        parametros = {
+            "accion": "revisado",
+            "reunion_id": pendiente.reunion_id,
+            "agenda_item_id": pendiente.item_id,
+        }
+        resumen = f'Voy a marcar "{nombre_tema}" como revisado. ¿Confirmas?'
+    else:
+        resuelto = next((t for t in listar_temas_resueltos(db) if t.proyecto_id == proyecto_id), None)
+        if not resuelto:
+            return ResultadoInterpretacion(
+                listo=False, campo="accion",
+                pregunta=f'"{nombre_tema}" no está marcado como revisado ahorita.',
+                tipo_entrada="texto",
+            )
+        parametros = {"accion": "pendiente", "agenda_item_id": resuelto.item_id}
+        resumen = f'Voy a volver a poner "{nombre_tema}" como pendiente. ¿Confirmas?'
+
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen)
+
+
+def _ejecutar_marcar_tema_seguimiento(db: Session, usuario: Usuario, parametros: dict) -> dict:
+    if parametros["accion"] == "revisado":
+        registrar_revision_agenda_item(
+            db, usuario, parametros["reunion_id"], parametros["agenda_item_id"],
+            EstadoRevision.revisado, None, None,
+        )
+        mensaje = "Tema marcado como revisado."
+    else:
+        revertir_revision_tema(db, usuario, parametros["agenda_item_id"])
+        mensaje = "Tema vuelto a marcar como pendiente."
+    db.commit()
+    return {"mensaje": mensaje, "resultado": {}}
+
+
 # --- eliminar_reunion -----------------------------------------------------------
 
 def _resolver_eliminar_reunion(
@@ -1951,15 +2050,26 @@ TOOLS: dict[str, ToolSpec] = {
             "nombre": "nombre del proyecto/tema/subtema",
             "descripcion": "descripción opcional, o null si no se dijo",
             "tema_padre": "nombre del tema/proyecto padre si se mencionó que va DENTRO de otro, si no dejar vacío",
+            "prioridad_maxima": "true si se dijo que es urgente/prioritario/lo más importante (ej. 'como "
+            "prioridad 1', 'urgente', 'lo más importante'), si no false",
         },
         ejemplos=[
             (
                 "crea un proyecto nuevo llamado Expansión Norte",
-                {"nombre": "Expansión Norte", "descripcion": None, "tema_padre": ""},
+                {"nombre": "Expansión Norte", "descripcion": None, "tema_padre": "", "prioridad_maxima": False},
             ),
             (
                 "crea un subtema llamado Programas IA dentro de Innovación Digital",
-                {"nombre": "Programas IA", "descripcion": None, "tema_padre": "Innovación Digital"},
+                {
+                    "nombre": "Programas IA",
+                    "descripcion": None,
+                    "tema_padre": "Innovación Digital",
+                    "prioridad_maxima": False,
+                },
+            ),
+            (
+                "crea un tema urgente llamado Auditoría fiscal, prioridad 1",
+                {"nombre": "Auditoría fiscal", "descripcion": None, "tema_padre": "", "prioridad_maxima": True},
             ),
         ],
         resolver=_resolver_crear_proyecto,
@@ -2245,6 +2355,32 @@ TOOLS: dict[str, ToolSpec] = {
         ],
         resolver=_resolver_mover_tema,
         ejecutar=_ejecutar_mover_tema,
+    ),
+    "marcar_tema_seguimiento": ToolSpec(
+        nombre="marcar_tema_seguimiento",
+        descripcion=(
+            "Marcar un tema/subtema como revisado, o volverlo a poner como pendiente, directo por "
+            "su nombre -- sin necesidad de decir en qué reunión o serie está agendado (encuentra la "
+            "junta automáticamente, igual que el botón de status en Vista Equipo/Seguimiento). Usar "
+            "esto para 'marca X como revisado', 'ya se vio X', 'vuelve a poner X como pendiente'. "
+            "Para dejar constancia con nota o generar un pendiente nuevo dentro de una junta puntual, "
+            "usa marcar_revision_agenda en vez de esta."
+        ),
+        parametros_llm={
+            "tema": "nombre del tema/subtema tal como se mencionó",
+            "accion": "'revisado' si se dijo que ya se vio/terminó/quedó listo; 'pendiente' si se dijo "
+            "que vuelva a quedar pendiente/abierto/sin revisar",
+        },
+        ejemplos=[
+            ("marca Cubo como revisado", {"tema": "Cubo", "accion": "revisado"}),
+            ("ya se vio el tema de Suit", {"tema": "Suit", "accion": "revisado"}),
+            (
+                "vuelve a poner Estructura y administración del área como pendiente",
+                {"tema": "Estructura y administración del área", "accion": "pendiente"},
+            ),
+        ],
+        resolver=_resolver_marcar_tema_seguimiento,
+        ejecutar=_ejecutar_marcar_tema_seguimiento,
     ),
     "eliminar_reunion": ToolSpec(
         nombre="eliminar_reunion",
