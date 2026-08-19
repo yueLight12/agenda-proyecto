@@ -405,6 +405,20 @@
   width: 100%;
 }
 
+/* Vista Equipo (2026-08-18, a petición de Yue: "en lugar de verse todo en
+   cajas horizontal, que se vea uno encima de otro") -- una columna por
+   persona, apiladas en vertical en vez de lado a lado. Solo aplica ahí
+   (soloTemas, ver KanbanSupervisores.jsx); el Dashboard ("Tu equipo") sigue
+   usando .kanban-board sin este modificador. */
+.kanban-board--vertical {
+  flex-direction: column;
+}
+
+.kanban-board--vertical .kanban-column {
+  min-width: 0;
+  width: 100%;
+}
+
 .kanban-column {
   flex: 1;
   min-width: 220px;
@@ -460,6 +474,96 @@
   color: var(--color-text-muted);
   font-size: 0.8rem;
   margin: var(--space-2) 0;
+}
+
+/* Vista Equipo en tabla (2026-08-19, a petición de Yue, boceto a mano) --
+   tabla dentro de cada tarjeta de persona, columnas Tema/Status/
+   Accionables/Prioridad. Solo la usa TablaTemas en KanbanSupervisores.jsx
+   (soloTemas=true) -- el Dashboard sigue con el árbol de tarjetas viejo. */
+.tabla-temas {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.tabla-temas th {
+  text-align: left;
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--color-text-muted);
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.tabla-temas td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+
+.tabla-temas__fila:hover {
+  background: var(--color-bg);
+}
+
+.tabla-temas tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Panel lateral de comentarios/imágenes (2026-08-19, a petición de Yue --
+   opción "C" probada contra ventana flotante y fila inline: más alto que
+   un modal, sin tapar la tabla de fondo). Ver PanelLateral.jsx. */
+.panel-lateral-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: transparent;
+}
+
+.panel-lateral {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(420px, 92vw);
+  background: var(--color-surface);
+  border-left: 1px solid var(--color-border);
+  box-shadow: -12px 0 32px rgba(15, 36, 56, 0.18);
+  display: flex;
+  flex-direction: column;
+  animation: panel-lateral-in 0.22s ease;
+}
+
+@keyframes panel-lateral-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel-lateral {
+    animation: none;
+  }
+}
+
+.panel-lateral__header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.panel-lateral__body {
+  padding: 12px 16px;
+  overflow-y: auto;
+  flex: 1;
 }
 
 .kanban-card {

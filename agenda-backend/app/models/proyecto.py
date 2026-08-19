@@ -28,6 +28,12 @@ class Proyecto(Base):
     activo = Column(Boolean, default=True, nullable=False)
     parent_id = Column(Integer, ForeignKey("proyectos.id"), nullable=True, index=True)
     fecha_creacion = Column(DateTime, default=datetime.utcnow, nullable=False)
+    # Orden de importancia GLOBAL entre hermanos (mismo parent_id) -- 2026-08-18,
+    # a petición de Yue: "ordenar los temas del más importante al menos
+    # importante" en Vista Equipo, con flechas ↑/↓ (mismo patrón que
+    # AgendaItem.orden en app/models/agenda_item.py). Se ve igual sin
+    # importar en la columna de quién aparezca -- no es por persona.
+    orden = Column(Integer, default=0, server_default="0", nullable=False)
 
     padre = relationship("Proyecto", remote_side=[id], back_populates="hijos")
     hijos = relationship(

@@ -15,34 +15,13 @@ export default function Equipo() {
 
   return (
     <div className="stack">
+      {/* Botones Vista Equipo/Vista Estatus/Historial/Administrar equipo
+          ocultos (2026-08-19, a petición de Yue) -- `vista` se queda fijo
+          en "equipo" (su valor por default), así que ResumenEquipo sigue
+          siendo lo único que se ve. Las otras vistas y PlantillaEquipo
+          siguen existiendo tal cual, solo sin botón para llegar ahí. */}
       <div className="topbar">
-        <h1>Equipo</h1>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button
-            className={`btn ${vista === "equipo" ? "btn--primary" : "btn--ghost"}`}
-            type="button"
-            onClick={() => setVista("equipo")}
-          >
-            Vista Equipo
-          </button>
-          <button
-            className={`btn ${vista === "estatus" ? "btn--primary" : "btn--ghost"}`}
-            type="button"
-            onClick={() => setVista("estatus")}
-          >
-            Vista Estatus
-          </button>
-          <button
-            className={`btn ${vista === "historial" ? "btn--primary" : "btn--ghost"}`}
-            type="button"
-            onClick={() => setVista("historial")}
-          >
-            Historial
-          </button>
-          <button className="btn btn--ghost" type="button" onClick={() => setMostrarPlantilla(true)}>
-            Administrar equipo
-          </button>
-        </div>
+        <h1>Seguimiento</h1>
       </div>
 
       {vista === "equipo" && <ResumenEquipo />}

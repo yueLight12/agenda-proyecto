@@ -24,6 +24,8 @@ export const authApi = {
 
 export const proyectosApi = {
   listar: async () => (await api.get("/proyectos")).data,
+  // `datos.al_frente: true` crea el tema con prioridad 1 (arriba de todo)
+  // en vez de al final -- ver alta rápida en Vista Equipo.
   crear: async (datos) => (await api.post("/proyectos", datos)).data,
   obtener: async (id) => (await api.get(`/proyectos/${id}`)).data,
   actualizar: async (id, datos) => (await api.patch(`/proyectos/${id}`, datos)).data,
@@ -39,6 +41,9 @@ export const proyectosApi = {
   resumenSubarbol: async (id) => (await api.get(`/proyectos/${id}/resumen-subarbol`)).data,
   mover: async (id, nuevoParentId) =>
     (await api.patch(`/proyectos/${id}/mover`, { nuevo_parent_id: nuevoParentId })).data,
+  // Distinto de `mover` (que reasigna a otro padre): reordena entre
+  // hermanos del mismo padre, para el orden de importancia de Vista Equipo.
+  reordenar: async (id, direccion) => api.post(`/proyectos/${id}/reordenar`, { direccion }),
   arbolVisible: async () => (await api.get("/proyectos/arbol-visible")).data,
 };
 
@@ -51,6 +56,8 @@ export const entregablesApi = {
     (await api.patch(`/entregables/${entregableId}`, datos)).data,
   actualizarAvance: async (entregableId, porcentaje_avance) =>
     (await api.patch(`/entregables/${entregableId}/avance`, { porcentaje_avance })).data,
+  mover: async (entregableId, direccion) =>
+    (await api.patch(`/entregables/${entregableId}/mover`, { direccion })).data,
   historial: async (entregableId) =>
     (await api.get(`/entregables/${entregableId}/historial`)).data,
   eliminar: async (entregableId) => api.delete(`/entregables/${entregableId}`),

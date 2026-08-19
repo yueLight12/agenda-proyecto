@@ -30,6 +30,7 @@ from app.services.proyectos import (
     listar_hijos_directos as listar_hijos_directos_servicio,
     listar_raices_visibles,
     mover_nodo as mover_nodo_servicio,
+    mover_proyecto as mover_proyecto_servicio,
     obtener_proyecto_o_404,
     proyecto_a_out,
     quitar_miembro_de_proyecto as quitar_miembro_de_proyecto_servicio,
@@ -42,6 +43,10 @@ router = APIRouter(prefix="/proyectos", tags=["Proyectos"])
 
 class MoverNodoRequest(BaseModel):
     nuevo_parent_id: int
+
+
+class ReordenarRequest(BaseModel):
+    direccion: str  # "arriba" | "abajo"
 
 
 class ResumenSubarbolOut(BaseModel):
@@ -68,7 +73,9 @@ def crear_proyecto(
     """Sin parent_id: cualquier usuario autenticado puede crear un proyecto
     raíz, queda como N1 de él (o hereda de su plantilla "Mi equipo"). Con
     parent_id: crea un subtema, requiere N1/N2 en el padre."""
-    nuevo = crear_proyecto_servicio(db, usuario, datos.nombre, datos.descripcion, datos.parent_id)
+    nuevo = crear_proyecto_servicio(
+        db, usuario, datos.nombre, datos.descripcion, datos.parent_id, datos.al_frente
+    )
     db.commit()
     db.refresh(nuevo)
     return proyecto_a_out(db, usuario, nuevo)
@@ -169,6 +176,23 @@ def mover_nodo(
     db.commit()
     db.refresh(proyecto)
     return proyecto_a_out(db, usuario, proyecto)
+
+
+@router.post("/{proyecto_id}/reordenar", status_code=status.HTTP_204_NO_CONTENT)
+def reordenar_proyecto(
+    proyecto_id: int,
+    datos: ReordenarRequest,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Sube o baja este tema un lugar entre sus hermanos (mismo parent_id),
+    para ordenar por importancia en Vista Equipo -- ver
+    app.services.proyectos.mover_proyecto. Requiere N1/N2 (local o
+    heredado), mismo permiso que editar/eliminar el tema. No confundir con
+    PATCH /{proyecto_id}/mover, que reasigna a otro padre (parent_id
+    distinto) -- esto solo intercambia posición dentro de la misma lista."""
+    mover_proyecto_servicio(db, usuario, proyecto_id, datos.direccion)
+    db.commit()
 
 
 @router.get("/{proyecto_id}/usuarios", response_model=list[MiembroEquipoOut])

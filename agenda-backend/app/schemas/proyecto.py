@@ -16,6 +16,11 @@ class ProyectoBase(BaseModel):
 
 class ProyectoCrear(ProyectoBase):
     parent_id: Optional[int] = None  # tema/subtema padre -- None = nodo raíz
+    # Crea el tema con la prioridad más alta entre sus hermanos (orden más
+    # bajo) en vez de al final -- usado por el alta rápida desde la fila
+    # "+ Agregar tema" de Vista Equipo (2026-08-19, a petición de Yue: el
+    # tema recién creado sube hasta arriba de la tabla).
+    al_frente: bool = False
 
 
 class ProyectoActualizar(BaseModel):

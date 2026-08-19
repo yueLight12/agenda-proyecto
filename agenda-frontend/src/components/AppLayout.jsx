@@ -60,13 +60,19 @@ export default function AppLayout() {
           {/* Dashboard oculto (2026-08-17) -- Equipo es la ventana
               principal ("/" ahora renderiza Equipo, ver App.jsx), este
               link ya cubre ambas rutas. */}
-          <NavLink to="/equipo">Equipo</NavLink>
+          {/* Etiqueta "Seguimiento" (2026-08-19, renombrado de "Equipo" a
+              petición de Yue: ya no es una pantalla de administrar
+              equipo, es el seguimiento semanal de temas/status por
+              persona) -- ruta /equipo intacta, solo cambia el texto. */}
+          <NavLink to="/equipo">Seguimiento</NavLink>
           {/* "Mis pendientes" oculto del menú (2026-08-18) -- la ruta
               /mis-pendientes sigue existiendo tal cual, solo se quitó el
               link del sidebar. */}
           <NavLink to="/calendario">Calendario</NavLink>
-          <NavLink to="/chatbot">Asistente</NavLink>
-          <NavLink to="/perfil">Mi perfil</NavLink>
+          {/* "Asistente" y "Mi perfil" ocultos del menú (2026-08-18, a
+              petición de Yue) -- mismo criterio que Dashboard/Mis
+              pendientes arriba: las rutas /chatbot y /perfil siguen
+              existiendo tal cual, solo se quitaron los links del sidebar. */}
         </nav>
         <div style={{ marginTop: "auto", fontSize: "0.8rem", color: "#cfe0e3" }}>
           <div>{usuario?.nombre}</div>

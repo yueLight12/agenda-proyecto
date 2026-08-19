@@ -184,11 +184,21 @@ export function armarColumnasEquipo(miembros, usuarioActualId) {
   if (propios) {
     for (const reporte of propios.reportes) {
       if (idsCubiertos.has(reporte.usuario_id)) continue;
+      // OJO (bug real, 2026-08-18): usar reporte.proyectos aquí -- que solo
+      // trae los proyectos donde ESTE reporte tiene a usuarioActualId como
+      // supervisor -- le recortaba la columna a esa persona: cualquier otro
+      // tema suyo donde es par/líder sin supervisor (ej. Jasso como N2 de
+      // "Escuelas") desaparecía en cuanto quedaba supervisado por el viewer
+      // en CUALQUIER otro tema nuevo. Esta es su columna propia (ver
+      // comentario de armarColumnasEquipo más abajo): debe traer TODOS sus
+      // proyectos, tal como vienen en `miembros`, igual que el fallback de
+      // más abajo.
+      const persona = miembros.find((m) => m.usuario_id === reporte.usuario_id);
       columnas.push({
         usuario_id: reporte.usuario_id,
         nombre: reporte.nombre,
         puesto: reporte.puesto,
-        proyectos: reporte.proyectos,
+        proyectos: persona ? persona.proyectos : reporte.proyectos,
       });
       idsCubiertos.add(reporte.usuario_id);
     }
