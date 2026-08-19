@@ -25,7 +25,7 @@ from app.models.agenda_item import AgendaItem, AgendaItemRevision, EstadoRevisio
 from app.models.minuta import AcuerdoMinuta, Minuta
 from app.models.reunion import Reunion
 from app.schemas.minuta import AcuerdoOut, MinutaOut
-from app.schemas.serie_reunion import PendienteRevisionOut, RevisionAgendaItemOut
+from app.schemas.serie_reunion import PendienteRevisionOut, RevisionAgendaItemOut, TemaResueltoOut
 from app.services.entregables import crear_entregable
 from app.services.proyectos import obtener_proyecto_o_404
 from app.services.reuniones import obtener_reunion_o_404
@@ -350,34 +350,48 @@ def listar_pendientes_revision(db: Session, usuario: Usuario) -> list[PendienteR
     return list(resultado.values())
 
 
-def listar_temas_resueltos(db: Session) -> list[int]:
-    """proyecto_id de temas que YA tuvieron algo agendado en alguna junta y
-    quedaron revisados, sin nada pendiente actualmente en ninguna otra --
-    2026-08-18, a petición de Yue: un tema resuelto se oculta del árbol de
-    Vista Equipo hasta que algo nuevo quede pendiente ahí otra vez (mismo
-    ciclo semanal que ya trabajan a mano: lo resuelto sale de la vista, lo
-    nuevo o lo que sigue pendiente se queda). Un tema que NUNCA se ha
-    agregado a ninguna junta NO cuenta como "resuelto" -- sigue
-    mostrándose, porque todavía nadie decidió si se agenda o no.
+def listar_temas_resueltos(db: Session) -> list[TemaResueltoOut]:
+    """Temas que YA tuvieron algo agendado en alguna junta y quedaron
+    revisados, sin nada pendiente actualmente en ninguna otra -- 2026-08-18,
+    a petición de Yue: un tema resuelto se oculta del árbol de Vista Equipo
+    hasta que algo nuevo quede pendiente ahí otra vez (mismo ciclo semanal
+    que ya trabajan a mano: lo resuelto sale de la vista, lo nuevo o lo que
+    sigue pendiente se queda). Un tema que NUNCA se ha agregado a ninguna
+    junta NO cuenta como "resuelto" -- sigue mostrándose, porque todavía
+    nadie decidió si se agenda o no.
+
+    Trae también `item_id` (2026-08-18, a petición de Yue: "marcar
+    pendiente" explícito desde Vista Equipo) -- el ítem de agenda archivado
+    más reciente para ese proyecto_id, lo que necesita
+    revertir_revision_tema para reactivarlo. Cualquier ítem archivado sirve
+    (revertir_revision_tema solo necesita UNO para volver a agregar el tema
+    a esa misma junta; el tema puede estar archivado en varias).
 
     No aplica ningún chequeo de permisos: solo describe un estado
     estructural (qué proyecto_ids ya no tienen ningún AgendaItem tipo=tema
     activo, habiendo tenido alguno antes) -- el filtrado real de qué temas
     puede VER cada quien lo sigue haciendo /equipo/resumen como siempre;
-    esta lista solo se usa para OCULTAR del lado del cliente, nunca para
-    mostrar algo que no fuera visible ya.
+    esta lista solo se usa para OCULTAR/ofrecer "marcar pendiente" del lado
+    del cliente, nunca para mostrar algo que no fuera visible ya. El botón
+    "Marcar pendiente" igual queda sujeto al permiso real de
+    revertir_revision_tema (mismo gate que editar la agenda de esa junta) --
+    si el usuario no puede, el backend responde 403 al intentarlo, igual que
+    ya pasa hoy con el botón "Revertir" del Historial.
     """
-    archivados = {
-        pid
-        for (pid,) in db.query(AgendaItem.proyecto_id)
+    archivados_items = (
+        db.query(AgendaItem)
         .filter(
             AgendaItem.tipo == TipoAgendaItem.tema,
             AgendaItem.activo.is_(False),
             AgendaItem.proyecto_id.isnot(None),
         )
-        .distinct()
+        .order_by(AgendaItem.id.desc())
         .all()
-    }
+    )
+    item_por_proyecto: dict[int, AgendaItem] = {}
+    for item in archivados_items:
+        item_por_proyecto.setdefault(item.proyecto_id, item)
+
     activos = {
         pid
         for (pid,) in db.query(AgendaItem.proyecto_id)
@@ -389,4 +403,14 @@ def listar_temas_resueltos(db: Session) -> list[int]:
         .distinct()
         .all()
     }
-    return sorted(archivados - activos)
+    resueltos = sorted(item_por_proyecto.keys() - activos)
+    return [
+        TemaResueltoOut(
+            proyecto_id=pid,
+            proyecto_nombre=item_por_proyecto[pid].proyecto.nombre
+            if item_por_proyecto[pid].proyecto
+            else "(tema eliminado)",
+            item_id=item_por_proyecto[pid].id,
+        )
+        for pid in resueltos
+    ]

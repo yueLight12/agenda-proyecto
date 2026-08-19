@@ -92,6 +92,7 @@ def historial_semana(db: Session, usuario: Usuario, fecha_referencia: date) -> H
                 nota=revision.nota,
                 fecha=revision.fecha_registro,
                 agenda_item_id=item.id if item.tipo == TipoAgendaItem.tema else None,
+                proyecto_id=item.proyecto_id if item.tipo == TipoAgendaItem.tema else None,
             )
         )
     revisados.sort(key=lambda e: e.fecha, reverse=True)
@@ -122,6 +123,7 @@ def historial_semana(db: Session, usuario: Usuario, fecha_referencia: date) -> H
                 estado=None,
                 nota=None,
                 fecha=item.fecha_creacion,
+                proyecto_id=item.proyecto_id,
             )
         )
     nuevos.sort(key=lambda e: e.fecha, reverse=True)
@@ -159,6 +161,7 @@ def historial_semana(db: Session, usuario: Usuario, fecha_referencia: date) -> H
                 estado=EstadoRevision.pendiente,
                 nota=None,
                 fecha=item.fecha_creacion,
+                proyecto_id=item.proyecto_id,
             )
         )
     pendientes.sort(key=lambda e: e.tema_nombre)

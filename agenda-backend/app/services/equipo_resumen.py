@@ -60,7 +60,12 @@ def resumen_equipo_multiproyecto(db: Session, usuario: Usuario) -> list[MiembroR
     personas: dict[int, MiembroResumenOut] = {}
 
     for proyecto in proyectos:
-        equipo = listar_equipo_visible(db, usuario, proyecto.id)
+        # incluir_heredado=True (2026-08-18, bug real: subtemas nuevos solo
+        # le dan fila local a quien los crea -- ver docstring de
+        # listar_equipo_visible) -- así un subtema sin nadie asignado
+        # localmente sigue mostrando el equipo heredado del padre en Vista
+        # Equipo, en vez de desaparecer del árbol colapsable para todos.
+        equipo = listar_equipo_visible(db, usuario, proyecto.id, incluir_heredado=True)
         if not equipo:
             continue
 
@@ -114,6 +119,7 @@ def resumen_equipo_multiproyecto(db: Session, usuario: Usuario) -> list[MiembroR
                 reuniones=reuniones_de,
                 viewer_puede_administrar=viewer_puede_administrar,
                 parent_id=proyecto.parent_id,
+                orden=proyecto.orden,
             )
 
             if miembro.usuario_id not in personas:
@@ -183,6 +189,7 @@ def resumen_equipo_multiproyecto(db: Session, usuario: Usuario) -> list[MiembroR
                         # administrarlo, solo verlo.
                         viewer_puede_administrar=False,
                         parent_id=proyecto.parent_id,
+                        orden=proyecto.orden,
                     )
                 )
 

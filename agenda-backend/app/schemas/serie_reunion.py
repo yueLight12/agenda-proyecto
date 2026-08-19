@@ -158,6 +158,21 @@ class PendienteRevisionOut(BaseModel):
     reunion_id: int
 
 
+class TemaResueltoOut(BaseModel):
+    """Un tema ya resuelto (nada pendiente de revisar en ninguna junta,
+    habiendo tenido algo antes), con el `item_id` del ítem de agenda
+    archivado que lo dejó así -- 2026-08-18, a petición de Yue: poder
+    "marcar pendiente" explícitamente desde Vista Equipo, sin ir a la
+    pestaña Historial. `item_id` es lo que necesita
+    seriesReunionApi.revertirRevisado (mismo endpoint que ya usa el botón
+    "Revertir" del Historial). Ver
+    app.services.minutas.listar_temas_resueltos."""
+
+    proyecto_id: int
+    proyecto_nombre: str
+    item_id: int
+
+
 class EventoHistorialOut(BaseModel):
     """Una fila del historial semanal -- ver
     app.services.historial_minutas.historial_semana."""
@@ -174,6 +189,12 @@ class EventoHistorialOut(BaseModel):
     # app.services.series_reunion.revertir_revision_tema). None en "nuevos"/
     # "pendientes", que no se revierten desde esta vista.
     agenda_item_id: Optional[int] = None
+    # proyecto_id del tema (2026-08-19, vista de tabla alternativa en
+    # Seguimiento: "mostrar todo como en la minuta actual, con los temas
+    # que se vieron") -- None cuando el ítem no es tipo=tema (ej. un
+    # accionable suelto de la agenda), que esa vista de tabla ignora por
+    # completo (solo aplica a temas/proyectos reales).
+    proyecto_id: Optional[int] = None
 
 
 class HistorialSemanaOut(BaseModel):

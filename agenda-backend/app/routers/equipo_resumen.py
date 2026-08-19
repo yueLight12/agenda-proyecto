@@ -18,7 +18,7 @@ from app.database import get_db
 from app.dependencies import obtener_usuario_actual
 from app.models.usuario import Usuario
 from app.schemas.equipo_resumen import ResumenEquipoOut
-from app.schemas.serie_reunion import HistorialSemanaOut, PendienteRevisionOut
+from app.schemas.serie_reunion import HistorialSemanaOut, PendienteRevisionOut, TemaResueltoOut
 from app.services.equipo_resumen import resumen_equipo_multiproyecto
 from app.services.historial_minutas import historial_semana
 from app.services.minutas import listar_pendientes_revision, listar_temas_resueltos
@@ -74,14 +74,15 @@ def pendientes_revision(
     return listar_pendientes_revision(db, usuario)
 
 
-@router.get("/temas-resueltos", response_model=list[int])
+@router.get("/temas-resueltos", response_model=list[TemaResueltoOut])
 def temas_resueltos(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(obtener_usuario_actual),
 ):
-    """proyecto_id de temas ya resueltos (nada pendiente de revisar en
-    ninguna junta, habiendo tenido algo antes) -- para ocultarlos del árbol
-    de Vista Equipo. Ver app.services.minutas.listar_temas_resueltos."""
+    """Temas ya resueltos (nada pendiente de revisar en ninguna junta,
+    habiendo tenido algo antes), con el item_id para poder ofrecer "Marcar
+    pendiente" -- para ocultarlos del árbol de Vista Equipo. Ver
+    app.services.minutas.listar_temas_resueltos."""
     return listar_temas_resueltos(db)
 
 

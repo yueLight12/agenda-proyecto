@@ -44,6 +44,11 @@ class ProyectoDeMiembroOut(BaseModel):
     # "(subtema)" y distinguirlo de un tema raíz en "Tu equipo"/"Equipo" --
     # ver KanbanSupervisores.jsx. None si es un tema raíz.
     parent_id: Optional[int] = None
+    # Orden de importancia GLOBAL entre hermanos (2026-08-18, a petición de
+    # Yue: "ordenar los temas del más importante al menos importante") --
+    # ver Proyecto.orden. El frontend ordena el árbol por este campo antes
+    # de dibujarlo, en vez del orden de llegada del backend.
+    orden: int = 0
 
 
 class MiembroResumenOut(BaseModel):
