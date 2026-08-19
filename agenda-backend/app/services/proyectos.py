@@ -138,12 +138,41 @@ def listar_raices_visibles(db: Session, usuario: Usuario) -> list[Proyecto]:
     return [p for p in visibles if p.parent_id not in ids_visibles]
 
 
+def _siguiente_orden(db: Session, parent_id: int | None, al_frente: bool = False) -> int:
+    """Siguiente valor de `orden` entre hermanos (mismo parent_id) -- para
+    que un tema recién creado quede al final de la lista de importancia en
+    vez de empatado en 0 con todos los demás (mover_proyecto intercambia
+    valores de `orden`; si dos hermanos comparten el mismo valor, la
+    "flecha" no mueve nada visible). Mismo criterio que ya usa
+    agregar_item_agenda con AgendaItem.orden.
+
+    `al_frente=True` (2026-08-19, alta rápida desde Vista Equipo) hace lo
+    contrario: un valor MENOR al mínimo de sus hermanos, para que quede de
+    prioridad 1 en vez de al final."""
+    if al_frente:
+        minimo = (
+            db.query(Proyecto.orden)
+            .filter(Proyecto.parent_id == parent_id)
+            .order_by(Proyecto.orden.asc())
+            .first()
+        )
+        return (minimo[0] - 1) if minimo else 0
+    maximo = (
+        db.query(Proyecto.orden)
+        .filter(Proyecto.parent_id == parent_id)
+        .order_by(Proyecto.orden.desc())
+        .first()
+    )
+    return (maximo[0] + 1) if maximo else 0
+
+
 def crear_proyecto(
     db: Session,
     usuario: Usuario,
     nombre: str,
     descripcion: str | None,
     parent_id: int | None = None,
+    al_frente: bool = False,
 ) -> Proyecto:
     """Sin parent_id (nodo raíz): cualquier usuario autenticado puede
     crear un proyecto. Por default queda como N1 (dirección) de él --
@@ -173,7 +202,12 @@ def crear_proyecto(
         requerir_rol_minimo(rol_padre, [RolEnum.N1, RolEnum.N2])
         obtener_proyecto_o_404(db, parent_id)
 
-        nuevo = Proyecto(nombre=nombre, descripcion=descripcion, parent_id=parent_id)
+        nuevo = Proyecto(
+            nombre=nombre,
+            descripcion=descripcion,
+            parent_id=parent_id,
+            orden=_siguiente_orden(db, parent_id, al_frente),
+        )
         db.add(nuevo)
         db.flush()
         db.add(
@@ -183,7 +217,7 @@ def crear_proyecto(
         )
         return nuevo
 
-    nuevo = Proyecto(nombre=nombre, descripcion=descripcion)
+    nuevo = Proyecto(nombre=nombre, descripcion=descripcion, orden=_siguiente_orden(db, None, al_frente))
     db.add(nuevo)
     db.flush()
 
@@ -213,6 +247,40 @@ def actualizar_proyecto(db: Session, usuario: Usuario, proyecto_id: int, campos:
         if valor is not None:
             setattr(proyecto, campo, valor)
     return proyecto
+
+
+def mover_proyecto(db: Session, usuario: Usuario, proyecto_id: int, direccion: str) -> None:
+    """Intercambia el `orden` de este tema con su vecino más cercano ENTRE
+    HERMANOS (mismo parent_id) -- 2026-08-18, a petición de Yue: "ordenar
+    los temas del más importante al menos importante" en Vista Equipo.
+    Mismo patrón de flechas ↑/↓ que ya usa mover_item_agenda
+    (app/services/series_reunion.py) para reordenar la agenda de una junta.
+
+    El orden es GLOBAL por tema, no por viewer -- los hermanos considerados
+    son TODOS los que comparten parent_id, sin filtrar por visibilidad
+    (igual que mover_item_agenda no filtra sus hermanos por quién los ve).
+    Requiere N1/N2 (local o heredado) del tema que se mueve -- mismo
+    permiso que editar/eliminar (actualizar_proyecto/eliminar_proyecto)."""
+    rol = requerir_participacion_en_proyecto(db, usuario, proyecto_id)
+    requerir_rol_minimo(rol, [RolEnum.N1, RolEnum.N2])
+    if direccion not in ("arriba", "abajo"):
+        raise HTTPException(status_code=400, detail="direccion debe ser 'arriba' o 'abajo'")
+
+    proyecto = obtener_proyecto_o_404(db, proyecto_id)
+    hermanos = (
+        db.query(Proyecto)
+        .filter(Proyecto.parent_id == proyecto.parent_id)
+        .order_by(Proyecto.orden, Proyecto.id)
+        .all()
+    )
+    posicion = next((i for i, h in enumerate(hermanos) if h.id == proyecto.id), None)
+    if posicion is None:
+        return
+    vecino_pos = posicion - 1 if direccion == "arriba" else posicion + 1
+    if vecino_pos < 0 or vecino_pos >= len(hermanos):
+        return  # ya está en el extremo, no hay nada que mover
+    vecino = hermanos[vecino_pos]
+    proyecto.orden, vecino.orden = vecino.orden, proyecto.orden
 
 
 def eliminar_proyecto(db: Session, usuario: Usuario, proyecto_id: int) -> None:
@@ -329,26 +397,68 @@ def mover_nodo(db: Session, usuario: Usuario, proyecto_id: int, nuevo_parent_id:
     return proyecto
 
 
-def listar_equipo_visible(db: Session, usuario: Usuario, proyecto_id: int) -> list[MiembroEquipoOut]:
+def _equipo_efectivo_por_herencia(db: Session, proyecto_id: int) -> dict[int, UsuarioProyectoRol]:
+    """Para cada persona con AL MENOS una fila en la cadena de ancestros de
+    proyecto_id (él mismo primero, luego padre, abuelo...), devuelve su fila
+    MÁS CERCANA -- mismo criterio "fila explícita más cercana" que
+    obtener_rol_en_proyecto, pero resuelto para TODO el equipo en vez de
+    para una sola persona. Usado por listar_equipo_visible(incluir_heredado=True)."""
+    indice = arbol_proyectos.cargar_indice(db)
+    cadena = arbol_proyectos.cadena_ancestros(indice, proyecto_id)
+    filas_por_nodo: dict[int, list[UsuarioProyectoRol]] = {}
+    for fila in db.query(UsuarioProyectoRol).filter(UsuarioProyectoRol.proyecto_id.in_(cadena)).all():
+        filas_por_nodo.setdefault(fila.proyecto_id, []).append(fila)
+
+    efectivo: dict[int, UsuarioProyectoRol] = {}
+    for nodo_id in cadena:
+        for fila in filas_por_nodo.get(nodo_id, []):
+            if fila.usuario_id not in efectivo:
+                efectivo[fila.usuario_id] = fila
+    return efectivo
+
+
+def listar_equipo_visible(
+    db: Session, usuario: Usuario, proyecto_id: int, incluir_heredado: bool = False
+) -> list[MiembroEquipoOut]:
     """
     Lista el equipo del proyecto, respetando visibilidad:
     - N1: ve a todos.
     - N2: ve a su equipo (los que supervisa) + él mismo.
     - N3/N4: se ven solo a sí mismos.
-    """
+
+    `incluir_heredado` (2026-08-18, a petición de Yue -- bug real en Vista
+    Equipo: un subtema nuevo (ej. bajo "Despacho") solo le da fila LOCAL a
+    quien lo crea -- ver crear_proyecto, es a propósito, NO hereda
+    automáticamente al resto del equipo del padre. Sin este parámetro, ese
+    subtema queda sin ningún miembro local y `equipo_resumen.py` lo salta
+    por completo para TODOS: nunca aparece como hijo colapsable de nadie en
+    Vista Equipo, aunque sí es visible al entrar directo al tema (esa
+    pantalla lista subtemas con `proyectosApi.hijos`, sin pasar por esta
+    función). Con incluir_heredado=True, si no hay nadie local, resuelve el
+    equipo efectivo caminando ancestros (_equipo_efectivo_por_herencia) en
+    vez de devolver vacío.
+
+    Deliberadamente NO es el default: "Administrar equipo" (ModalEquipo,
+    vía GET /proyectos/{id}/usuarios), invitar a una reunión, y el
+    asistente de voz siguen viendo solo miembros LOCALES -- mostrar ahí a
+    alguien con acceso heredado sería confuso (ej. el botón "Quitar" no
+    tendría ninguna fila local que borrar). Solo lo pasa
+    equipo_resumen.py, que es de solo lectura."""
     rol = requerir_participacion_en_proyecto(db, usuario, proyecto_id)
 
-    query = db.query(UsuarioProyectoRol).filter(UsuarioProyectoRol.proyecto_id == proyecto_id)
+    if incluir_heredado:
+        registros = list(_equipo_efectivo_por_herencia(db, proyecto_id).values())
+    else:
+        registros = db.query(UsuarioProyectoRol).filter(UsuarioProyectoRol.proyecto_id == proyecto_id).all()
 
     if rol.rol == RolEnum.N1:
-        registros = query.all()
+        pass
     elif rol.rol == RolEnum.N2:
-        registros = query.filter(
-            (UsuarioProyectoRol.supervisor_id == usuario.id)
-            | (UsuarioProyectoRol.usuario_id == usuario.id)
-        ).all()
+        registros = [
+            r for r in registros if r.supervisor_id == usuario.id or r.usuario_id == usuario.id
+        ]
     else:
-        registros = query.filter(UsuarioProyectoRol.usuario_id == usuario.id).all()
+        registros = [r for r in registros if r.usuario_id == usuario.id]
 
     return [
         MiembroEquipoOut(
