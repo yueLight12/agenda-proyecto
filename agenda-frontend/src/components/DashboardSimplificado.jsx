@@ -84,7 +84,7 @@ export default function DashboardSimplificado({ resumen }) {
         {equipoAbierto && (
         <>
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
-          <Link to="/equipo" style={{ fontSize: "0.85rem" }}>
+          <Link to="/app/equipo" style={{ fontSize: "0.85rem" }}>
             Ver equipo completo →
           </Link>
         </div>

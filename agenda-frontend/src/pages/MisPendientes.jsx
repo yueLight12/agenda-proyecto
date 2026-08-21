@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { entregablesApi, proyectosApi } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
 import EstatusBadge from "../components/EstatusBadge";
+import BadgeUrgente from "../components/BadgeUrgente";
 import FormularioEntregable from "../components/FormularioEntregable";
 
 export default function MisPendientes() {
@@ -24,7 +25,12 @@ export default function MisPendientes() {
         .filter((e) => e.responsable_id === usuario.id && e.estatus !== "cumplido")
         .map((e) => ({ ...e, proyecto_nombre: p.nombre }))
     );
-    propios.sort((a, b) => (a.fecha_entrega > b.fecha_entrega ? 1 : -1));
+    // Urgentes primero (2026-08-20, a petición del cliente: "lo primero
+    // que se ve"), luego por fecha ascendente dentro de cada grupo.
+    propios.sort((a, b) => {
+      if (a.urgente !== b.urgente) return a.urgente ? -1 : 1;
+      return a.fecha_entrega > b.fecha_entrega ? 1 : -1;
+    });
     setItems(propios);
   };
 
@@ -85,7 +91,10 @@ export default function MisPendientes() {
                 {e.proyecto_nombre} · vence {e.fecha_entrega}
               </div>
             </div>
-            <EstatusBadge estatus={e.estatus} />
+            <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
+              <BadgeUrgente urgente={e.urgente} />
+              <EstatusBadge estatus={e.estatus} />
+            </span>
           </button>
         ))}
       </div>

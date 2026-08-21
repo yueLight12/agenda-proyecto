@@ -90,6 +90,7 @@ from app.services.proyectos import (
     listar_equipo_visible,
     listar_hijos_directos,
     mover_nodo,
+    obtener_o_crear_tema_tareas_sueltas,
     resumen_subarbol,
 )
 from app.services.reuniones import actualizar_reunion, crear_reunion, eliminar_reunion
@@ -154,14 +155,6 @@ class ToolSpec:
 def _resolver_crear_entregable(
     db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
 ) -> ResultadoInterpretacion:
-    proyecto_res = resolver_campo(
-        "proyecto_id", aclaraciones, parametros_llm.get("proyecto"),
-        lambda t: resolver_proyecto(db, usuario, t, proyecto_id_contexto),
-    )
-    if not proyecto_res.resuelto:
-        return _pendiente("proyecto_id", proyecto_res)
-    proyecto_id = proyecto_res.valor
-
     nombre = (
         aclaraciones.get("nombre") if isinstance(aclaraciones.get("nombre"), str) else parametros_llm.get("nombre")
     )
@@ -171,13 +164,52 @@ def _resolver_crear_entregable(
             listo=False, campo="nombre", pregunta="¿Cómo se llama el entregable?", tipo_entrada="texto"
         )
 
-    texto_responsable = parametros_llm.get("responsable") or usuario.nombre
-    responsable_res = resolver_campo(
-        "responsable_id", aclaraciones, texto_responsable,
-        lambda t: resolver_persona_en_equipo(db, usuario, proyecto_id, t),
-    )
-    if not responsable_res.resuelto:
-        return _pendiente("responsable_id", responsable_res)
+    # Tema OPCIONAL (2026-08-20, a petición de Yue) -- si el LLM no extrajo
+    # ningún texto de proyecto/tema (y no hay ya una aclaración pendiente
+    # sobre ese campo), NO se pregunta "¿en qué tema?" como antes: se
+    # resuelve primero el responsable (con resolver_persona_organizacion,
+    # que no depende de un proyecto_id -- a diferencia de
+    # resolver_persona_en_equipo, que exige saber el tema para filtrar
+    # "el equipo de ese proyecto") y la tarea cae directo en su tema
+    # personal "Tareas sueltas" (obtener_o_crear_tema_tareas_sueltas), sin
+    # bloquear la conversación. Si SÍ se menciona un tema, el flujo de
+    # siempre sigue igual (proyecto primero, luego responsable filtrado al
+    # equipo de ESE tema) -- ver rama `else` abajo.
+    texto_proyecto = parametros_llm.get("proyecto") or ""
+    hay_tema_pendiente_de_aclarar = "proyecto_id" in aclaraciones
+    if not texto_proyecto.strip() and not hay_tema_pendiente_de_aclarar:
+        texto_responsable = parametros_llm.get("responsable") or usuario.nombre
+        responsable_res = resolver_campo(
+            "responsable_id", aclaraciones, texto_responsable,
+            lambda t: resolver_persona_organizacion(db, t, usuario_actor=usuario),
+        )
+        if not responsable_res.resuelto:
+            return _pendiente("responsable_id", responsable_res)
+        responsable_obj = db.query(Usuario).filter(Usuario.id == responsable_res.valor).first()
+        if responsable_obj is None:
+            return ResultadoInterpretacion(
+                listo=False, campo="responsable_id",
+                pregunta="No encontré a esa persona, ¿puedes repetir el nombre completo?",
+                tipo_entrada="texto",
+            )
+        tema_sueltas = obtener_o_crear_tema_tareas_sueltas(db, responsable_obj)
+        proyecto_id = tema_sueltas.id
+    else:
+        proyecto_res = resolver_campo(
+            "proyecto_id", aclaraciones, parametros_llm.get("proyecto"),
+            lambda t: resolver_proyecto(db, usuario, t, proyecto_id_contexto),
+        )
+        if not proyecto_res.resuelto:
+            return _pendiente("proyecto_id", proyecto_res)
+        proyecto_id = proyecto_res.valor
+
+        texto_responsable = parametros_llm.get("responsable") or usuario.nombre
+        responsable_res = resolver_campo(
+            "responsable_id", aclaraciones, texto_responsable,
+            lambda t: resolver_persona_en_equipo(db, usuario, proyecto_id, t),
+        )
+        if not responsable_res.resuelto:
+            return _pendiente("responsable_id", responsable_res)
 
     fecha_res = resolver_campo(
         "fecha_entrega", aclaraciones, parametros_llm.get("fecha_entrega"),
@@ -1980,13 +2012,20 @@ def _ejecutar_marcar_revision_agenda(db: Session, usuario: Usuario, parametros: 
 TOOLS: dict[str, ToolSpec] = {
     "crear_entregable": ToolSpec(
         nombre="crear_entregable",
-        descripcion="Crear una nueva tarea/entregable con fecha límite dentro de un proyecto.",
+        descripcion=(
+            "Crear una nueva tarea/entregable/pendiente con fecha límite. 'Pendiente' aquí es "
+            "sinónimo de tarea/entregable cuando el usuario pide CREAR uno (ej. 'agrégame un "
+            "pendiente de revisar el contrato para mañana') -- no confundir con el estado "
+            "'pendiente' de revisión de agenda de una junta, que es un concepto distinto y no "
+            "usa esta tool. El proyecto/tema es OPCIONAL: si no se menciona ninguno, la tarea "
+            "se crea igual, sin preguntar por un tema."
+        ),
         parametros_llm={
             "nombre": "nombre del entregable",
             "descripcion": "descripción opcional, o null si no se dijo",
             "responsable": "nombre de la persona a quien se asigna, tal como se mencionó; si no se dijo, dejar vacío (se autoasigna a quien habla)",
             "fecha_entrega": "fecha límite tal como se dijo en el texto (ej. 'el viernes', 'en dos semanas')",
-            "proyecto": "nombre del proyecto si se mencionó, si no dejar vacío",
+            "proyecto": "nombre del proyecto/tema SOLO si se mencionó explícitamente; si no, dejar vacío -- no es obligatorio",
             "sensible": "true o false, si se dijo que es sensible/confidencial (default false)",
         },
         ejemplos=[
@@ -2008,6 +2047,17 @@ TOOLS: dict[str, ToolSpec] = {
                     "descripcion": None,
                     "responsable": "",
                     "fecha_entrega": "mañana",
+                    "proyecto": "",
+                    "sensible": False,
+                },
+            ),
+            (
+                "agrégame un pendiente de comprar boletos de avión para el lunes",
+                {
+                    "nombre": "comprar boletos de avión",
+                    "descripcion": None,
+                    "responsable": "",
+                    "fecha_entrega": "el lunes",
                     "proyecto": "",
                     "sensible": False,
                 },

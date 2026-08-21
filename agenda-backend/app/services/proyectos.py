@@ -238,6 +238,93 @@ def crear_proyecto(
     return nuevo
 
 
+NOMBRE_TEMA_TAREAS_SUELTAS = "Tareas sueltas"
+
+
+def obtener_o_crear_tema_tareas_sueltas(db: Session, usuario_responsable: Usuario) -> Proyecto:
+    """Tema raíz personal "Tareas sueltas" de `usuario_responsable` (2026-08-20,
+    a petición de Yue: hacer el tema opcional al crear una tarea -- si no se
+    especifica ninguno, ni desde Agenda Plan B ni por voz, la tarea cae aquí
+    en vez de exigir elegir un tema real). Es un Proyecto normal, raíz, sin
+    ninguna marca especial en el modelo -- se identifica por convención
+    (nombre exacto + único dueño). Debe llamarse SIEMPRE con el RESPONSABLE
+    de la tarea, nunca con quien la crea/asigna, para que el tema quede bajo
+    la propiedad de quien de verdad debe verlo en su Seguimiento (mismo
+    resultado que si esa persona lo hubiera creado ella misma a mano).
+
+    Hace su propio commit: se usa como paso de resolución previo e
+    independiente (desde el router de tareas-sueltas o desde el asistente de
+    voz), antes de que el caller decida qué hacer con el proyecto_id
+    resultante -- no depende de que la transacción del entregable termine
+    bien."""
+    existente = (
+        db.query(Proyecto)
+        .join(UsuarioProyectoRol, UsuarioProyectoRol.proyecto_id == Proyecto.id)
+        .filter(
+            Proyecto.nombre == NOMBRE_TEMA_TAREAS_SUELTAS,
+            Proyecto.parent_id.is_(None),
+            UsuarioProyectoRol.usuario_id == usuario_responsable.id,
+        )
+        .first()
+    )
+    if existente:
+        return existente
+
+    nuevo = crear_proyecto(
+        db, usuario=usuario_responsable, nombre=NOMBRE_TEMA_TAREAS_SUELTAS, descripcion=None
+    )
+    db.commit()
+    db.refresh(nuevo)
+    return nuevo
+
+
+def listar_lideres_organizacion(db: Session) -> list[MiembroEquipoOut]:
+    """Todas las personas con rol N1 o N2 en AL MENOS un tema, cruzando
+    TODA la organización (2026-08-20, a petición de Yue: al reasignar una
+    tarea que no le compete a quien la recibió, poder pasársela a "otro
+    líder de otra área", no solo a alguien que ya participa en ese tema).
+    Sin regla de permisos nueva -- nombre/puesto ya son datos visibles en
+    otros lugares del sistema (ej. "Mi equipo"), y cualquier usuario
+    autenticado puede consultar esta lista para poder reasignar."""
+    ids_usuario = (
+        db.query(UsuarioProyectoRol.usuario_id)
+        .filter(UsuarioProyectoRol.rol.in_([RolEnum.N1, RolEnum.N2]))
+        .distinct()
+        .all()
+    )
+    ids_usuario = [row[0] for row in ids_usuario]
+    if not ids_usuario:
+        return []
+    usuarios = db.query(Usuario).filter(Usuario.id.in_(ids_usuario)).all()
+    return [
+        MiembroEquipoOut(
+            usuario_id=u.id,
+            nombre=u.nombre,
+            puesto=u.puesto,
+            email=u.email,
+            rol=RolEnum.N2,  # etiqueta genérica: la lista mezcla gente N1/N2 de temas distintos, no hay "un" rol único por persona aquí
+            supervisor_id=None,
+        )
+        for u in usuarios
+    ]
+
+
+def es_lider_en_algun_tema(db: Session, usuario_id: int) -> bool:
+    """True si `usuario_id` tiene rol N1 o N2 en AL MENOS un tema -- usado
+    por reasignar_entregable (app/services/entregables.py) para decidir si
+    se puede agregar automáticamente a alguien que no participa todavía en
+    el tema de la tarea que se le reasigna."""
+    return (
+        db.query(UsuarioProyectoRol)
+        .filter(
+            UsuarioProyectoRol.usuario_id == usuario_id,
+            UsuarioProyectoRol.rol.in_([RolEnum.N1, RolEnum.N2]),
+        )
+        .first()
+        is not None
+    )
+
+
 def actualizar_proyecto(db: Session, usuario: Usuario, proyecto_id: int, campos: dict) -> Proyecto:
     rol = requerir_participacion_en_proyecto(db, usuario, proyecto_id)
     requerir_rol_minimo(rol, [RolEnum.N1, RolEnum.N2])

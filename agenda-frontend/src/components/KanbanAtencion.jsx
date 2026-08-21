@@ -1,5 +1,6 @@
-import { Link } from "react-router-dom";
+﻿import { Link } from "react-router-dom";
 import { fechaLocal, textoDiasRelativos } from "../utils/fechas";
+import BadgeUrgente from "./BadgeUrgente";
 
 // Tablero Kanban (solo lectura, sin drag-and-drop) para "Requiere tu
 // atención" en el Resumen general — alternativa visual a la lista
@@ -12,11 +13,18 @@ import { fechaLocal, textoDiasRelativos } from "../utils/fechas";
 function TarjetaEntregable({ entregable, prefijoVencido }) {
   return (
     <Link
-      to={`/proyectos/${entregable.proyecto_id}`}
+      to={`/app/proyectos/${entregable.proyecto_id}`}
       className="kanban-card"
       style={{ textDecoration: "none", color: "inherit" }}
     >
-      <div className="kanban-card__titulo">{entregable.nombre}</div>
+      <div className="kanban-card__titulo">
+        {entregable.nombre}
+        {entregable.urgente && (
+          <span style={{ marginLeft: 6 }}>
+            <BadgeUrgente urgente />
+          </span>
+        )}
+      </div>
       <div className="kanban-card__meta">
         <span>{entregable.proyecto_nombre}</span>
         <span>{entregable.responsable_nombre}</span>

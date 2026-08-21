@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { entregablesApi, proyectosApi, reunionesApi } from "../api/endpoints";
 import { etiquetaRol } from "../utils/rolLabels";
+import BadgeUrgente from "./BadgeUrgente";
 import EstatusBadge from "./EstatusBadge";
 
 /**
@@ -86,7 +87,10 @@ export default function PanelResumenProyecto({ proyectoId }) {
                         <div className="progress-bar__fill" style={{ width: `${e.porcentaje_avance}%` }} />
                       </div>
                     </div>
-                    <EstatusBadge estatus={e.estatus} />
+                    <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                      <BadgeUrgente urgente={e.urgente} />
+                      <EstatusBadge estatus={e.estatus} />
+                    </span>
                   </div>
                 ))
               )}
@@ -123,7 +127,10 @@ export default function PanelResumenProyecto({ proyectoId }) {
                       <div className="progress-bar__fill" style={{ width: `${e.porcentaje_avance}%` }} />
                     </div>
                   </div>
-                  <EstatusBadge estatus={e.estatus} />
+                  <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                    <BadgeUrgente urgente={e.urgente} />
+                    <EstatusBadge estatus={e.estatus} />
+                  </span>
                 </div>
               ))}
           </div>

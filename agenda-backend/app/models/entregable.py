@@ -1,4 +1,4 @@
-"""
+﻿"""
 Modelo de Entregable.
 """
 import enum
@@ -46,6 +46,13 @@ class Entregable(Base):
     # (2026-08-19, a petición de Yue: "que quede igual que temas/subtemas")
     # -- mismo patrón que Proyecto.orden, con flechas ↑/↓ en vez de fecha.
     orden = Column(Integer, default=0, nullable=False)
+    # Urgencia marcada A MANO por quien asigna (2026-08-20, a petición del
+    # cliente) -- se combina con la urgencia AUTOMÁTICA por fecha (vencido,
+    # o vence en ≤3 días) para decidir el badge "URGENTE" que se muestra en
+    # todas las vistas; ver app/services/entregables.py::es_urgente. Este
+    # campo es solo la mitad manual -- "urgente" en el resto del código
+    # SIEMPRE es el resultado combinado, nunca este campo solo.
+    urgente_manual = Column(Boolean, default=False, nullable=False)
 
     proyecto = relationship("Proyecto", back_populates="entregables")
     responsable = relationship("Usuario", foreign_keys=[responsable_id])

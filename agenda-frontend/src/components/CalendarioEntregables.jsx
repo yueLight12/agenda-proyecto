@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Calendar, dateFnsLocalizer } from "react-big-calendar";
 import withDragAndDrop from "react-big-calendar/lib/addons/dragAndDrop";
 import format from "date-fns/format";
@@ -31,6 +31,33 @@ const MENSAJES_ES = {
   agenda: "Agenda",
   noEventsInRange: "No hay entregables en este rango.",
 };
+
+// Toolbar compacto para pantallas angostas (2026-08-20, a petición de Yue:
+// el toolbar nativo de react-big-calendar trae Mes/Semana/Día/Agenda todos
+// juntos -- si el usuario toca "Mes" en el celular, esa cuadrícula de 7
+// columnas no cabe sin volver a producir el scroll horizontal feo que ya
+// se había corregido para el caso "Agenda". En vez de pelear con el CSS
+// del toolbar nativo (sin clases propias por botón, solo por posición),
+// se reemplaza el toolbar completo -- oculta Mes/Semana/Día, deja
+// Ant/Hoy/Sig + Agenda (la única vista que sí es responsiva).
+function ToolbarCompacto({ label, onNavigate }) {
+  return (
+    <div className="rbc-toolbar">
+      <span className="rbc-btn-group">
+        <button type="button" onClick={() => onNavigate("PREV")}>
+          Ant.
+        </button>
+        <button type="button" onClick={() => onNavigate("TODAY")}>
+          Hoy
+        </button>
+        <button type="button" onClick={() => onNavigate("NEXT")}>
+          Sig.
+        </button>
+      </span>
+      <span className="rbc-toolbar-label">{label}</span>
+    </div>
+  );
+}
 
 function fechaLocalDesdeISO(fechaISO) {
   const [anio, mes, dia] = fechaISO.split("-").map(Number);
@@ -65,6 +92,7 @@ export default function CalendarioEntregables({
   onEntregableClick,
   onReunionClick,
   onEventoEmpresaClick,
+  alto = 600,
 }) {
   const [error, setError] = useState("");
 
@@ -78,6 +106,16 @@ export default function CalendarioEntregables({
       ? "agenda"
       : "month"
   );
+  const [esPantallaAngosta, setEsPantallaAngosta] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches
+  );
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia("(max-width: 768px)");
+    const onChange = () => setEsPantallaAngosta(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
 
   const eventosEntregables = entregables.map((e) => {
     const fecha = fechaLocalDesdeISO(e.fecha_entrega);
@@ -144,12 +182,16 @@ export default function CalendarioEntregables({
       {error && <p className="error-text">{error}</p>}
       <div
         className={`calendar-responsive${vista === "agenda" ? " calendar-responsive--agenda" : ""}`}
-        style={{ height: 600, overflowY: "auto" }}
+        style={{ height: alto, overflowY: "auto" }}
       >
         {vista === "agenda" ? (
           <>
             <div className="agenda-semanal__header">
-              {["month", "week", "day", "agenda"].map((v) => (
+              {/* En pantallas angostas solo se ofrece "Agenda" -- Mes/
+                  Semana/Día son cuadrículas de columnas fijas que no caben
+                  sin volver al scroll horizontal que ya se corrigió
+                  (2026-08-20, reporte real de Yue). */}
+              {(esPantallaAngosta ? ["agenda"] : ["month", "week", "day", "agenda"]).map((v) => (
                 <button
                   key={v}
                   type="button"
@@ -188,6 +230,7 @@ export default function CalendarioEntregables({
               else if (evento.resource.tipo === "entregable") onEntregableClick?.(evento.resource.datos);
               else if (evento.resource.tipo === "evento_empresa") onEventoEmpresaClick?.(evento.resource.datos);
             }}
+            components={esPantallaAngosta ? { toolbar: ToolbarCompacto } : undefined}
           />
         )}
       </div>

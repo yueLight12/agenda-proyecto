@@ -227,7 +227,7 @@ export function TablaHistorialSemana({ fecha }) {
             <tr key={f.proyecto_id} className="tabla-temas__fila">
               <td>
                 <Link
-                  to={`/proyectos/${f.proyecto_id}`}
+                  to={`/app/proyectos/${f.proyecto_id}`}
                   style={{ color: "inherit", textDecoration: "none", fontWeight: 600 }}
                 >
                   {primeraMayuscula(f.nombre)}

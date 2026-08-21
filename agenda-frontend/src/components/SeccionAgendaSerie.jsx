@@ -147,7 +147,7 @@ function NodoSeccion({ grupo, hijosPorPadre, reunionId, onCambio, expandidos, on
           </span>
         ) : (
           <Link
-            to={`/proyectos/${grupo.id}`}
+            to={`/app/proyectos/${grupo.id}`}
             style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--color-text-muted)" }}
           >
             {grupo.nombre}

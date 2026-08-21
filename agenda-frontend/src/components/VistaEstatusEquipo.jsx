@@ -84,7 +84,7 @@ export default function VistaEstatusEquipo() {
       equipo={equipo}
       columnas={COLUMNAS_ESTATUS}
       onMoverEstatus={moverEstatus}
-      onEntregableClick={(e) => navigate(`/proyectos/${e.proyecto_id}?entregable=${e.id}`)}
+      onEntregableClick={(e) => navigate(`/app/proyectos/${e.proyecto_id}?entregable=${e.id}`)}
       error={errorAvance}
     />
   );

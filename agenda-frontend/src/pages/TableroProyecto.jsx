@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { entregablesApi, proyectosApi, reunionesApi, seriesReunionApi } from "../api/endpoints";
 import EstatusBadge from "../components/EstatusBadge";
+import BadgeUrgente from "../components/BadgeUrgente";
 import Breadcrumb from "../components/Breadcrumb";
 import CalendarioEntregables from "../components/CalendarioEntregables";
 import KanbanEntregables from "../components/KanbanEntregables";
@@ -163,7 +164,7 @@ export default function TableroProyecto() {
     setErrorEliminarTema("");
     try {
       await proyectosApi.eliminar(proyectoId);
-      const destino = ancestros.length > 0 ? `/proyectos/${ancestros[ancestros.length - 1].id}` : "/proyectos";
+      const destino = ancestros.length > 0 ? `/app/proyectos/${ancestros[ancestros.length - 1].id}` : "/app/proyectos";
       navigate(destino);
     } catch (err) {
       setErrorEliminarTema(err.response?.data?.detail || "No se pudo eliminar este tema.");
@@ -233,7 +234,7 @@ export default function TableroProyecto() {
                 {subtemas.map((s) => (
                   <Link
                     key={s.id}
-                    to={`/proyectos/${s.id}`}
+                    to={`/app/proyectos/${s.id}`}
                     className="kanban-column"
                     style={{ color: "inherit", textDecoration: "none" }}
                   >
@@ -406,7 +407,10 @@ export default function TableroProyecto() {
                   )}
                 </td>
                 <td>
-                  <EstatusBadge estatus={e.estatus} />
+                  <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                    <BadgeUrgente urgente={e.urgente} />
+                    <EstatusBadge estatus={e.estatus} />
+                  </span>
                 </td>
                 <td>
                   <div style={{ display: "flex", gap: 8 }}>

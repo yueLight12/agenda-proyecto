@@ -1,4 +1,4 @@
-import { api } from "./client";
+﻿import { api } from "./client";
 
 export const authApi = {
   login: async (email, password) => {
@@ -45,6 +45,17 @@ export const proyectosApi = {
   // hermanos del mismo padre, para el orden de importancia de Vista Equipo.
   reordenar: async (id, direccion) => api.post(`/proyectos/${id}/reordenar`, { direccion }),
   arbolVisible: async () => (await api.get("/proyectos/arbol-visible")).data,
+  // Devuelve (creándolo si hace falta) el tema personal "Tareas sueltas"
+  // del responsable dado (o el propio usuario si se omite) -- para crear un
+  // entregable sin elegir tema (2026-08-20, a petición de Yue). Ver
+  // ModalAsignarTareaRapida.jsx.
+  tareasSueltas: async (responsableId) =>
+    (await api.post("/proyectos/tareas-sueltas", { responsable_id: responsableId ?? null })).data,
+  // Todas las personas con rol N1/N2 en algún tema, cruzando toda la
+  // organización (2026-08-20, a petición de Yue) -- para reasignar una
+  // tarea a "otro líder de otra área" sin depender de que ya participe en
+  // este mismo tema. Ver FormularioEntregable.jsx.
+  lideres: async () => (await api.get("/proyectos/lideres")).data,
 };
 
 export const entregablesApi = {
@@ -61,6 +72,13 @@ export const entregablesApi = {
   historial: async (entregableId) =>
     (await api.get(`/entregables/${entregableId}/historial`)).data,
   eliminar: async (entregableId) => api.delete(`/entregables/${entregableId}`),
+  reasignar: async (entregableId, nuevoResponsableId, nota = null) =>
+    (
+      await api.patch(`/entregables/${entregableId}/reasignar`, {
+        nuevo_responsable_id: nuevoResponsableId,
+        nota,
+      })
+    ).data,
 };
 
 export const dashboardApi = {

@@ -4,6 +4,8 @@ cualquier profundidad, ver Proyecto.parent_id) y asignación de roles.
 Toda la lógica vive en app.services.proyectos — este router solo valida el
 schema de entrada y arma la respuesta.
 """
+from typing import Optional
+
 from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -28,14 +30,17 @@ from app.services.proyectos import (
     listar_arbol_visible as listar_arbol_visible_servicio,
     listar_equipo_visible,
     listar_hijos_directos as listar_hijos_directos_servicio,
+    listar_lideres_organizacion,
     listar_raices_visibles,
     mover_nodo as mover_nodo_servicio,
     mover_proyecto as mover_proyecto_servicio,
+    obtener_o_crear_tema_tareas_sueltas,
     obtener_proyecto_o_404,
     proyecto_a_out,
     quitar_miembro_de_proyecto as quitar_miembro_de_proyecto_servicio,
     resumen_subarbol as resumen_subarbol_servicio,
 )
+from app.services.usuarios import obtener_usuario_o_404
 from app.core.permissions import requerir_participacion_en_proyecto
 
 router = APIRouter(prefix="/proyectos", tags=["Proyectos"])
@@ -53,6 +58,14 @@ class ResumenSubarbolOut(BaseModel):
     total_subtemas: int
     total_entregables: int
     total_reuniones: int
+
+
+class TareasSueltasRequest(BaseModel):
+    # None = el propio usuario autenticado. Distinto de "quien asigna" cuando
+    # un N1/N2 crea una tarea rápida sin tema para otra persona -- el tema
+    # debe quedar bajo esa persona, no bajo quien la crea (ver
+    # obtener_o_crear_tema_tareas_sueltas).
+    responsable_id: Optional[int] = None
 
 
 @router.get("", response_model=list[ProyectoOut])
@@ -92,6 +105,38 @@ def listar_arbol_visible(
     /{proyecto_id} para que FastAPI no intente resolver "arbol-visible"
     como un id."""
     return listar_arbol_visible_servicio(db, usuario)
+
+
+@router.get("/lideres", response_model=list[MiembroEquipoOut])
+def listar_lideres(
+    db: Session = Depends(get_db), usuario: Usuario = Depends(obtener_usuario_actual)
+):
+    """Todas las personas con rol N1/N2 en algún tema, cruzando toda la
+    organización (2026-08-20, a petición de Yue) -- para poder reasignar
+    una tarea a "otro líder de otra área" sin depender de que ya participe
+    en el mismo tema. Debe declararse ANTES de /{proyecto_id}, mismo
+    criterio ya usado con /arbol-visible y /tareas-sueltas."""
+    return listar_lideres_organizacion(db)
+
+
+@router.post("/tareas-sueltas", response_model=ProyectoOut)
+def obtener_tareas_sueltas(
+    datos: TareasSueltasRequest = TareasSueltasRequest(),
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Devuelve (creándolo si hace falta) el tema personal "Tareas sueltas"
+    de `datos.responsable_id` (o el propio usuario si no se manda) -- para
+    poder crear un entregable sin elegir tema (2026-08-20, a petición de
+    Yue). Debe declararse ANTES de /{proyecto_id} para que FastAPI no lo
+    confunda con un id, mismo criterio ya usado con /arbol-visible. Sin
+    regla de permisos nueva: cualquier usuario autenticado puede resolver el
+    tema de otra persona, igual que ya puede asignarle tareas directamente."""
+    responsable = usuario
+    if datos.responsable_id is not None and datos.responsable_id != usuario.id:
+        responsable = obtener_usuario_o_404(db, datos.responsable_id)
+    proyecto = obtener_o_crear_tema_tareas_sueltas(db, responsable)
+    return proyecto_a_out(db, usuario, proyecto)
 
 
 @router.get("/{proyecto_id}", response_model=ProyectoOut)

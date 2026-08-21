@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { entregablesApi } from "../api/endpoints";
+﻿import { useEffect, useState } from "react";
+import { entregablesApi, proyectosApi } from "../api/endpoints";
 import { etiquetaRol } from "../utils/rolLabels";
 import ConfirmDialog from "./ConfirmDialog";
 import HistorialAvance from "./HistorialAvance";
@@ -23,11 +23,45 @@ export default function FormularioEntregable({
   );
   const [fechaEntrega, setFechaEntrega] = useState(entregable?.fecha_entrega || "");
   const [sensible, setSensible] = useState(entregable?.sensible || false);
+  const [urgenteManual, setUrgenteManual] = useState(entregable?.urgente_manual || false);
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [historialAbierto, setHistorialAbierto] = useState(false);
   const [eliminando, setEliminando] = useState(false);
   const [confirmandoEliminar, setConfirmandoEliminar] = useState(false);
+  // Reasignar (2026-08-20, a petición del cliente: "si te asignaron algo
+  // que no te pertenece, poder reasignarlo") -- separado del campo
+  // Responsable normal (que solo se muestra si puedeAsignarAOtros) porque
+  // el propio responsable actual también puede reasignar sin ser N1/N2,
+  // ver Entregable.puede_reasignar (backend).
+  const [reasignandoA, setReasignandoA] = useState("");
+  const [notaReasignar, setNotaReasignar] = useState("");
+  const [reasignando, setReasignando] = useState(false);
+  const [errorReasignar, setErrorReasignar] = useState("");
+  const muestraReasignar = esEdicion && !puedeAsignarAOtros && entregable?.puede_reasignar;
+  // Líderes (N1/N2) de la organización -- para poder reasignar a "otro
+  // líder de otra área" sin depender de que ya participe en este tema
+  // (2026-08-20, a petición de Yue: caso Bernardo->David->otro N2, o
+  // David regresándoselo a Bernardo). Carga perezosa: solo si el select
+  // de reasignar de hecho se va a mostrar.
+  const [lideres, setLideres] = useState([]);
+  useEffect(() => {
+    if (!muestraReasignar) return;
+    proyectosApi.lideres().then(setLideres).catch(() => {});
+  }, [muestraReasignar]);
+
+  const handleReasignar = async () => {
+    if (!reasignandoA) return;
+    setErrorReasignar("");
+    setReasignando(true);
+    try {
+      await entregablesApi.reasignar(entregable.id, Number(reasignandoA), notaReasignar || null);
+      onGuardado();
+    } catch (err) {
+      setErrorReasignar(err.response?.data?.detail || "No se pudo reasignar el entregable.");
+      setReasignando(false);
+    }
+  };
 
   const handleEliminar = async () => {
     setConfirmandoEliminar(false);
@@ -51,6 +85,7 @@ export default function FormularioEntregable({
       responsable_id: Number(responsableId),
       fecha_entrega: fechaEntrega,
       sensible,
+      urgente_manual: urgenteManual,
     };
     try {
       if (esEdicion) {
@@ -115,6 +150,69 @@ export default function FormularioEntregable({
           )}
         </label>
 
+        {muestraReasignar && (
+          <label className="stack" style={{ gap: 4 }}>
+            <span style={{ fontSize: "0.85rem" }}>
+              ¿No te corresponde? Reasignar a otra persona
+            </span>
+            <div style={{ display: "flex", gap: 8 }}>
+              <select
+                className="input"
+                value={reasignandoA}
+                onChange={(e) => setReasignandoA(e.target.value)}
+                style={{ flex: 1 }}
+              >
+                <option value="">Selecciona una persona...</option>
+                <optgroup label="Este tema">
+                  {miembros
+                    .filter((m) => m.usuario_id !== entregable.responsable_id)
+                    .map((m) => (
+                      <option key={m.usuario_id} value={m.usuario_id}>
+                        {m.nombre} ({etiquetaRol(m.rol)})
+                      </option>
+                    ))}
+                </optgroup>
+                {lideres.filter(
+                  (l) =>
+                    l.usuario_id !== entregable.responsable_id &&
+                    !miembros.some((m) => m.usuario_id === l.usuario_id)
+                ).length > 0 && (
+                  <optgroup label="Otros líderes">
+                    {lideres
+                      .filter(
+                        (l) =>
+                          l.usuario_id !== entregable.responsable_id &&
+                          !miembros.some((m) => m.usuario_id === l.usuario_id)
+                      )
+                      .map((l) => (
+                        <option key={l.usuario_id} value={l.usuario_id}>
+                          {l.nombre}
+                          {l.puesto ? ` — ${l.puesto}` : ""}
+                        </option>
+                      ))}
+                  </optgroup>
+                )}
+              </select>
+              <button
+                type="button"
+                className="btn btn--ghost"
+                disabled={!reasignandoA || reasignando}
+                onClick={handleReasignar}
+              >
+                {reasignando ? "Reasignando..." : "Reasignar"}
+              </button>
+            </div>
+            <textarea
+              className="input"
+              placeholder="Nota (opcional) -- ej. 'esto no me compete, es de otra área'"
+              value={notaReasignar}
+              onChange={(e) => setNotaReasignar(e.target.value)}
+              rows={2}
+            />
+            {errorReasignar && <p className="error-text">{errorReasignar}</p>}
+          </label>
+        )}
+
         <label className="stack" style={{ gap: 4 }}>
           <span style={{ fontSize: "0.85rem" }}>Fecha de entrega</span>
           <input
@@ -133,6 +231,20 @@ export default function FormularioEntregable({
             onChange={(e) => setSensible(e.target.checked)}
           />
           <span style={{ fontSize: "0.85rem" }}>Entregable sensible</span>
+        </label>
+
+        <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <input
+            type="checkbox"
+            checked={urgenteManual}
+            onChange={(e) => setUrgenteManual(e.target.checked)}
+          />
+          <span style={{ fontSize: "0.85rem" }}>
+            Marcar como urgente{" "}
+            <span style={{ color: "var(--color-text-muted)" }}>
+              (además, se marca urgente solo si ya venció o vence en 3 días o menos)
+            </span>
+          </span>
         </label>
 
         {error && <p className="error-text">{error}</p>}

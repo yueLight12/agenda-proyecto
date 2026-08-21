@@ -1,4 +1,4 @@
-"""
+﻿"""
 Reglas centrales de permisos y visibilidad.
 
 Este módulo es la implementación directa de la sección 4 del documento de
@@ -292,6 +292,17 @@ def puede_editar_entregable(db: Session, usuario: Usuario, entregable: Entregabl
     if rol.rol in (RolEnum.N1, RolEnum.N2):
         return True
     return entregable.responsable_id == usuario.id
+
+
+# Alias semántico de puede_editar_entregable (2026-08-20, a petición del
+# cliente: "si alguien te asignó algo que no te pertenece, poder
+# reasignarlo") -- MISMO criterio (N1/N2 del proyecto, o el propio
+# responsable actual), sin regla de permisos nueva. Nombre propio para que
+# el llamador (reasignar_entregable en services/entregables.py) exprese la
+# intención sin acoplarse a un nombre pensado originalmente para "editar
+# cualquier campo".
+def puede_reasignar_entregable(db: Session, usuario: Usuario, entregable: Entregable) -> bool:
+    return puede_editar_entregable(db, usuario, entregable)
 
 
 def query_reuniones_visibles(db: Session, usuario: Usuario, proyecto_id: int):

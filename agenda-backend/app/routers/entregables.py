@@ -1,4 +1,4 @@
-"""
+﻿"""
 Router de entregables: CRUD, actualización de avance con historial,
 y consulta de historial. Toda la visibilidad pasa por app.core.permissions.
 """
@@ -22,6 +22,7 @@ from app.schemas.entregable import (
     EntregableOut,
     HistorialAvanceOut,
     MoverEntregableRequest,
+    ReasignarEntregableRequest,
 )
 from app.services.entregables import actualizar_avance as actualizar_avance_servicio
 from app.services.entregables import actualizar_entregable as actualizar_entregable_servicio
@@ -29,6 +30,7 @@ from app.services.entregables import crear_entregable as crear_entregable_servic
 from app.services.entregables import eliminar_entregable as eliminar_entregable_servicio
 from app.services.entregables import entregable_a_out
 from app.services.entregables import mover_entregable as mover_entregable_servicio
+from app.services.entregables import reasignar_entregable as reasignar_entregable_servicio
 
 router = APIRouter(tags=["Entregables"])
 
@@ -75,6 +77,7 @@ def crear_entregable(
         responsable_id=datos.responsable_id,
         fecha_entrega=datos.fecha_entrega,
         sensible=datos.sensible,
+        urgente_manual=datos.urgente_manual,
     )
     db.commit()
     db.refresh(nuevo)
@@ -134,6 +137,27 @@ def mover_entregable(
     mover_entregable_servicio(db, usuario, entregable_id, datos.direccion)
     db.commit()
     entregable = db.query(Entregable).filter(Entregable.id == entregable_id).first()
+    return entregable_a_out(db, usuario, entregable)
+
+
+@router.patch("/entregables/{entregable_id}/reasignar", response_model=EntregableOut)
+def reasignar_entregable(
+    entregable_id: int,
+    datos: ReasignarEntregableRequest,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Cambia el responsable del entregable (2026-08-20, a petición del
+    cliente: "si te asignaron algo que no te pertenece, poder
+    reasignarlo") -- a diferencia de PATCH /entregables/{id} (solo N1/N2),
+    aquí también puede hacerlo el responsable ACTUAL. Notifica al nuevo
+    responsable y, si aplica, al anterior. `nota` opcional queda en el hilo
+    del entregable (ej. "esto no me compete" al reasignar de vuelta)."""
+    entregable = reasignar_entregable_servicio(
+        db, usuario, entregable_id, datos.nuevo_responsable_id, datos.nota
+    )
+    db.commit()
+    db.refresh(entregable)
     return entregable_a_out(db, usuario, entregable)
 
 

@@ -1,4 +1,5 @@
-import { useState } from "react";
+﻿import { useState } from "react";
+import BadgeUrgente from "./BadgeUrgente";
 
 /**
  * Vista Kanban de entregables, agrupados por columnas (por defecto, su
@@ -37,6 +38,11 @@ export function TarjetaEntregable({ entregable, equipo, onDragStart, onClick }) 
         {entregable.sensible && (
           <span className="badge badge--sensible" style={{ marginLeft: 6 }}>
             Sensible
+          </span>
+        )}
+        {entregable.urgente && (
+          <span style={{ marginLeft: 6 }}>
+            <BadgeUrgente urgente />
           </span>
         )}
       </div>

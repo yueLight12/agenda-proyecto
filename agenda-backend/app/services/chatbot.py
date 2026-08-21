@@ -18,7 +18,8 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.permissions import query_entregables_visibles
-from app.models.entregable import EstatusEntregable
+from app.models.entregable import Entregable, EstatusEntregable
+from app.models.historial_avance import HistorialAvance
 from app.models.usuario import Usuario
 from app.models.usuario_proyecto_rol import UsuarioProyectoRol
 from app.services.llm_cliente import generar_texto
@@ -38,7 +39,48 @@ Tu respuesta se muestra en pantalla Y se puede leer en voz alta, así que:
 - Si mencionas varios elementos (entregables, temas, reuniones), pon
   cada uno en su propia línea (con un salto de línea real entre ellos), no
   todos seguidos en la misma oración.
-- Usa oraciones cortas y directas. Evita rodeos y frases de relleno."""
+- Usa oraciones cortas y directas. Evita rodeos y frases de relleno.
+
+Cuando el usuario pregunte por SUS PENDIENTES, TAREAS o ENTREGABLES, cada uno
+que menciones debe seguir este patrón, tomando los datos de la línea
+correspondiente en "DATOS DISPONIBLES" (2026-08-20, a petición del cliente):
+- "[quien lo asignó/agregó] te asignó/agregó [nombre del tema o entregable]"
+  (usa el verbo que mejor calce: "asignó" para un entregable con responsable
+  distinto de quien lo creó, "agregó" si se autoasignó).
+- Si el dato dice que está CUMPLIDO: en vez de mencionar vencimiento, di
+  "lo concluiste el [fecha en que se marcó cumplido]" (o "[nombre del
+  responsable] lo concluyó el [fecha]" si hablas de otra persona). NO
+  menciones si vence pronto o no -- ya no aplica.
+  Si el dato no trae fecha de conclusión (no se pudo calcular), simplemente
+  di que está concluido, sin inventar una fecha.
+- Si NO está cumplido: menciona cuándo vence en términos relativos --
+  "vence en N días", "vence hoy", o "venció hace N días" si ya pasó la
+  fecha -- calculado a partir de la fecha de vencimiento y la fecha de hoy
+  que aparecen en los datos."""
+
+
+def _fechas_cumplido(db: Session, entregable_ids: list[int]) -> dict[int, date]:
+    """Para cada entregable YA CUMPLIDO, la fecha (sin hora) del registro de
+    HistorialAvance más reciente que llegó a 100% -- no existe un campo
+    `fecha_cumplido` directo en Entregable (2026-08-20, decisión explícita
+    con Yue: derivarlo del historial existente en vez de agregar una
+    columna nueva). Una sola query batch para todos los ids, no N+1."""
+    if not entregable_ids:
+        return {}
+    registros = (
+        db.query(HistorialAvance)
+        .filter(
+            HistorialAvance.entregable_id.in_(entregable_ids),
+            HistorialAvance.porcentaje_avance == 100,
+        )
+        .order_by(HistorialAvance.entregable_id, HistorialAvance.fecha_registro.desc())
+        .all()
+    )
+    fechas: dict[int, date] = {}
+    for r in registros:
+        if r.entregable_id not in fechas:  # el primero por entregable ya es el más reciente
+            fechas[r.entregable_id] = r.fecha_registro.date()
+    return fechas
 
 
 def _construir_contexto(db: Session, usuario: Usuario) -> str:
@@ -54,7 +96,7 @@ def _construir_contexto(db: Session, usuario: Usuario) -> str:
 
     hoy = date.today()
     limite_alerta = hoy + timedelta(days=settings.dias_alerta_entregable)
-    bloques = []
+    bloques = [f"Hoy es {hoy}."]
 
     for rol in roles:
         proyecto = rol.proyecto
@@ -85,13 +127,42 @@ def _construir_contexto(db: Session, usuario: Usuario) -> str:
         ]
         if entregables:
             lineas.append("  Entregables:")
+            ids_cumplidos = [
+                e.id for e in entregables if e.estatus == EstatusEntregable.cumplido
+            ]
+            fechas_cumplido = _fechas_cumplido(db, ids_cumplidos)
+            # Nombres de quien creó cada entregable, en una sola query batch
+            # (no N+1) -- solo hace falta para los que NO se autoasignaron.
+            ids_creadores = {
+                e.creado_por for e in entregables if e.creado_por != e.responsable_id
+            }
+            nombres_creadores = {
+                u.id: u.nombre
+                for u in db.query(Usuario).filter(Usuario.id.in_(ids_creadores)).all()
+            } if ids_creadores else {}
             for e in entregables:
                 responsable = e.responsable.nombre if e.responsable else "(sin asignar)"
-                lineas.append(
+                # "asignado por": quien lo creó, salvo que sea la misma
+                # persona responsable (autoasignado) -- ver Entregable.creado_por.
+                if e.creado_por == e.responsable_id:
+                    asignado_por = f"{responsable} (se autoasignó)"
+                else:
+                    asignado_por = nombres_creadores.get(e.creado_por, "(desconocido)")
+                linea = (
                     f"    - \"{e.nombre}\" | responsable: {responsable} | "
-                    f"vence: {e.fecha_entrega} | avance: {e.porcentaje_avance}% | "
+                    f"asignado por: {asignado_por} | avance: {e.porcentaje_avance}% | "
                     f"estatus: {e.estatus.value}"
                 )
+                if e.estatus == EstatusEntregable.cumplido:
+                    fecha_cumplido = fechas_cumplido.get(e.id)
+                    linea += (
+                        f" | fecha en que se marcó cumplido: {fecha_cumplido}"
+                        if fecha_cumplido
+                        else " | fecha en que se marcó cumplido: (no disponible)"
+                    )
+                else:
+                    linea += f" | vence: {e.fecha_entrega}"
+                lineas.append(linea)
         bloques.append("\n".join(lineas))
 
     return "\n\n".join(bloques)

@@ -1,4 +1,4 @@
-"""
+﻿"""
 Servicio de resumen de equipo multi-proyecto: para un N1/N2, agrega en un
 solo lugar equipo + entregables + reuniones de TODOS los proyectos donde
 participa, agrupado por persona (no por proyecto) — para poder ver y
@@ -42,6 +42,7 @@ from app.schemas.equipo_resumen import (
     ProyectoDeMiembroOut,
     ReunionResumenPersonaOut,
 )
+from app.services.entregables import es_urgente
 from app.services.proyectos import listar_equipo_visible, listar_proyectos_visibles
 
 
@@ -58,6 +59,16 @@ def listar_proyectos_de_usuario(db: Session, usuario_id: int) -> list[UsuarioPro
 def resumen_equipo_multiproyecto(db: Session, usuario: Usuario) -> list[MiembroResumenOut]:
     proyectos = listar_proyectos_visibles(db, usuario)
     personas: dict[int, MiembroResumenOut] = {}
+
+    # Mapa id -> nombre para resolver Entregable.creado_por (2026-08-19, a
+    # petición de Yue: "[quien lo asignó] te asignó [nombre], vence en N
+    # días" en el resumen de entregables) -- Entregable no tiene relación
+    # ORM a creado_por (solo el id crudo), y quien lo creó puede no
+    # aparecer en `equipo` de ningún proyecto visible aquí (ej. un N1
+    # superior que asignó el entregable y luego no vuelve a aparecer en
+    # ninguna columna) -- una sola consulta a todos los usuarios evita
+    # tener que ir resolviendo uno por uno.
+    nombres_por_id = {u.id: u.nombre for u in db.query(Usuario).all()}
 
     for proyecto in proyectos:
         # incluir_heredado=True (2026-08-18, bug real: subtemas nuevos solo
@@ -90,6 +101,9 @@ def resumen_equipo_multiproyecto(db: Session, usuario: Usuario) -> list[MiembroR
                     porcentaje_avance=e.porcentaje_avance,
                     estatus=e.estatus,
                     sensible=e.sensible,
+                    responsable_nombre=miembro.nombre,
+                    creado_por_nombre=nombres_por_id.get(e.creado_por, "—"),
+                    urgente=es_urgente(e),
                 )
                 for e in entregables
                 if e.responsable_id == miembro.usuario_id
@@ -159,6 +173,9 @@ def resumen_equipo_multiproyecto(db: Session, usuario: Usuario) -> list[MiembroR
                         porcentaje_avance=e.porcentaje_avance,
                         estatus=e.estatus,
                         sensible=e.sensible,
+                        responsable_nombre=persona.nombre,
+                        creado_por_nombre=nombres_por_id.get(e.creado_por, "—"),
+                        urgente=es_urgente(e),
                     )
                     for e in db.query(Entregable)
                     .filter(Entregable.proyecto_id == proyecto.id, Entregable.responsable_id == persona_id)

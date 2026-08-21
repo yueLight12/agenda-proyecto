@@ -30,3 +30,9 @@ class Notificacion(Base):
     mensaje = Column(String(500), nullable=False)
     leida = Column(Boolean, default=False, nullable=False)
     fecha_creacion = Column(DateTime, default=datetime.utcnow, nullable=False)
+    # Urgencia (2026-08-20, a petición del cliente: la notificación de una
+    # asignación urgente debe destacarse -- "lo primero que se ve") -- se
+    # copia del entregable al momento de crear la notificación (no se
+    # recalcula después), para que una notificación ya generada no cambie
+    # de peso visual si el entregable deja de ser urgente más tarde.
+    urgente = Column(Boolean, default=False, nullable=False)

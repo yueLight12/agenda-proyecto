@@ -1,0 +1,32 @@
+name: agenda-nueva
+
+networks:
+  default:
+    name: agenda-proyecto_default
+    external: true
+
+services:
+  api:
+    build: ./agenda-backend
+    restart: unless-stopped
+    env_file:
+      - ./agenda-backend/.env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@agenda-proyecto-db-1:5432/agenda_nueva
+      SECRET_KEY: dev-secret-key-cambiar-en-produccion
+      WHISPER_URL: http://agenda-proyecto-whisper-1:9000
+    ports:
+      - "8011:8000"
+    volumes:
+      - ./agenda-backend:/code
+
+  web:
+    build:
+      context: ./agenda-frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8011}
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "5184:5173"

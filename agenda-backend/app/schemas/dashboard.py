@@ -1,4 +1,4 @@
-"""
+﻿"""
 Esquemas Pydantic: Dashboard ejecutivo (resumen agregado multi-proyecto).
 """
 from datetime import date, datetime
@@ -44,7 +44,13 @@ class EntregableAtencionOut(BaseModel):
     fecha_entrega: date
     porcentaje_avance: int
     estatus: EstatusEntregable
-    urgencia: str  # "vencido" | "proximo"
+    urgencia: str  # "vencido" | "proximo" -- en qué columna cae, sin relación con lo de abajo
+    # Urgencia COMBINADA (2026-08-20, a petición del cliente, ver
+    # app/services/entregables.py::es_urgente) -- NO confundir con
+    # `urgencia` de arriba: ese es solo "vencido"/"proximo" (en qué
+    # columna del Kanban de atención cae), este es el booleano real de
+    # "marcar como urgente" en toda la UI.
+    urgente: bool = False
 
 
 class DashboardOut(BaseModel):

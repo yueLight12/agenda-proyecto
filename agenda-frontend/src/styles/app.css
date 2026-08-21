@@ -1,4 +1,4 @@
-.app-shell {
+﻿.app-shell {
   display: flex;
   min-height: 100vh;
 }
@@ -17,6 +17,10 @@
 @media (prefers-reduced-motion: reduce) {
   .sidebar {
     transition: none;
+  }
+  .app-topbar__notificaciones--urgente {
+    animation: none;
+    box-shadow: 0 0 0 2px var(--color-danger);
   }
 }
 
@@ -150,6 +154,23 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
+}
+
+/* Parpadeo del botón "Notificaciones" cuando hay al menos una urgente sin
+   leer (2026-08-20, a petición del cliente: "lo primero que se ve") --
+   respeta prefers-reduced-motion (ver bloque de abajo), mismo criterio de
+   accesibilidad que el resto del sistema. */
+.app-topbar__notificaciones--urgente {
+  animation: parpadeo-urgente 1.4s ease-in-out infinite;
+}
+
+@keyframes parpadeo-urgente {
+  0%, 100% {
+    box-shadow: 0 0 0 0 var(--color-danger);
+  }
+  50% {
+    box-shadow: 0 0 0 3px var(--color-danger);
+  }
 }
 
 .main-content {
@@ -649,6 +670,15 @@
   color: var(--color-text-muted);
 }
 
+/* Badge "URGENTE" (2026-08-20, a petición del cliente) -- se muestra
+   ADEMÁS del badge de estatus, nunca lo reemplaza. Mismo color que
+   --color-danger (ya usado para "Vencido" en el resto del sistema) para
+   que el peso visual de "esto necesita atención ya" sea consistente. */
+.badge--urgente {
+  background: var(--color-danger-bg, #fbe3e0);
+  color: var(--color-danger);
+}
+
 .badge--sensible {
   background: var(--color-sensible-bg);
   color: var(--color-sensible);
@@ -838,4 +868,210 @@
   justify-content: center;
   box-shadow: 0 4px 14px rgba(15, 36, 56, 0.35);
   z-index: 120;
+}
+
+/* Agenda Plan B (2026-08-20): pantalla única alterna, sin sidebar/topbar de
+   AppLayout -- su propia barra superior mínima (título + salir). */
+.planb {
+  min-height: 100vh;
+  background: var(--color-bg);
+}
+
+.planb__topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.planb__contenido {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-4);
+}
+
+.planb__semana-titulo {
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  font-family: var(--font-body);
+  margin-bottom: var(--space-3);
+}
+
+.planb__semana-fila {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.planb__semana-flecha {
+  flex-shrink: 0;
+}
+
+.planb__semana-scroll {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 4px 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.planb__semana-tarjeta {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 150px;
+  background: var(--color-pending-bg);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.planb__semana-tarjeta:hover {
+  border-color: var(--color-teal-500);
+}
+
+.planb__semana-tarjeta--activa {
+  background: var(--color-teal-600);
+  color: #fff;
+  border-color: var(--color-teal-600);
+  min-width: 190px;
+  padding: 14px 22px;
+  transform: scale(1.05);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .planb__semana-tarjeta {
+    transition: none;
+  }
+  .planb__semana-tarjeta--activa {
+    transform: none;
+  }
+}
+
+.planb__semana-tarjeta-numero {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.planb__semana-tarjeta--activa .planb__semana-tarjeta-numero {
+  font-size: 1.1rem;
+}
+
+.planb__semana-tarjeta-rango {
+  font-size: 0.75rem;
+  opacity: 0.85;
+  white-space: nowrap;
+}
+
+.planb__tarjetas {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.planb__tarjeta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  text-align: left;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.planb__tarjeta:hover,
+.planb__tarjeta:focus-visible {
+  border-color: var(--color-teal-500);
+  box-shadow: 0 0 0 2px var(--color-teal-500);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .planb__tarjeta {
+    transition: none;
+  }
+}
+
+.planb__tarjeta-titulo {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--color-heading);
+}
+
+.planb__tarjeta-texto {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+}
+
+.planb__persona-fila {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.planb__persona-fila:hover,
+.planb__persona-fila:focus-visible {
+  border-color: var(--color-teal-500);
+}
+
+.planb__pendiente-fila {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.88rem;
+}
+
+.planb__pendiente-fila:last-child {
+  border-bottom: none;
+}
+
+/* El modal "Agenda (calendario)" de Plan B necesita mucho más espacio que
+   el resto de los modales del sistema (calendario completo + su propio
+   toolbar) -- en vez de tocar Modal.jsx (compartido por TODOS los modales),
+   se agranda solo ESTE modal vía :has(), apuntando al contenedor hijo que
+   ya lo identifica. Sin esto, el .modal-card genérico (max-width: 480px)
+   forzaba scroll horizontal Y vertical anidado dentro del propio scroll
+   interno del calendario -- se veía mal, como reportó Yue. */
+.modal-card:has(.planb__calendario) {
+  width: min(96vw, 1100px);
+  max-width: min(96vw, 1100px);
+  max-height: 95vh;
+  overflow-x: hidden;
+}
+
+.planb__calendario {
+  max-width: 100%;
+  overflow-x: auto;
 }

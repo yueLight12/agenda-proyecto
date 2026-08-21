@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { equipoResumenApi, minutasApi, notasApi, pendientesApi, proyectosApi, seriesReunionApi } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
 import { armarColumnasEquipo } from "../utils/equipoSupervisores";
 import { semanaActual, textoRangoSemana } from "../utils/fechas";
 import ConfirmDialog from "./ConfirmDialog";
-import { ContenidoHistorialSemana, fechaIsoLocal, TablaHistorialSemana } from "./HistorialMinutas";
 import KanbanSupervisores from "./KanbanSupervisores";
+import ModalAsignarTareaRapida from "./ModalAsignarTareaRapida";
 import ModalEditarProyecto from "./ModalEditarProyecto";
 import ModalEquipo from "./ModalEquipo";
 
@@ -56,6 +56,10 @@ export default function ResumenEquipo() {
   // por nombre, oculta el resto en vez de solo resaltar (elegido
   // explícitamente sobre "resaltar sin ocultar").
   const [busquedaPersona, setBusquedaPersona] = useState("");
+  // Acceso rápido para asignar una tarea sin entrar a un tema específico
+  // (2026-08-20, a petición de Yue: "una opción rápida de hacerlo") -- ver
+  // ModalAsignarTareaRapida.jsx.
+  const [asignandoTarea, setAsignandoTarea] = useState(false);
   // Navegación ◀/▶ entre semanas, embebida aquí mismo (2026-08-19, a
   // petición de Yue: "ya tenemos la plantilla de minuta aquí, ¿por qué no
   // agregamos botones de anterior/siguiente" en vez de la pestaña
@@ -72,12 +76,6 @@ export default function ResumenEquipo() {
     return f;
   })();
   const esSemanaActual = offsetSemanas === 0;
-  // Dos formatos posibles para la semana pasada (2026-08-19, a petición de
-  // Yue: "quiero probar una vista diferente a la que ya se tiene") --
-  // toggle para comparar en vivo, no una decisión ya tomada. "tabla" es la
-  // nueva (mismo look que Vista Equipo, columnas Tema/Status);  "resumen"
-  // es la que ya existía (3 secciones: revisado/nuevo/sigue pendiente).
-  const [vistaSemanaPasada, setVistaSemanaPasada] = useState("tabla");
   const toggleFiltroTemas = (valor) => {
     setFiltrosTemas((prev) => {
       const siguiente = new Set(prev);
@@ -344,161 +342,178 @@ export default function ResumenEquipo() {
     proyectos: (miEntrada?.proyectos || []).filter((p) => j.proyecto_ids.includes(p.proyecto_id)),
   }));
 
+  // Pestañas de semana tipo "selector de función de cine" (2026-08-19, a
+  // petición de Yue, ver boceto de referencia con días Hoy/Mañana/...):
+  // mismo lenguaje visual (franja con flechas en los extremos, pestaña
+  // activa resaltada en azul), pero la unidad sigue siendo SEMANA, no día
+  // -- "Minuta-Semana" agrupa pendientes por semana completa, no por fecha
+  // suelta, así que cambiar la unidad habría sido un cambio de fondo, no
+  // solo visual (confirmado con Yue antes de construir esto). Se muestran
+  // las 4 semanas anteriores + la actual; "Siguiente" nunca pasa de la
+  // actual (no hay semanas futuras que mostrar, mismo límite que ya
+  // existía en el botón ▶ anterior).
+  const pestanasSemana = [-4, -3, -2, -1, 0].map((offset) => {
+    const f = new Date();
+    f.setDate(f.getDate() + offset * 7);
+    const s = semanaActual(f);
+    return {
+      offset,
+      etiqueta: offset === 0 ? "Esta semana" : offset === -1 ? "Semana pasada" : `Semana ${s.numero}`,
+      rango: textoRangoSemana(s),
+    };
+  });
+
   return (
     <div className="stack">
-      <div
-        className="list-inline"
-        style={{ borderBottom: "none", padding: 0, justifyContent: "space-between", alignItems: "center" }}
-      >
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <button
-              className="btn btn--ghost"
-              type="button"
-              onClick={() => setOffsetSemanas((o) => o - 1)}
-              aria-label="Semana anterior"
-              title="Semana anterior"
-            >
-              ◀
-            </button>
-            <h2 style={{ margin: 0, fontSize: "1.1rem" }}>Minuta-Semana {semana.numero}</h2>
-            <button
-              className="btn btn--ghost"
-              type="button"
-              onClick={() => setOffsetSemanas((o) => Math.min(0, o + 1))}
-              disabled={esSemanaActual}
-              aria-label="Semana siguiente"
-              title={esSemanaActual ? "Ya estás en la semana actual" : "Semana siguiente"}
-            >
-              ▶
-            </button>
-          </div>
-          <p style={{ margin: "2px 0 0", fontSize: "0.85rem", color: "var(--color-text-muted)" }}>
-            {textoRangoSemana(semana)}
-            {!esSemanaActual && " — historial de solo lectura"}
-          </p>
-        </div>
-        {/* Botón "Crear tema" oculto (2026-08-19, a petición de Yue) -- se
-            reemplaza por la fila "+ Agregar tema" directo en cada tabla de
-            persona (ver KanbanSupervisores.jsx, FilaNuevoTema). El modal
-            ModalEditarProyecto sigue existiendo tal cual (lo sigue usando
-            "Editar tema"), solo se quitó este botón de creación. */}
-      </div>
-
-      {esSemanaActual ? (
-        <>
-          <div
-            className="list-inline"
-            style={{ borderBottom: "none", padding: 0, gap: 20, flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-start" }}
+      <div>
+        <p style={{ margin: "0 0 6px", fontSize: "0.85rem", color: "var(--color-text-muted)", textAlign: "center" }}>
+          Minuta-Semana {semana.numero}
+        </p>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            overflowX: "auto",
+            paddingBottom: 4,
+          }}
+        >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            margin: "0 auto",
+          }}
+        >
+          <button
+            className="btn btn--ghost"
+            type="button"
+            onClick={() => setOffsetSemanas((o) => o - 1)}
+            aria-label="Semana anterior"
+            title="Semana anterior"
+            style={{ flexShrink: 0 }}
           >
-            <div className="stack" style={{ gap: 4 }}>
-              <span
-                style={{
-                  fontSize: "0.78rem",
-                  fontWeight: 600,
-                  color: "var(--color-text)",
-                  borderBottom: "1px solid var(--color-border)",
-                  paddingBottom: 3,
-                }}
-              >
-                Filtros
-              </span>
-              {[
-                { valor: "pendientes", etiqueta: "Pendientes" },
-                { valor: "revisados", etiqueta: "Revisados" },
-              ].map((op) => {
-                const marcado = filtrosTemas.has(op.valor);
-                return (
-                  <label
-                    key={op.valor}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                      fontSize: "0.82rem",
-                      cursor: "pointer",
-                      userSelect: "none",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={marcado}
-                      onChange={() => toggleFiltroTemas(op.valor)}
-                      style={{ margin: 0 }}
-                    />
-                    {op.etiqueta}
-                  </label>
-                );
-              })}
-            </div>
+            ‹
+          </button>
+          {pestanasSemana.map((p) => (
+            <button
+              key={p.offset}
+              type="button"
+              onClick={() => setOffsetSemanas(p.offset)}
+              className={`btn ${offsetSemanas === p.offset ? "btn--primary" : "btn--ghost"}`}
+              style={{
+                flexShrink: 0,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                lineHeight: 1.3,
+                padding: "6px 14px",
+              }}
+            >
+              <span style={{ fontSize: "0.78rem" }}>{p.etiqueta}</span>
+              <strong style={{ fontSize: "0.85rem" }}>{p.rango}</strong>
+            </button>
+          ))}
+          <button
+            className="btn btn--ghost"
+            type="button"
+            onClick={() => setOffsetSemanas((o) => Math.min(0, o + 1))}
+            disabled={esSemanaActual}
+            aria-label="Semana siguiente"
+            title={esSemanaActual ? "Ya estás en la semana actual" : "Semana siguiente"}
+            style={{ flexShrink: 0 }}
+          >
+            ›
+          </button>
+        </div>
+        </div>
+      </div>
+      {/* Botón "Crear tema" oculto (2026-08-19, a petición de Yue) -- se
+          reemplaza por la fila "+ Agregar tema" directo en cada tabla de
+          persona (ver KanbanSupervisores.jsx, FilaNuevoTema). El modal
+          ModalEditarProyecto sigue existiendo tal cual (lo sigue usando
+          "Editar tema"), solo se quitó este botón de creación. */}
 
-            <input
-              type="search"
-              className="input"
-              placeholder="Buscar persona..."
-              value={busquedaPersona}
-              onChange={(e) => setBusquedaPersona(e.target.value)}
-              style={{ maxWidth: 220, fontSize: "0.85rem" }}
-            />
-          </div>
-
-          {errorEliminar && <p className="error-text">{errorEliminar}</p>}
-          {errorRevision && <p className="error-text">{errorRevision}</p>}
-          {errorOrden && <p className="error-text">{errorOrden}</p>}
-
-          <KanbanSupervisores
-            miembros={miembros}
-            onAdministrar={abrirAdministrar}
-            onEditarTema={abrirEditarTema}
-            onEliminarTema={abrirEliminarTema}
-            usuarioActualId={usuario?.id}
-            soloTemas
-            notasPorProyecto={notasPorProyecto}
-            pendientesPorProyecto={pendientesPorProyecto}
-            onAgregarNota={agregarNota}
-            onAgregarPendiente={agregarPendiente}
-            columnasExtra={columnasJefes}
-            pendientesRevision={pendientesRevision}
-            onMarcarRevisado={marcarTemaRevisado}
-            marcandoRevisado={marcandoRevisado}
-            itemPorTemaResuelto={itemPorTemaResuelto}
-            onMarcarPendiente={marcarTemaPendiente}
-            marcandoPendiente={marcandoPendiente}
-            onMoverTema={moverTema}
-            moviendoTema={moviendoTema}
-            temasResueltos={temasResueltos}
-            filtrosTemas={filtrosTemas}
-            onCrearTema={crearTemaRapido}
-            onCrearSubtema={crearSubtemaRapido}
-            filtroPersona={busquedaPersona}
+      {/* Mismo Kanban de Seguimiento sin importar la semana elegida
+          (2026-08-19, a petición de Yue: "consistencia" con la vista de
+          "Esta semana") -- reemplaza la vista alterna Tabla/Resumen de
+          solo lectura que antes se mostraba para semanas pasadas
+          (ContenidoHistorialSemana/TablaHistorialSemana, ver
+          HistorialMinutas.jsx). El Kanban siempre refleja el estado
+          ACTUAL de los temas, no cómo se veían en esa semana específica
+          -- decisión explícita: prioriza consistencia visual sobre
+          precisión histórica real. */}
+      <div className="stack" style={{ gap: 10, alignItems: "flex-end" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "flex-end", gap: 12 }}>
+          <button
+            type="button"
+            className="btn btn--primary"
+            style={{ fontSize: "0.85rem", padding: "4px 12px" }}
+            onClick={() => setAsignandoTarea(true)}
+          >
+            + Asignar tarea
+          </button>
+          <input
+            type="search"
+            className="input"
+            placeholder="Buscar persona..."
+            value={busquedaPersona}
+            onChange={(e) => setBusquedaPersona(e.target.value)}
+            style={{ maxWidth: 220, fontSize: "0.85rem" }}
           />
-        </>
-      ) : (
-        <div className="stack">
-          <div className="list-inline" style={{ borderBottom: "none", padding: 0, gap: 6 }}>
-            <span style={{ fontSize: "0.78rem", color: "var(--color-text-muted)" }}>Ver como:</span>
-            {[
-              { valor: "tabla", etiqueta: "Tabla" },
-              { valor: "resumen", etiqueta: "Resumen" },
-            ].map((op) => (
+        </div>
+
+        <div style={{ display: "flex", gap: 8 }}>
+          {[
+            { valor: "pendientes", etiqueta: "Pendientes" },
+            { valor: "revisados", etiqueta: "Concluidos" },
+          ].map((op) => {
+            const marcado = filtrosTemas.has(op.valor);
+            return (
               <button
                 key={op.valor}
                 type="button"
-                className={`btn ${vistaSemanaPasada === op.valor ? "btn--primary" : "btn--ghost"}`}
-                style={{ fontSize: "0.78rem", padding: "3px 10px" }}
-                onClick={() => setVistaSemanaPasada(op.valor)}
+                onClick={() => toggleFiltroTemas(op.valor)}
+                className={`btn ${marcado ? "btn--primary" : "btn--ghost"}`}
+                style={{ fontSize: "0.82rem" }}
               >
                 {op.etiqueta}
               </button>
-            ))}
-          </div>
-          {vistaSemanaPasada === "tabla" ? (
-            <TablaHistorialSemana fecha={fechaIsoLocal(fechaRefSemana)} />
-          ) : (
-            <ContenidoHistorialSemana fecha={fechaIsoLocal(fechaRefSemana)} />
-          )}
+            );
+          })}
         </div>
-      )}
+      </div>
+
+      {errorEliminar && <p className="error-text">{errorEliminar}</p>}
+      {errorRevision && <p className="error-text">{errorRevision}</p>}
+      {errorOrden && <p className="error-text">{errorOrden}</p>}
+
+      <KanbanSupervisores
+        miembros={miembros}
+        onAdministrar={abrirAdministrar}
+        onEditarTema={abrirEditarTema}
+        onEliminarTema={abrirEliminarTema}
+        usuarioActualId={usuario?.id}
+        soloTemas
+        notasPorProyecto={notasPorProyecto}
+        pendientesPorProyecto={pendientesPorProyecto}
+        onAgregarNota={agregarNota}
+        onAgregarPendiente={agregarPendiente}
+        columnasExtra={columnasJefes}
+        pendientesRevision={pendientesRevision}
+        onMarcarRevisado={marcarTemaRevisado}
+        marcandoRevisado={marcandoRevisado}
+        itemPorTemaResuelto={itemPorTemaResuelto}
+        onMarcarPendiente={marcarTemaPendiente}
+        marcandoPendiente={marcandoPendiente}
+        onMoverTema={moverTema}
+        moviendoTema={moviendoTema}
+        temasResueltos={temasResueltos}
+        filtrosTemas={filtrosTemas}
+        onCrearTema={crearTemaRapido}
+        onCrearSubtema={crearSubtemaRapido}
+        filtroPersona={busquedaPersona}
+      />
 
       {modalProyecto && (
         <ModalEquipo
@@ -507,6 +522,17 @@ export default function ResumenEquipo() {
           viewerRolEfectivo={modalProyecto.rol_efectivo}
           onCambio={refrescarModal}
           onCerrar={() => setModalProyecto(null)}
+        />
+      )}
+
+      {asignandoTarea && (
+        <ModalAsignarTareaRapida
+          equipo={miembros}
+          onCerrar={() => setAsignandoTarea(false)}
+          onCreado={async () => {
+            setAsignandoTarea(false);
+            await cargar();
+          }}
         />
       )}
 

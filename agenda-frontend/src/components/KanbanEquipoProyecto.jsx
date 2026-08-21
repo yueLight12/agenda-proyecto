@@ -71,7 +71,7 @@ function TarjetaMiembro({ miembro, entregables, reuniones, onQuitar }) {
   return (
     <div className="kanban-card" style={{ cursor: "default" }}>
       <div className="list-inline" style={{ padding: 0, borderBottom: "none" }}>
-        <Link to={`/perfil/${miembro.usuario_id}`} className="kanban-card__titulo">
+        <Link to={`/app/perfil/${miembro.usuario_id}`} className="kanban-card__titulo">
           {miembro.nombre}
         </Link>
         <button

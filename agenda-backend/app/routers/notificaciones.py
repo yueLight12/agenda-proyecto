@@ -1,4 +1,4 @@
-"""
+﻿"""
 Router de notificaciones (recordatorios dentro de la app).
 
 La generación automática de recordatorios (revisar fechas próximas a vencer
@@ -27,7 +27,9 @@ def listar_mis_notificaciones(
     query = db.query(Notificacion).filter(Notificacion.usuario_id == usuario.id)
     if solo_no_leidas:
         query = query.filter(Notificacion.leida.is_(False))
-    return query.order_by(Notificacion.fecha_creacion.desc()).all()
+    # Urgentes primero (2026-08-20, a petición del cliente: "lo primero
+    # que se ve"), luego más recientes primero (comportamiento de siempre).
+    return query.order_by(Notificacion.urgente.desc(), Notificacion.fecha_creacion.desc()).all()
 
 
 @router.patch("/{notificacion_id}", response_model=NotificacionOut)

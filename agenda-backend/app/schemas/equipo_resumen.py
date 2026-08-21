@@ -1,4 +1,4 @@
-"""
+﻿"""
 Esquemas Pydantic: resumen de equipo multi-proyecto (ver
 app/services/equipo_resumen.py). Se construyen a mano en el servicio, no
 directo desde el ORM, así que no usan `from_attributes`.
@@ -19,6 +19,20 @@ class EntregableResumenPersonaOut(BaseModel):
     porcentaje_avance: int
     estatus: EstatusEntregable
     sensible: bool
+    # Nombre del responsable (2026-08-19, a petición de Yue: mostrar el
+    # encargado junto a cada tema/subtema/entregable) -- necesario porque
+    # proyectosAgregados() en el frontend fusiona entregables de varias
+    # personas en una sola columna "por proyecto", perdiendo de otro modo a
+    # quién pertenece cada uno.
+    responsable_nombre: str
+    # Nombre de quien lo asignó (2026-08-19, a petición de Yue: "David te
+    # asignó [nombre], vence en N días" en el resumen de la caja propia) --
+    # Entregable.creado_por ya existía, solo se expone el nombre aquí.
+    creado_por_nombre: str
+    # Urgencia combinada (2026-08-20, a petición del cliente) -- mismo
+    # cálculo que EntregableOut.urgente, ver
+    # app/services/entregables.py::es_urgente.
+    urgente: bool = False
 
 
 class ReunionResumenPersonaOut(BaseModel):

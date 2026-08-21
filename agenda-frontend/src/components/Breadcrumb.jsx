@@ -13,7 +13,7 @@ export default function Breadcrumb({ ancestros, actual }) {
     >
       {ancestros.map((a) => (
         <span key={a.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <Link to={`/proyectos/${a.id}`} style={{ color: "inherit" }}>
+          <Link to={`/app/proyectos/${a.id}`} style={{ color: "inherit" }}>
             {a.nombre}
           </Link>
           <span>/</span>

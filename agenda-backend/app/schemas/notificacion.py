@@ -1,4 +1,4 @@
-"""
+﻿"""
 Esquemas Pydantic: Notificaciones y Resumen ejecutivo.
 """
 from datetime import datetime
@@ -17,6 +17,9 @@ class NotificacionOut(BaseModel):
     mensaje: str
     leida: bool
     fecha_creacion: datetime
+    # 2026-08-20, a petición del cliente: la notificación de una
+    # asignación urgente debe destacarse ("lo primero que se ve").
+    urgente: bool = False
 
     class Config:
         from_attributes = True

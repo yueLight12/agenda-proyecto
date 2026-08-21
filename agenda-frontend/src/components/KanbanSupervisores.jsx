@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { entregablesApi, proyectosApi } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
 import { armarColumnasEquipo } from "../utils/equipoSupervisores";
 import { fechaLocal, textoDiasRelativos } from "../utils/fechas";
 import { etiquetaRol } from "../utils/rolLabels";
+import BadgeUrgente from "./BadgeUrgente";
 import ConfirmDialog from "./ConfirmDialog";
 import EstatusBadge from "./EstatusBadge";
 import FormularioEntregable from "./FormularioEntregable";
@@ -226,6 +227,7 @@ function NodoProyecto({
   esUltimo,
   onMoverTema,
   moviendoTema,
+  nombrePersona,
 }) {
   const hoyIso = new Date().toISOString().slice(0, 10);
   const hijos = hijosPorPadre.get(proyecto.proyecto_id) || [];
@@ -250,7 +252,7 @@ function NodoProyecto({
 
   const accionesEstado = [
     pendiente && {
-      etiqueta: marcandoRev ? "Marcando..." : "✅ Marcar revisado",
+      etiqueta: marcandoRev ? "Marcando..." : "✅ Marcar concluido",
       onClick: () => onMarcarRevisado(proyecto.proyecto_id),
     },
     itemResueltoId && {
@@ -304,10 +306,13 @@ function NodoProyecto({
               {expandido ? "▼" : "▶"}
             </button>
           )}
-          <Link to={`/proyectos/${proyecto.proyecto_id}`} style={{ color: "inherit", textDecoration: "none" }}>
+          <Link to={`/app/proyectos/${proyecto.proyecto_id}`} style={{ color: "inherit", textDecoration: "none" }}>
             {primeraMayuscula(proyecto.proyecto_nombre)}
           </Link>
           {!soloTemas && proyecto.rol && <span style={{ fontWeight: 400 }}> ({etiquetaRol(proyecto.rol)})</span>}
+          {nombrePersona && (
+            <span style={{ fontWeight: 400, fontSize: "0.72rem" }}> — {nombrePersona}</span>
+          )}
           {statusTema && (
             <span
               style={{
@@ -321,7 +326,7 @@ function NodoProyecto({
                 background: statusTema === "pendiente" ? "var(--color-warning-bg, #FBEFD9)" : "var(--color-success-bg)",
               }}
             >
-              {statusTema === "pendiente" ? "Pendiente" : "Revisado"}
+              {statusTema === "pendiente" ? "Pendiente" : "Concluido"}
             </span>
           )}
         </span>
@@ -367,7 +372,7 @@ function NodoProyecto({
             <div key={`entregable-${e.id}`} style={{ padding: "3px 0" }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: "0.8rem" }}>
                 <Link
-                  to={`/proyectos/${proyecto.proyecto_id}?entregable=${e.id}`}
+                  to={`/app/proyectos/${proyecto.proyecto_id}?entregable=${e.id}`}
                   style={{ color: "inherit", textDecoration: "none", flex: 1 }}
                 >
                   {vencido && "🔴 "}
@@ -378,15 +383,18 @@ function NodoProyecto({
                     </span>
                   )}
                 </Link>
-                <EstatusBadge estatus={e.estatus} />
+                <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                  <BadgeUrgente urgente={e.urgente} />
+                  <EstatusBadge estatus={e.estatus} />
+                </span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <div className="progress-bar" style={{ flex: 1 }}>
                   <div className="progress-bar__fill" style={{ width: `${e.porcentaje_avance}%` }} />
                 </div>
                 <span style={{ fontSize: "0.7rem", color: "var(--color-text-muted)", whiteSpace: "nowrap" }}>
-                  {fechaLocal(e.fecha_entrega).toLocaleDateString("es-MX", { dateStyle: "short" })} ·{" "}
-                  {textoDiasRelativos(e.fecha_entrega)}
+                  {e.responsable_nombre && <>{e.responsable_nombre} · </>}
+                  {vencido ? "Venció" : "Vence"} {textoDiasRelativos(e.fecha_entrega)}
                 </span>
               </div>
             </div>
@@ -396,7 +404,7 @@ function NodoProyecto({
         proyecto.reuniones.map((r) => (
           <Link
             key={`reunion-${r.id}`}
-            to={`/proyectos/${proyecto.proyecto_id}?reunion=${r.id}`}
+            to={`/app/proyectos/${proyecto.proyecto_id}?reunion=${r.id}`}
             style={{
               display: "flex",
               justifyContent: "space-between",
@@ -436,6 +444,7 @@ function NodoProyecto({
             esUltimo={idx === hijos.length - 1}
             onMoverTema={onMoverTema}
             moviendoTema={moviendoTema}
+            nombrePersona={nombrePersona}
           />
         ))}
     </div>
@@ -796,6 +805,12 @@ function FilaTema({
   esUltimo,
   posicion,
   onCrearSubtema,
+  nombrePersona,
+  arrastrable = false,
+  arrastrandoId = null,
+  onArrastreInicio,
+  onArrastreFin,
+  onSoltarSobre,
 }) {
   const hijos = hijosPorPadre.get(proyecto.proyecto_id) || [];
   const tieneHijos = hijos.length > 0;
@@ -823,7 +838,6 @@ function FilaTema({
   const itemResueltoId = itemPorTemaResuelto ? itemPorTemaResuelto[proyecto.proyecto_id] : null;
   const marcandoPend = marcandoPendiente === proyecto.proyecto_id;
   const statusTema = pendiente ? "pendiente" : itemResueltoId ? "revisado" : null;
-  const moviendo = moviendoTema === proyecto.proyecto_id;
   const marcandoStatus = marcandoRev || marcandoPend;
 
   // Clic directo en el badge de status alterna pendiente<->revisado
@@ -855,9 +869,26 @@ function FilaTema({
       ].filter(Boolean)
     : [];
 
+  const enArrastre = arrastrandoId === proyecto.proyecto_id;
+
   return (
     <>
-      <tr className="tabla-temas__fila">
+      <tr
+        className="tabla-temas__fila"
+        draggable={arrastrable}
+        style={arrastrable ? { opacity: enArrastre ? 0.4 : 1, cursor: "grab" } : undefined}
+        onDragStart={arrastrable ? () => onArrastreInicio(proyecto.proyecto_id) : undefined}
+        onDragEnd={arrastrable ? onArrastreFin : undefined}
+        onDragOver={arrastrable ? (e) => e.preventDefault() : undefined}
+        onDrop={
+          arrastrable
+            ? (e) => {
+                e.preventDefault();
+                if (arrastrandoId != null) onSoltarSobre(arrastrandoId, proyecto.proyecto_id);
+              }
+            : undefined
+        }
+      >
         <td style={{ paddingLeft: 8 + nivel * 18 }}>
           <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
             {tieneHijos ? (
@@ -874,9 +905,14 @@ function FilaTema({
             ) : (
               nivel > 0 && <span style={{ color: "var(--color-text-muted)", fontSize: "0.75rem" }}>└</span>
             )}
-            <Link to={`/proyectos/${proyecto.proyecto_id}`} style={{ color: "inherit", textDecoration: "none", fontWeight: nivel === 0 ? 600 : 400 }}>
+            <Link to={`/app/proyectos/${proyecto.proyecto_id}`} style={{ color: "inherit", textDecoration: "none", fontWeight: nivel === 0 ? 600 : 400 }}>
               {primeraMayuscula(proyecto.proyecto_nombre)}
             </Link>
+            {nombrePersona && (
+              <span style={{ fontWeight: 400, fontSize: "0.72rem", color: "var(--color-text-muted)" }}>
+                — {nombrePersona}
+              </span>
+            )}
             {/* "+" junto al nombre (2026-08-19, a petición de Yue) -- un solo
                 gatillo que despliega "Subtema | Entregable" en vez de un
                 ícono aparte para cada cosa ("en lugar de poner un icono
@@ -952,7 +988,7 @@ function FilaTema({
               type="button"
               onClick={onClickStatus}
               disabled={marcandoStatus}
-              title={statusTema === "pendiente" ? "Marcar como revisado" : "Volver a pendiente"}
+              title={statusTema === "pendiente" ? "Marcar como concluido" : "Volver a pendiente"}
               style={{
                 fontWeight: 600,
                 fontSize: "0.68rem",
@@ -967,7 +1003,7 @@ function FilaTema({
                 background: statusTema === "pendiente" ? "var(--color-warning-bg, #FBEFD9)" : "var(--color-success-bg)",
               }}
             >
-              {marcandoStatus ? "..." : statusTema === "pendiente" ? "Pendiente" : "Revisado"}
+              {marcandoStatus ? "..." : statusTema === "pendiente" ? "Pendiente" : "Concluido"}
             </button>
           ) : (
             // Sin ítem de agenda real todavía (nunca agregado a una junta) --
@@ -994,43 +1030,10 @@ function FilaTema({
             </span>
           )}
         </td>
-        <td>
-          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span
-              className="tabla-temas__rank"
-              style={{ fontSize: "0.7rem", color: "var(--color-text-muted)", minWidth: 16, textAlign: "center" }}
-              title="Posición de importancia entre sus hermanos"
-            >
-              {posicion}
-            </span>
-            {proyecto.viewer_puede_administrar && onMoverTema && (
-              <>
-                <button
-                  type="button"
-                  className="btn btn--ghost"
-                  style={{ padding: "0 4px", fontSize: "0.7rem" }}
-                  disabled={esPrimero || moviendo}
-                  onClick={() => onMoverTema(proyecto.proyecto_id, "arriba")}
-                  aria-label="Subir importancia"
-                  title="Subir importancia"
-                >
-                  ↑
-                </button>
-                <button
-                  type="button"
-                  className="btn btn--ghost"
-                  style={{ padding: "0 4px", fontSize: "0.7rem" }}
-                  disabled={esUltimo || moviendo}
-                  onClick={() => onMoverTema(proyecto.proyecto_id, "abajo")}
-                  aria-label="Bajar importancia"
-                  title="Bajar importancia"
-                >
-                  ↓
-                </button>
-              </>
-            )}
-          </span>
-        </td>
+        {/* Columna "Prioridad" oculta a petición de Yue (2026-08-19) --
+            posicion/onMoverTema se conservan como props (usados por el
+            reordenamiento en otras vistas/tarjetas), solo se dejó de
+            renderizar esta celda en la tabla. */}
         <td style={{ textAlign: "right" }}>
           <span style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
             <BotonComentarios abierto={notasAbiertas} onToggle={() => setNotasAbiertas((v) => !v)} />
@@ -1094,6 +1097,7 @@ function FilaTema({
             esUltimo={idx === hijos.length - 1}
             posicion={idx + 1}
             onCrearSubtema={onCrearSubtema}
+            nombrePersona={nombrePersona}
           />
         ))}
       {/* Fila de input de "+ Agregar subtema" (2026-08-19, a petición de
@@ -1121,6 +1125,7 @@ function FilaTema({
 
 function TablaTemas({
   proyectos,
+  nombrePersona,
   onAdministrar,
   onEditarTema,
   onEliminarTema,
@@ -1140,6 +1145,27 @@ function TablaTemas({
   onCrearSubtema,
 }) {
   const { raices, hijosPorPadre } = construirArbol(proyectos, temasResueltos, filtrosTemas);
+  // Arrastrar una fila para reordenarla (2026-08-19, a petición de Yue --
+  // "poder seleccionar y arrastrar" en vez de solo los botones ↑/↓, que ya
+  // existían pero se ocultaron de la tabla). onMoverTema solo intercambia
+  // con el vecino inmediato (ver mover_proyecto en el backend, un paso a
+  // la vez) -- para saltar de una posición a otra se llama en secuencia
+  // tantas veces como posiciones de diferencia haya, sin tocar el backend.
+  const [arrastrandoId, setArrastrandoId] = useState(null);
+  const moverArrastre = async (idOrigen, idDestino) => {
+    if (idOrigen === idDestino || !onMoverTema) return;
+    const posOrigen = raices.findIndex((p) => p.proyecto_id === idOrigen);
+    const posDestino = raices.findIndex((p) => p.proyecto_id === idDestino);
+    if (posOrigen === -1 || posDestino === -1) return;
+    const direccion = posDestino > posOrigen ? "abajo" : "arriba";
+    const pasos = Math.abs(posDestino - posOrigen);
+    for (let i = 0; i < pasos; i++) {
+      // eslint-disable-next-line no-await-in-loop -- cada paso depende del
+      // orden ya actualizado por el paso anterior, no se pueden disparar
+      // en paralelo.
+      await onMoverTema(idOrigen, direccion);
+    }
+  };
 
   if (raices.length === 0) {
     return (
@@ -1164,13 +1190,10 @@ function TablaTemas({
         <thead>
           <tr>
             <th>Tema</th>
-            <th>Status</th>
-            <th>
-              Prioridad
-              <span style={{ display: "block", fontWeight: 400, fontSize: "0.68rem", color: "var(--color-text-muted)", textTransform: "none" }}>
-                ↑ más urgente
-              </span>
-            </th>
+            <th>Estatus</th>
+            {/* Columna "Prioridad" oculta a petición de Yue (2026-08-19) --
+                el reordenamiento (↑/↓, ver FilaTema) se conserva en el
+                código, solo se dejó de mostrar en la tabla. */}
             <th style={{ textAlign: "right" }}>Accionables</th>
           </tr>
         </thead>
@@ -1199,6 +1222,12 @@ function TablaTemas({
               esUltimo={idx === raices.length - 1}
               posicion={idx + 1}
               onCrearSubtema={onCrearSubtema}
+              nombrePersona={nombrePersona}
+              arrastrable={Boolean(onMoverTema) && p.viewer_puede_administrar}
+              arrastrandoId={arrastrandoId}
+              onArrastreInicio={setArrastrandoId}
+              onArrastreFin={() => setArrastrandoId(null)}
+              onSoltarSobre={moverArrastre}
             />
           ))}
         </tbody>
@@ -1209,13 +1238,13 @@ function TablaTemas({
 
 function mensajeVacioPorFiltro(filtrosTemas) {
   if (!filtrosTemas || filtrosTemas.size === 0) {
-    return "Selecciona al menos un filtro (Pendientes o Revisados) para ver temas.";
+    return "Selecciona al menos un filtro (Pendientes o Concluidos) para ver temas.";
   }
   const verPendientes = filtrosTemas.has("pendientes");
   const verRevisados = filtrosTemas.has("revisados");
   if (verPendientes && verRevisados) return "Sin temas asignados todavía.";
-  if (verRevisados) return "Nada revisado todavía con este filtro.";
-  return "Sin temas pendientes por ahora -- todo lo agendado ya se revisó.";
+  if (verRevisados) return "Nada concluido todavía con este filtro.";
+  return "Sin temas pendientes por ahora -- todo lo agendado ya se concluyó.";
 }
 
 function ArbolProyectos({
@@ -1236,6 +1265,7 @@ function ArbolProyectos({
   moviendoTema,
   temasResueltos,
   filtrosTemas,
+  nombrePersona,
 }) {
   const { raices, hijosPorPadre } = construirArbol(proyectos, temasResueltos, filtrosTemas);
 
@@ -1271,6 +1301,7 @@ function ArbolProyectos({
           esUltimo={idx === raices.length - 1}
           onMoverTema={onMoverTema}
           moviendoTema={moviendoTema}
+          nombrePersona={nombrePersona}
         />
       ))}
     </div>
@@ -1497,6 +1528,41 @@ function TarjetaColumna({
     (acc, p) => acc + p.entregables.filter((e) => e.estatus !== "cumplido" && e.fecha_entrega < hoyIso).length,
     0
   );
+  // Resumen "N pendientes, N entregables" debajo del nombre (2026-08-19, a
+  // petición de Yue) -- cuenta entregables sin cumplir de todos los
+  // proyectos de la columna + pendientes sueltos (pendientesPorProyecto).
+  const totalEntregables = columna.proyectos.reduce(
+    (acc, p) => acc + p.entregables.filter((e) => e.estatus !== "cumplido").length,
+    0
+  );
+  const totalPendientes = columna.proyectos.reduce(
+    (acc, p) => acc + (pendientesPorProyecto?.[p.proyecto_id]?.length || 0),
+    0
+  );
+  // Lista de entregables detrás del resumen "tienes N entregables"
+  // (2026-08-19, a petición de Yue: "junto al nombre del pendiente/
+  // entregable, quién está asignado y faltan/venció N días") -- mismos
+  // entregables que ya se cuentan arriba, con su responsable (propio si
+  // viene de una columna "por proyecto" agregada, o el de la columna si es
+  // una columna de una sola persona) y el texto de días ya usado en el
+  // resto del Kanban (ver NodoProyecto/FilaEntregables).
+  const entregablesResumen = columna.proyectos
+    .flatMap((p) =>
+      p.entregables
+        .filter((e) => e.estatus !== "cumplido")
+        .map((e) => ({ ...e, responsable_nombre: e.responsable_nombre || columna.nombre }))
+    )
+    // Urgentes primero (2026-08-20, a petición del cliente: "eso de
+    // urgente... por eso especialmente lo de carácter urgente sea lo
+    // primero que se ve"), y dentro de cada grupo, vencidos primero /
+    // luego los más próximos a vencer (2026-08-19, a petición de Yue) --
+    // orden simple por fecha ascendente ya logra esto último: una fecha
+    // vencida siempre es menor que una futura.
+    .sort((a, b) => {
+      if (a.urgente !== b.urgente) return a.urgente ? -1 : 1;
+      return a.fecha_entrega < b.fecha_entrega ? -1 : a.fecha_entrega > b.fecha_entrega ? 1 : 0;
+    });
+  const [resumenAbierto, setResumenAbierto] = useState(false);
   const [expandidos, setExpandidos] = useState(new Set());
   const toggle = (id) =>
     setExpandidos((prev) => {
@@ -1516,7 +1582,7 @@ function TarjetaColumna({
   return (
     <div className="kanban-column">
       <div className="kanban-column__header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <Link to={`/perfil/${columna.usuario_id}`} style={{ color: "inherit" }}>
+        <Link to={`/app/perfil/${columna.usuario_id}`} style={{ color: "inherit" }}>
           {columna.nombre}
         </Link>
         <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -1533,6 +1599,63 @@ function TarjetaColumna({
           </button>
         </span>
       </div>
+      {(totalPendientes > 0 || totalEntregables > 0) && (
+        <div style={{ margin: "0 0 6px" }}>
+          <button
+            type="button"
+            onClick={() => setResumenAbierto((a) => !a)}
+            disabled={totalEntregables === 0}
+            style={{
+              background: "none",
+              border: "none",
+              padding: 0,
+              cursor: totalEntregables > 0 ? "pointer" : "default",
+              fontSize: "0.78rem",
+              color: "var(--color-text-muted)",
+              textAlign: "left",
+            }}
+          >
+            {[
+              totalPendientes > 0 ? `tienes ${totalPendientes} pendiente${totalPendientes === 1 ? "" : "s"}` : null,
+              totalEntregables > 0 ? `tienes ${totalEntregables} entregable${totalEntregables === 1 ? "" : "s"}` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+            {totalEntregables > 0 && (resumenAbierto ? " ▲" : " ▼")}
+          </button>
+          {resumenAbierto && totalEntregables > 0 && (
+            <ul style={{ listStyle: "none", margin: "4px 0 0", padding: 0 }}>
+              {entregablesResumen.map((e) => {
+                const vencido = e.fecha_entrega < hoyIso;
+                const textoDias = `${vencido ? "venció" : "vence"} ${textoDiasRelativos(e.fecha_entrega)}`;
+                // "[quien lo asignó] te asignó [nombre]..." en la caja
+                // propia (2026-08-19, a petición de Yue) -- en la caja de
+                // otra persona no aplica "te" (no es el viewer), se deja
+                // "[quien lo asignó] le asignó a [responsable] [nombre]...".
+                const quien = e.creado_por_nombre || "—";
+                const texto = columna.esPropia
+                  ? `${quien} te asignó ${e.nombre}, ${textoDias}`
+                  : `${quien} le asignó a ${e.responsable_nombre} ${e.nombre}, ${textoDias}`;
+                return (
+                  <li
+                    key={e.id}
+                    style={{
+                      fontSize: "0.74rem",
+                      color: e.urgente ? "var(--color-danger)" : "var(--color-text-muted)",
+                      fontWeight: e.urgente ? 600 : 400,
+                      padding: "1px 0",
+                    }}
+                  >
+                    {vencido && "🔴 "}
+                    {e.urgente && "URGENTE — "}
+                    {texto}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
       {/* Resumen "N entregables vencidos" por persona oculto (2026-08-19, a
           petición de Yue: "por ahora no es necesario") -- ahora que cada
           entregable vencido ya se ve en su propia fila (badge "Vencido" en
@@ -1543,7 +1666,7 @@ function TarjetaColumna({
           🔴 {vencidos} entregable{vencidos === 1 ? "" : "s"} vencido{vencidos === 1 ? "" : "s"}
         </p>
       )}
-      {abierta && (
+      {abierta && !columna.esPropia && (
         <>
           {soloTemas ? (
             // Sin gate por columna.proyectos.length -- TablaTemas siempre
@@ -1553,6 +1676,7 @@ function TarjetaColumna({
             <div className="kanban-column__lista">
               <TablaTemas
                 proyectos={columna.proyectos}
+                nombrePersona={columna.nombre}
                 onAdministrar={onAdministrar}
                 onEditarTema={onEditarTema}
                 onEliminarTema={onEliminarTema}
@@ -1576,6 +1700,7 @@ function TarjetaColumna({
             <div className="kanban-column__lista">
               <ArbolProyectos
                 proyectos={columna.proyectos}
+                nombrePersona={columna.nombre}
                 onAdministrar={onAdministrar}
                 onEditarTema={onEditarTema}
                 onEliminarTema={onEliminarTema}
@@ -1684,16 +1809,24 @@ export default function KanbanSupervisores({
   const [avisosAbiertos, setAvisosAbiertos] = useState(false);
   const [pendientesAbiertos, setPendientesAbiertos] = useState(false);
 
-  const columnas = armarColumnasEquipo(miembros, usuarioActualId);
+  // esPropia marca la columna de quien ve la pantalla (2026-08-19, a
+  // petición de Yue, ver boceto: en SU PROPIA caja solo se muestra el
+  // resumen "tienes N entregables", sin la tabla de temas/subtemas que sí
+  // tienen las cajas de su equipo) -- se calcula aquí, una sola vez, para
+  // no repetir la comparación en cada TarjetaColumna.
+  const columnas = armarColumnasEquipo(miembros, usuarioActualId).map((c) => ({
+    ...c,
+    esPropia: c.usuario_id === usuarioActualId,
+  }));
 
-  // Vista Equipo (soloTemas) es la vista de "mi equipo", no la mía propia
-  // -- quien ve la pantalla NUNCA se muestra a sí mismo ahí (2026-08-17, a
-  // petición de Yue: Bernardo no debe ver sus propios temas en esta
-  // pantalla, solo los de David/Diana/Jasso) -- sus propios temas siguen
-  // disponibles en /perfil, esta pantalla es sobre el equipo.
-  let columnasPropias = soloTemas
-    ? columnas.filter((c) => c.usuario_id !== usuarioActualId)
-    : columnas;
+  // Vista Equipo (soloTemas) ahora SÍ incluye la caja propia de quien ve la
+  // pantalla (2026-08-19, a petición de Yue: revierte la regla del
+  // 2026-08-17 que la ocultaba -- "si estamos en la vista de David, vemos a
+  // Juan/Ivan/Ana, ¿podemos agregar las cajas de los líderes?") -- mismo
+  // comportamiento que ya tenía el Dashboard "Tu equipo" (soloTemas=false),
+  // armarColumnasEquipo ya arma esa columna propia, aquí solo se dejó de
+  // filtrarla.
+  let columnasPropias = columnas;
 
   const textoBusqueda = filtroPersona.trim().toLowerCase();
   const columnaCoincide = (c) => c.nombre.toLowerCase().includes(textoBusqueda);

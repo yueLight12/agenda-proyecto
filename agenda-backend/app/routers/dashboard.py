@@ -1,4 +1,4 @@
-"""
+﻿"""
 Router de dashboard ejecutivo: resumen agregado de TODOS los proyectos
 visibles para el usuario actual, para no tener que entrar proyecto por
 proyecto a ver el avance (pensado para N1/N2, pero funciona para cualquier
@@ -22,6 +22,7 @@ from app.schemas.dashboard import (
     ResumenPorProyectoOut,
     ReunionProximaOut,
 )
+from app.services.entregables import es_urgente
 from app.services.proyectos import listar_raices_visibles
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard ejecutivo"])
@@ -76,6 +77,14 @@ def resumen_dashboard(
                 urgencia = "vencido"
             elif e.fecha_entrega <= limite_alerta:
                 urgencia = "proximo"
+            elif e.urgente_manual:
+                # Marcado urgente a mano aunque su fecha caiga fuera de la
+                # ventana normal de "vencido/próximo" (2026-08-20, a
+                # petición del cliente: debe verse en "Requiere tu
+                # atención" sin importar cuánto falte) -- se clasifica como
+                # "proximo" para la columna del Kanban de atención, ya que
+                # no hay una tercera columna dedicada.
+                urgencia = "proximo"
             else:
                 continue
             entregables_atencion.append(
@@ -94,6 +103,7 @@ def resumen_dashboard(
                     porcentaje_avance=e.porcentaje_avance,
                     estatus=e.estatus,
                     urgencia=urgencia,
+                    urgente=es_urgente(e),
                 )
             )
 
@@ -136,8 +146,10 @@ def resumen_dashboard(
                 )
     reuniones_proximas.sort(key=lambda r: r.fecha_inicio)
 
-    # Vencidos primero (más vencido primero), luego próximos a vencer.
-    entregables_atencion.sort(key=lambda e: (e.urgencia != "vencido", e.fecha_entrega))
+    # Urgentes primero (2026-08-20, a petición del cliente: "lo primero
+    # que se ve"), luego vencidos (más vencido primero), luego próximos a
+    # vencer.
+    entregables_atencion.sort(key=lambda e: (not e.urgente, e.urgencia != "vencido", e.fecha_entrega))
 
     notificaciones_no_leidas = (
         db.query(Notificacion)

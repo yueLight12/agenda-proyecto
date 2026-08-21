@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { NavLink, Outlet, useMatch } from "react-router-dom";
 import { notificacionesApi } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
@@ -17,7 +17,7 @@ export default function AppLayout() {
   const [sidebarColapsado, setSidebarColapsado] = useState(
     () => localStorage.getItem("sidebar_colapsado") === "1"
   );
-  const matchProyecto = useMatch("/proyectos/:proyectoId");
+  const matchProyecto = useMatch("/app/proyectos/:proyectoId");
   const proyectoIdContexto = matchProyecto ? Number(matchProyecto.params.proyectoId) : null;
 
   const cargarNotificaciones = () =>
@@ -31,6 +31,11 @@ export default function AppLayout() {
   }, []);
 
   const noLeidas = notificaciones.filter((n) => !n.leida).length;
+  // 2026-08-20, a petición del cliente: "que se muestre... sea lo primero
+  // que se ve, especialmente lo de carácter urgente" -- el botón
+  // Notificaciones mismo se resalta (parpadeo) cuando hay al menos una
+  // urgente sin leer, no solo el contador rojo genérico de siempre.
+  const hayUrgentesNoLeidas = notificaciones.some((n) => n.urgente && !n.leida);
 
   const cerrarMenu = () => setMenuAbierto(false);
 
@@ -64,11 +69,11 @@ export default function AppLayout() {
               petición de Yue: ya no es una pantalla de administrar
               equipo, es el seguimiento semanal de temas/status por
               persona) -- ruta /equipo intacta, solo cambia el texto. */}
-          <NavLink to="/equipo">Seguimiento</NavLink>
+          <NavLink to="/app/equipo">Seguimiento</NavLink>
           {/* "Mis pendientes" oculto del menú (2026-08-18) -- la ruta
-              /mis-pendientes sigue existiendo tal cual, solo se quitó el
+              /app/mis-pendientes sigue existiendo tal cual, solo se quitó el
               link del sidebar. */}
-          <NavLink to="/calendario">Calendario</NavLink>
+          <NavLink to="/app/calendario">Calendario</NavLink>
           {/* "Asistente" y "Mi perfil" ocultos del menú (2026-08-18, a
               petición de Yue) -- mismo criterio que Dashboard/Mis
               pendientes arriba: las rutas /chatbot y /perfil siguen
@@ -121,7 +126,9 @@ export default function AppLayout() {
               {tema === "oscuro" ? "☀️" : "🌙"}
             </button>
             <button
-              className="btn btn--ghost app-topbar__notificaciones"
+              className={`btn btn--ghost app-topbar__notificaciones${
+                hayUrgentesNoLeidas ? " app-topbar__notificaciones--urgente" : ""
+              }`}
               onClick={() => setMostrarNotificaciones(true)}
             >
               Notificaciones

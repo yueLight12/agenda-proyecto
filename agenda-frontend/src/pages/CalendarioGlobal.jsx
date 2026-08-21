@@ -11,7 +11,7 @@ import {
 } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
 
-export default function CalendarioGlobal() {
+export default function CalendarioGlobal({ altoCalendario } = {}) {
   const { usuario } = useAuth();
   const [entregables, setEntregables] = useState([]);
   const [reuniones, setReuniones] = useState([]);
@@ -180,6 +180,7 @@ export default function CalendarioGlobal() {
           onEntregableClick={(e) => setModalEntregable(e)}
           onReunionClick={(r) => setModalReunion(r)}
           onEventoEmpresaClick={(ev) => setModalEventoEmpresa(ev)}
+          {...(altoCalendario ? { alto: altoCalendario } : {})}
         />
       </div>
 
