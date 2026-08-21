@@ -4,6 +4,8 @@ Punto de entrada de la Agenda Inteligente de Proyectos (API).
 Para correr en desarrollo:
     uvicorn app.main:app --reload
 """
+import asyncio
+
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,6 +22,7 @@ from app.routers import (
     equipo_resumen,
     equipos,
     eventos_empresa,
+    eventos_tiempo_real,
     minutas,
     notas,
     notificaciones,
@@ -30,12 +33,19 @@ from app.routers import (
     series_reunion,
     usuarios,
 )
+from app.services.eventos_tiempo_real import registrar_hooks_sqlalchemy, registrar_loop
 from app.services.materializar_series import materializar_ocurrencias
 from app.services.recordatorios import (
     generar_recordatorios,
     generar_recordatorios_cumpleanos,
     generar_recordatorios_reuniones_hoy,
 )
+
+# Registra el hook de SQLAlchemy que dispara un evento de tiempo real cada
+# vez que se comitea una Notificacion nueva, sin importar desde qué
+# función -- ver app/services/eventos_tiempo_real.py. Se hace al importar
+# el módulo (no hace falta un loop corriendo todavía para esto).
+registrar_hooks_sqlalchemy()
 
 # El esquema ya no se crea/actualiza aquí -- desde el 2026-08-17 se maneja
 # con Alembic (ver agenda-backend/migrations/), corrido explícitamente
@@ -80,6 +90,7 @@ app.include_router(admin.router)
 app.include_router(chatbot.router)
 app.include_router(asistente.router)
 app.include_router(series_reunion.router)
+app.include_router(eventos_tiempo_real.router)
 
 
 def _ejecutar_barrido_recordatorios():
@@ -108,6 +119,14 @@ def iniciar_scheduler():
     # Corre un barrido inicial al arrancar y luego cada N horas (ver settings.horas_entre_barridos_recordatorios).
     _ejecutar_barrido_recordatorios()
     scheduler.start()
+
+
+@app.on_event("startup")
+async def iniciar_tiempo_real():
+    # Necesita el event loop YA corriendo (por eso es un startup async,
+    # a diferencia de iniciar_scheduler) -- ver
+    # app/services/eventos_tiempo_real.py.
+    registrar_loop(asyncio.get_running_loop())
 
 
 @app.on_event("shutdown")

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { fechaIsoLocal, ContenidoHistorialSemana } from "../HistorialMinutas";
+import { useEffect, useRef, useState } from "react";
+import MiSemana from "./MiSemana";
 import { semanaActual, textoRangoSemana } from "../../utils/fechas";
 
 // Cuántas tarjetas de semana se muestran a la vez alrededor de la
@@ -30,16 +30,36 @@ function sumarSemanas(fecha, delta) {
 // igual que en el boceto. Datos: mismo `equipoResumenApi.historialSemana`
 // de siempre, vía ContenidoHistorialSemana (HistorialMinutas.jsx) -- no se
 // duplica lógica de negocio, solo cambia la presentación del selector.
+// Al hacer clic en la tarjeta activa se despliega "Mi semana" (MiSemana.jsx,
+// mis tareas + mi agenda de esa semana) en vez del resumen de temas de
+// minuta que se mostraba antes -- reemplazado a petición de Yue (2026-08-22).
 export default function SelectorSemanaDestacado({ fechaRef, onCambiarFecha }) {
   const [mostrarDetalle, setMostrarDetalle] = useState(false);
   const semanaVigente = semanaActual(fechaRef);
   const numeroSemanaHoy = semanaActual(new Date()).numero;
+  const activaRef = useRef(null);
 
   const tarjetas = [];
   for (let i = -SEMANAS_ANTES; i <= SEMANAS_DESPUES; i++) {
     const fecha = sumarSemanas(fechaRef, i);
     tarjetas.push({ delta: i, fecha, semana: semanaActual(fecha) });
   }
+
+  // Fix real (2026-08-21, reporte de Yue: "se ve muy a la derecha, tiene
+  // que quedar centrado", visto en celular): `justify-content: center` en
+  // .planb__semana-scroll (ver app.css) no hace nada cuando el contenido
+  // ya no cabe (esta fila, con 5 tarjetas, casi nunca cabe en una pantalla
+  // angosta) -- ahí el navegador simplemente arranca el scroll en el borde
+  // izquierdo, dejando la tarjeta activa donde caiga, no centrada. El fix
+  // real es de JS: centrar la tarjeta activa dentro del contenedor visible
+  // cada vez que cambia (al navegar ◀/▶ o al montar).
+  useEffect(() => {
+    activaRef.current?.scrollIntoView({
+      behavior: "smooth",
+      inline: "center",
+      block: "nearest",
+    });
+  }, [fechaRef]);
 
   const irASemana = (delta) => {
     onCambiarFecha(sumarSemanas(fechaRef, delta));
@@ -63,6 +83,7 @@ export default function SelectorSemanaDestacado({ fechaRef, onCambiarFecha }) {
           {tarjetas.map((t) => (
             <button
               key={t.delta}
+              ref={t.delta === 0 ? activaRef : null}
               type="button"
               className={
                 t.delta === 0
@@ -92,7 +113,7 @@ export default function SelectorSemanaDestacado({ fechaRef, onCambiarFecha }) {
 
       {mostrarDetalle && (
         <div style={{ marginTop: 12 }}>
-          <ContenidoHistorialSemana fecha={fechaIsoLocal(fechaRef)} />
+          <MiSemana semana={semanaVigente} />
         </div>
       )}
     </div>

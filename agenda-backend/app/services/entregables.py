@@ -6,7 +6,7 @@ permisos ni notificaciones entre ambos caminos.
 """
 from datetime import date, timedelta
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.core.permissions import (
@@ -25,6 +25,8 @@ from app.models.usuario import RolEnum, Usuario
 from app.models.usuario_proyecto_rol import UsuarioProyectoRol
 from app.schemas.entregable import EntregableOut
 from app.schemas.nota import NotaCrear
+from app.services.almacenamiento import eliminar_imagen, guardar_imagen
+from app.services.avisos_acceso import avisar_si_nunca_ha_entrado
 from app.services.proyectos import es_lider_en_algun_tema
 
 # Días de anticipación para que un entregable sea "urgente" solo por
@@ -64,6 +66,8 @@ def entregable_a_out(db: Session, usuario: Usuario, entregable: Entregable) -> E
         puede_editar=puede_editar_entregable(db, usuario, entregable),
         urgente=es_urgente(entregable),
         puede_reasignar=puede_reasignar_entregable(db, usuario, entregable),
+        requiere_comprobante=entregable.requiere_comprobante,
+        tiene_comprobante=entregable.comprobante_path is not None,
     )
 
 
@@ -90,6 +94,22 @@ def _texto_urgencia(urgente: bool) -> str:
     return "de carácter urgente" if urgente else "de carácter no urgente"
 
 
+def _texto_dias_restantes(fecha_entrega: date) -> str:
+    """Texto legible de cuánto falta/pasó para la fecha límite (2026-08-21,
+    a petición de Yue para reformular el texto de las notificaciones de
+    asignación). No confundir con _texto_urgencia (esa habla de la marca
+    urgente/no urgente combinada; esta habla de los días concretos)."""
+    dias = (fecha_entrega - date.today()).days
+    if dias > 0:
+        return f"vence en {dias} día" if dias == 1 else f"vence en {dias} días"
+    if dias == 0:
+        return "vence hoy"
+    dias_abs = abs(dias)
+    return (
+        f"venció hace {dias_abs} día" if dias_abs == 1 else f"venció hace {dias_abs} días"
+    )
+
+
 def crear_entregable(
     db: Session,
     proyecto_id: int,
@@ -101,6 +121,7 @@ def crear_entregable(
     fecha_entrega,
     sensible: bool,
     urgente_manual: bool = False,
+    requiere_comprobante: bool = False,
 ) -> Entregable:
     """
     N1/N2 pueden crear y asignar a cualquiera de su equipo. N3/N4 solo pueden
@@ -122,6 +143,7 @@ def crear_entregable(
         fecha_entrega=fecha_entrega,
         sensible=sensible,
         urgente_manual=urgente_manual,
+        requiere_comprobante=requiere_comprobante,
         creado_por=usuario.id,
         orden=_siguiente_orden_entregable(db, proyecto_id),
     )
@@ -136,19 +158,26 @@ def crear_entregable(
                 entregable_id=nuevo.id,
                 tipo=TipoNotificacion.entregable_asignado,
                 mensaje=(
-                    f'{usuario.nombre} te asignó "{nuevo.nombre}" '
-                    f"(fecha límite: {nuevo.fecha_entrega}), {_texto_urgencia(urgencia_combinada)}."
+                    f'Se te asignó "{nuevo.nombre}", por {usuario.nombre}, con fecha de '
+                    f"entrega {nuevo.fecha_entrega} ({_texto_dias_restantes(nuevo.fecha_entrega)}), "
+                    f"{_texto_urgencia(urgencia_combinada)}."
                 ),
                 urgente=urgencia_combinada,
             )
         )
+        responsable = db.query(Usuario).filter(Usuario.id == responsable_id).first()
+        if responsable:
+            avisar_si_nunca_ha_entrado(db, responsable, usuario, nuevo.nombre)
     elif not es_lider and rol.supervisor_id:
         db.add(
             Notificacion(
                 usuario_id=rol.supervisor_id,
                 entregable_id=nuevo.id,
                 tipo=TipoNotificacion.entregable_asignado,
-                mensaje=f'{usuario.nombre} se autoasignó un nuevo entregable: "{nuevo.nombre}".',
+                mensaje=(
+                    f'{usuario.nombre} se autoasignó "{nuevo.nombre}" (fecha límite: '
+                    f"{nuevo.fecha_entrega}, {_texto_dias_restantes(nuevo.fecha_entrega)})."
+                ),
             )
         )
 
@@ -253,6 +282,19 @@ def actualizar_avance(
             status_code=403, detail="No tienes permiso para actualizar este entregable"
         )
 
+    if (
+        porcentaje_avance >= 100
+        and entregable.requiere_comprobante
+        and not entregable.comprobante_path
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Este entregable requiere un comprobante antes de poder marcarse "
+                "como completado. Sube la imagen desde el detalle de la tarea."
+            ),
+        )
+
     entregable.porcentaje_avance = porcentaje_avance
     if porcentaje_avance >= 100:
         entregable.estatus = EstatusEntregable.cumplido
@@ -275,7 +317,7 @@ def actualizar_avance(
     notificados = set()
     if supervisor_id and supervisor_id != usuario.id:
         if entregable.estatus == EstatusEntregable.cumplido:
-            mensaje = f'{usuario.nombre} marcó como cumplido el entregable "{entregable.nombre}".'
+            mensaje = f'{usuario.nombre} marcó como completada la tarea "{entregable.nombre}".'
         else:
             mensaje = (
                 f'{usuario.nombre} actualizó el avance de "{entregable.nombre}" '
@@ -301,7 +343,7 @@ def actualizar_avance(
                 usuario_id=entregable.creado_por,
                 entregable_id=entregable.id,
                 tipo=TipoNotificacion.otro,
-                mensaje=f'El entregable "{entregable.nombre}" fue marcado como cumplido.',
+                mensaje=f'{usuario.nombre} marcó como completada la tarea "{entregable.nombre}".',
             )
         )
 
@@ -401,13 +443,17 @@ def reasignar_entregable(
                 entregable_id=entregable.id,
                 tipo=TipoNotificacion.entregable_asignado,
                 mensaje=(
-                    f'{usuario.nombre} te asignó "{entregable.nombre}" '
-                    f"(fecha límite: {entregable.fecha_entrega}), "
+                    f'Se te asignó "{entregable.nombre}", por {usuario.nombre}, con fecha de '
+                    f"entrega {entregable.fecha_entrega} "
+                    f"({_texto_dias_restantes(entregable.fecha_entrega)}), "
                     f"{_texto_urgencia(urgencia_combinada)}."
                 ),
                 urgente=urgencia_combinada,
             )
         )
+        nuevo_responsable = db.query(Usuario).filter(Usuario.id == nuevo_responsable_id).first()
+        if nuevo_responsable:
+            avisar_si_nunca_ha_entrado(db, nuevo_responsable, usuario, entregable.nombre)
     if responsable_anterior_id != usuario.id and responsable_anterior_id != nuevo_responsable_id:
         db.add(
             Notificacion(
@@ -418,4 +464,24 @@ def reasignar_entregable(
             )
         )
 
+    return entregable
+
+
+async def agregar_comprobante(
+    db: Session, usuario: Usuario, entregable_id: int, archivo: UploadFile
+) -> Entregable:
+    """Adjunta (o reemplaza) la imagen de comprobante de un entregable
+    (2026-08-21, a petición de Yue) -- mismo patrón que
+    app/services/notas.py::agregar_imagen_a_nota. Requiere poder editar el
+    entregable (puede_editar_entregable: N1/N2 del proyecto o el propio
+    responsable)."""
+    entregable = obtener_entregable_o_404(db, entregable_id)
+    if not puede_editar_entregable(db, usuario, entregable):
+        raise HTTPException(
+            status_code=403, detail="No tienes permiso para editar este entregable"
+        )
+
+    if entregable.comprobante_path:
+        eliminar_imagen(entregable.comprobante_path)
+    entregable.comprobante_path = await guardar_imagen(archivo, subcarpeta="comprobantes")
     return entregable

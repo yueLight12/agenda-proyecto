@@ -30,6 +30,19 @@ class Usuario(Base):
     # una fila en usuario_proyecto_rol por cada uno. Ver app.core.permissions.
     es_super_admin = Column(Boolean, default=False, nullable=False)
     fecha_creacion = Column(DateTime, default=datetime.utcnow, nullable=False)
+    # Nulo = nunca ha iniciado sesión (2026-08-21, a petición de Yue: el
+    # sistema debe saber quién de la organización todavía no usa la app,
+    # para poder avisarle por correo). Se actualiza en cada login exitoso,
+    # ver app/routers/auth.py.
+    ultimo_login = Column(DateTime, nullable=True)
+    # Evita reenviar el correo de "entra al sistema" cada vez que alguien
+    # le asigna algo mientras siga sin loguearse -- se manda UNA sola vez
+    # (a petición explícita de Yue), independiente de cuántas tareas se le
+    # asignen antes de que por fin entre. No se puede usar solo
+    # `ultimo_login is None` para esto porque esa columna solo cambia
+    # cuando la persona SÍ inicia sesión (podría pasar mucho tiempo/varias
+    # asignaciones antes de eso).
+    aviso_acceso_enviado = Column(Boolean, default=False, nullable=False)
 
     roles_por_proyecto = relationship(
         "UsuarioProyectoRol",

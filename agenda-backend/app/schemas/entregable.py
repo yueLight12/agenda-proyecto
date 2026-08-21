@@ -19,6 +19,10 @@ class EntregableBase(BaseModel):
     # cliente) -- ver Entregable.urgente_manual. Se combina con la
     # urgencia automática por fecha, nunca se usa sola en el frontend.
     urgente_manual: bool = False
+    # Si se activa, el responsable debe subir una imagen de comprobante
+    # antes de poder marcar el avance en 100% (2026-08-21, a petición de
+    # Yue) -- ver Entregable.requiere_comprobante.
+    requiere_comprobante: bool = False
 
 
 class EntregableCrear(EntregableBase):
@@ -33,6 +37,7 @@ class EntregableActualizar(BaseModel):
     sensible: Optional[bool] = None
     estatus: Optional[EstatusEntregable] = None
     urgente_manual: Optional[bool] = None
+    requiere_comprobante: Optional[bool] = None
 
 
 class ReasignarEntregableRequest(BaseModel):
@@ -91,6 +96,11 @@ class EntregableOut(EntregableBase):
     # pertenece, poder reasignarlo"). Ver
     # app/core/permissions.py::puede_reasignar_entregable.
     puede_reasignar: bool = False
+    # No expone comprobante_path crudo -- solo si hay o no comprobante,
+    # mismo patrón que NotaOut.tiene_imagen. La imagen en sí se pide vía
+    # GET /entregables/{id}/comprobante (autenticado, mismo permiso que ver
+    # el entregable).
+    tiene_comprobante: bool = False
 
     class Config:
         from_attributes = True

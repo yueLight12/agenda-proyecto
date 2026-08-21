@@ -86,6 +86,7 @@ export default function SeccionNotas({
   proyectoId,
   temaId = null,
   puedeAdministrar = false,
+  tituloPersonalizado = null,
 }) {
   const { usuario } = useAuth();
   const [notas, setNotas] = useState([]);
@@ -196,7 +197,9 @@ export default function SeccionNotas({
 
   return (
     <div className="stack" style={{ gap: 8 }}>
-      <h4 style={{ fontSize: "0.85rem", margin: 0 }}>Notas / avisos / pendientes</h4>
+      <h4 style={{ fontSize: "0.85rem", margin: 0 }}>
+        {tituloPersonalizado || "Notas / avisos / pendientes"}
+      </h4>
 
       {error && <p className="error-text">{error}</p>}
 

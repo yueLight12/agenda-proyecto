@@ -6,10 +6,46 @@ import HistorialAvance from "./HistorialAvance";
 import Modal from "./Modal";
 import SeccionNotas from "./SeccionNotas";
 
+// Miniatura del comprobante adjunto a un entregable -- mismo patrón blob-url
+// que ImagenNota (ver SeccionNotas.jsx): pide el blob autenticado (no se
+// puede usar la URL del endpoint directo en <img src>) y libera el object
+// URL al desmontar/cambiar de entregable.
+function ImagenComprobante({ entregableId }) {
+  const [url, setUrl] = useState(null);
+
+  useEffect(() => {
+    let cancelado = false;
+    let objectUrl = null;
+    entregablesApi.comprobanteBlobUrl(entregableId).then((u) => {
+      if (cancelado) {
+        URL.revokeObjectURL(u);
+        return;
+      }
+      objectUrl = u;
+      setUrl(u);
+    });
+    return () => {
+      cancelado = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [entregableId]);
+
+  if (!url) return null;
+
+  return (
+    <img
+      src={url}
+      alt="Comprobante adjunto"
+      style={{ maxWidth: 160, maxHeight: 120, borderRadius: 6, marginTop: 6, display: "block" }}
+    />
+  );
+}
+
 export default function FormularioEntregable({
   proyectoId,
   entregable,
   miembros,
+  proyectoNombre,
   puedeAsignarAOtros = true,
   usuarioActualId,
   onGuardado,
@@ -24,6 +60,17 @@ export default function FormularioEntregable({
   const [fechaEntrega, setFechaEntrega] = useState(entregable?.fecha_entrega || "");
   const [sensible, setSensible] = useState(entregable?.sensible || false);
   const [urgenteManual, setUrgenteManual] = useState(entregable?.urgente_manual || false);
+  // Comprobante (2026-08-21, a petición de Yue): si se activa, el
+  // responsable debe subir una imagen antes de poder marcar 100% de
+  // avance -- el bloqueo real vive en el backend (PATCH .../avance), aquí
+  // solo se ofrece subir/ver la imagen.
+  const [requiereComprobante, setRequiereComprobante] = useState(
+    entregable?.requiere_comprobante || false
+  );
+  const [comprobanteArchivo, setComprobanteArchivo] = useState(null);
+  const [subiendoComprobante, setSubiendoComprobante] = useState(false);
+  const [errorComprobante, setErrorComprobante] = useState("");
+  const [tieneComprobante, setTieneComprobante] = useState(entregable?.tiene_comprobante || false);
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [historialAbierto, setHistorialAbierto] = useState(false);
@@ -63,6 +110,23 @@ export default function FormularioEntregable({
     }
   };
 
+  const handleSubirComprobante = async () => {
+    if (!comprobanteArchivo || !entregable) return;
+    setErrorComprobante("");
+    setSubiendoComprobante(true);
+    try {
+      await entregablesApi.subirComprobante(entregable.id, comprobanteArchivo);
+      setComprobanteArchivo(null);
+      setTieneComprobante(true);
+    } catch (err) {
+      setErrorComprobante(
+        err.response?.data?.detail || "No se pudo subir el comprobante."
+      );
+    } finally {
+      setSubiendoComprobante(false);
+    }
+  };
+
   const handleEliminar = async () => {
     setConfirmandoEliminar(false);
     setEliminando(true);
@@ -86,6 +150,7 @@ export default function FormularioEntregable({
       fecha_entrega: fechaEntrega,
       sensible,
       urgente_manual: urgenteManual,
+      requiere_comprobante: requiereComprobante,
     };
     try {
       if (esEdicion) {
@@ -103,8 +168,25 @@ export default function FormularioEntregable({
     }
   };
 
+  // "Asignado por" (2026-08-21, a petición de Yue): solo lectura, busca al
+  // creador dentro del equipo ya cargado -- si no está (ej. ya no
+  // pertenece al equipo visible), simplemente no se muestra.
+  const creador = esEdicion
+    ? miembros.find((m) => m.usuario_id === entregable.creado_por)
+    : null;
+
   return (
     <Modal titulo={esEdicion ? "Editar entregable" : "Nuevo entregable"} onCerrar={onCerrar}>
+      {esEdicion && proyectoNombre && (
+        <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem", marginTop: 0 }}>
+          Tema: {proyectoNombre}
+        </p>
+      )}
+      {esEdicion && creador && (
+        <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem", marginTop: 0 }}>
+          Asignado por: {creador.nombre}
+        </p>
+      )}
       <form className="stack" onSubmit={handleSubmit}>
         <label className="stack" style={{ gap: 4 }}>
           <span style={{ fontSize: "0.85rem" }}>Nombre</span>
@@ -247,6 +329,42 @@ export default function FormularioEntregable({
           </span>
         </label>
 
+        <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <input
+            type="checkbox"
+            checked={requiereComprobante}
+            onChange={(e) => setRequiereComprobante(e.target.checked)}
+          />
+          <span style={{ fontSize: "0.85rem" }}>
+            Requiere comprobante (una imagen) para poder marcarse como completado
+          </span>
+        </label>
+
+        {esEdicion && requiereComprobante && (
+          <div className="stack" style={{ gap: 4 }}>
+            <label style={{ fontSize: "0.78rem", color: "var(--color-text-muted)" }}>
+              Comprobante (imagen)
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={(e) => setComprobanteArchivo(e.target.files?.[0] || null)}
+                style={{ display: "block", marginTop: 4, fontSize: "0.78rem" }}
+              />
+            </label>
+            <button
+              type="button"
+              className="btn btn--ghost"
+              disabled={!comprobanteArchivo || subiendoComprobante}
+              onClick={handleSubirComprobante}
+              style={{ alignSelf: "flex-start" }}
+            >
+              {subiendoComprobante ? "Subiendo..." : "Subir comprobante"}
+            </button>
+            {errorComprobante && <p className="error-text">{errorComprobante}</p>}
+            {tieneComprobante && <ImagenComprobante entregableId={entregable.id} />}
+          </div>
+        )}
+
         {error && <p className="error-text">{error}</p>}
 
         <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
@@ -298,7 +416,11 @@ export default function FormularioEntregable({
 
       {esEdicion && (
         <div style={{ marginTop: 16, borderTop: "1px solid var(--color-border)", paddingTop: 16 }}>
-          <SeccionNotas entregableId={entregable.id} puedeAdministrar={puedeAsignarAOtros} />
+          <SeccionNotas
+            entregableId={entregable.id}
+            puedeAdministrar={puedeAsignarAOtros}
+            tituloPersonalizado="¿Tienes dudas? Escríbelas aquí"
+          />
         </div>
       )}
     </Modal>

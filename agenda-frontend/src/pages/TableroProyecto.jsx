@@ -128,8 +128,10 @@ export default function TableroProyecto() {
       await entregablesApi.actualizarAvance(entregableId, Number(valorEdicion));
       setEditandoId(null);
       await cargarTodo();
-    } catch {
-      setErrorAvance("No se pudo guardar el avance. Intenta de nuevo.");
+    } catch (err) {
+      setErrorAvance(
+        err.response?.data?.detail || "No se pudo guardar el avance. Intenta de nuevo."
+      );
     }
   };
 
@@ -143,8 +145,10 @@ export default function TableroProyecto() {
     try {
       await entregablesApi.actualizarAvance(entregable.id, porcentajeObjetivo);
       await cargarTodo();
-    } catch {
-      setErrorAvance("No se pudo mover el entregable. Intenta de nuevo.");
+    } catch (err) {
+      setErrorAvance(
+        err.response?.data?.detail || "No se pudo mover el entregable. Intenta de nuevo."
+      );
     }
   };
 
@@ -456,6 +460,7 @@ export default function TableroProyecto() {
           proyectoId={proyectoId}
           entregable={modalEntregable === "nuevo" ? null : modalEntregable}
           miembros={equipo}
+          proyectoNombre={proyecto?.nombre}
           puedeAsignarAOtros={puedeAdministrar}
           usuarioActualId={usuario?.id}
           onGuardado={async () => {

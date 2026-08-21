@@ -2,6 +2,7 @@
 import { NavLink, Outlet, useMatch } from "react-router-dom";
 import { notificacionesApi } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
+import { useEventosTiempoReal } from "../hooks/useEventosTiempoReal";
 import { useTema } from "../hooks/useTema";
 import FabAsistenteVoz from "./FabAsistenteVoz";
 import ModalCambiarPassword from "./ModalCambiarPassword";
@@ -25,10 +26,20 @@ export default function AppLayout() {
 
   useEffect(() => {
     cargarNotificaciones();
+    // El polling de 60s se deja como respaldo (2026-08-21) -- si la
+    // conexión de tiempo real se cae silenciosamente o tarda en
+    // reconectar, esto sigue actualizando igual, solo que menos al
+    // instante. Ver useEventosTiempoReal.js.
     const intervalo = setInterval(cargarNotificaciones, 60000);
     return () => clearInterval(intervalo);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Tiempo real (2026-08-21, a petición de Yue): cualquier notificación
+  // nueva para este usuario recarga la lista de inmediato, sin esperar al
+  // siguiente barrido de polling -- ver
+  // app/services/eventos_tiempo_real.py en el backend.
+  useEventosTiempoReal(cargarNotificaciones);
 
   const noLeidas = notificaciones.filter((n) => !n.leida).length;
   // 2026-08-20, a petición del cliente: "que se muestre... sea lo primero

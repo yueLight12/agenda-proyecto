@@ -43,7 +43,7 @@
   display: none;
 }
 
-/* Breakpoints responsive del proyecto: ≤768px tablet, ≤480px teléfono. */
+/* Breakpoints responsive del proyecto: =768px tablet, =480px tel�fono. */
 @media (max-width: 768px) {
   .sidebar {
     position: fixed;
@@ -156,8 +156,8 @@
   gap: var(--space-2);
 }
 
-/* Parpadeo del botón "Notificaciones" cuando hay al menos una urgente sin
-   leer (2026-08-20, a petición del cliente: "lo primero que se ve") --
+/* Parpadeo del bot�n "Notificaciones" cuando hay al menos una urgente sin
+   leer (2026-08-20, a petici�n del cliente: "lo primero que se ve") --
    respeta prefers-reduced-motion (ver bloque de abajo), mismo criterio de
    accesibilidad que el resto del sistema. */
 .app-topbar__notificaciones--urgente {
@@ -209,18 +209,18 @@
   min-width: 600px;
 }
 
-/* Vista "Agenda" (lista, sin cuadrícula de días) — no necesita el ancho
-   mínimo de las vistas Mes/Semana, así que no debe forzar scroll
+/* Vista "Agenda" (lista, sin cuadr�cula de d�as) � no necesita el ancho
+   m�nimo de las vistas Mes/Semana, as� que no debe forzar scroll
    horizontal en pantallas de celular. */
 .calendar-responsive--agenda > * {
   min-width: 0;
 }
 
 /* Restyle del toolbar nativo de react-big-calendar (Hoy/Ant./Sig. y
-   Mes/Semana/Día/Agenda en las vistas de cuadrícula) para que use el mismo
+   Mes/Semana/D�a/Agenda en las vistas de cuadr�cula) para que use el mismo
    lenguaje visual que el resto de la app (.btn/.btn--primary/.btn--ghost)
-   en vez del estilo "segmentado" por defecto de la librería — así no hay
-   un salto de estilo al cambiar a la vista Agenda, que sí usa .btn. */
+   en vez del estilo "segmentado" por defecto de la librer�a � as� no hay
+   un salto de estilo al cambiar a la vista Agenda, que s� usa .btn. */
 .rbc-toolbar-label {
   color: var(--color-heading);
   font-family: var(--font-display);
@@ -293,8 +293,8 @@
   }
 }
 
-/* Celdas de días fuera del mes actual (relleno de la primera/última fila
-   del grid mensual) — sin esto, react-big-calendar usa su gris claro fijo
+/* Celdas de d�as fuera del mes actual (relleno de la primera/�ltima fila
+   del grid mensual) � sin esto, react-big-calendar usa su gris claro fijo
    (#e6e6e6) que no reacciona a data-theme="oscuro". */
 .rbc-off-range-bg {
   background: var(--color-pending-bg);
@@ -426,9 +426,9 @@
   width: 100%;
 }
 
-/* Vista Equipo (2026-08-18, a petición de Yue: "en lugar de verse todo en
+/* Vista Equipo (2026-08-18, a petici�n de Yue: "en lugar de verse todo en
    cajas horizontal, que se vea uno encima de otro") -- una columna por
-   persona, apiladas en vertical en vez de lado a lado. Solo aplica ahí
+   persona, apiladas en vertical en vez de lado a lado. Solo aplica ah�
    (soloTemas, ver KanbanSupervisores.jsx); el Dashboard ("Tu equipo") sigue
    usando .kanban-board sin este modificador. */
 .kanban-board--vertical {
@@ -497,10 +497,10 @@
   margin: var(--space-2) 0;
 }
 
-/* Vista Equipo en tabla (2026-08-19, a petición de Yue, boceto a mano) --
+/* Vista Equipo en tabla (2026-08-19, a petici�n de Yue, boceto a mano) --
    tabla dentro de cada tarjeta de persona, columnas Tema/Status/
    Accionables/Prioridad. Solo la usa TablaTemas en KanbanSupervisores.jsx
-   (soloTemas=true) -- el Dashboard sigue con el árbol de tarjetas viejo. */
+   (soloTemas=true) -- el Dashboard sigue con el �rbol de tarjetas viejo. */
 .tabla-temas {
   width: 100%;
   border-collapse: collapse;
@@ -534,8 +534,8 @@
   border-bottom: none;
 }
 
-/* Panel lateral de comentarios/imágenes (2026-08-19, a petición de Yue --
-   opción "C" probada contra ventana flotante y fila inline: más alto que
+/* Panel lateral de comentarios/im�genes (2026-08-19, a petici�n de Yue --
+   opci�n "C" probada contra ventana flotante y fila inline: m�s alto que
    un modal, sin tapar la tabla de fondo). Ver PanelLateral.jsx. */
 .panel-lateral-overlay {
   position: fixed;
@@ -670,10 +670,10 @@
   color: var(--color-text-muted);
 }
 
-/* Badge "URGENTE" (2026-08-20, a petición del cliente) -- se muestra
-   ADEMÁS del badge de estatus, nunca lo reemplaza. Mismo color que
+/* Badge "URGENTE" (2026-08-20, a petici�n del cliente) -- se muestra
+   ADEM�S del badge de estatus, nunca lo reemplaza. Mismo color que
    --color-danger (ya usado para "Vencido" en el resto del sistema) para
-   que el peso visual de "esto necesita atención ya" sea consistente. */
+   que el peso visual de "esto necesita atenci�n ya" sea consistente. */
 .badge--urgente {
   background: var(--color-danger-bg, #fbe3e0);
   color: var(--color-danger);
@@ -870,8 +870,8 @@
   z-index: 120;
 }
 
-/* Agenda Plan B (2026-08-20): pantalla única alterna, sin sidebar/topbar de
-   AppLayout -- su propia barra superior mínima (título + salir). */
+/* Agenda Plan B (2026-08-20): pantalla �nica alterna, sin sidebar/topbar de
+   AppLayout -- su propia barra superior m�nima (t�tulo + salir). */
 .planb {
   min-height: 100vh;
   background: var(--color-bg);
@@ -1044,6 +1044,31 @@
   border-color: var(--color-teal-500);
 }
 
+/* Avatar/botón "Elegir" (2026-08-21, diseño "grafito", a partir de una
+   referencia tipo "Team Directory") -- ocultos por default para no
+   cambiar en nada el look de Clásico/Índigo/Navy, que nunca pidieron
+   esto; solo "grafito" los muestra y estiliza (ver bloque al final del
+   archivo). */
+.planb__persona-avatar {
+  display: none;
+}
+
+.planb__persona-elegir {
+  display: none;
+}
+
+.planb__persona-datos {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.planb__persona-puesto {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
 .planb__pendiente-fila {
   display: flex;
   align-items: center;
@@ -1057,13 +1082,13 @@
   border-bottom: none;
 }
 
-/* El modal "Agenda (calendario)" de Plan B necesita mucho más espacio que
+/* El modal "Agenda (calendario)" de Plan B necesita mucho m�s espacio que
    el resto de los modales del sistema (calendario completo + su propio
    toolbar) -- en vez de tocar Modal.jsx (compartido por TODOS los modales),
-   se agranda solo ESTE modal vía :has(), apuntando al contenedor hijo que
-   ya lo identifica. Sin esto, el .modal-card genérico (max-width: 480px)
+   se agranda solo ESTE modal v�a :has(), apuntando al contenedor hijo que
+   ya lo identifica. Sin esto, el .modal-card gen�rico (max-width: 480px)
    forzaba scroll horizontal Y vertical anidado dentro del propio scroll
-   interno del calendario -- se veía mal, como reportó Yue. */
+   interno del calendario -- se ve�a mal, como report� Yue. */
 .modal-card:has(.planb__calendario) {
   width: min(96vw, 1100px);
   max-width: min(96vw, 1100px);
@@ -1075,128 +1100,706 @@
   max-width: 100%;
   overflow-x: auto;
 }
-/* ======================================================================
-   Agenda Plan B — diseño alternativo "nuevo" (2026-08-21)
-   ======================================================================
-   Activado por el botón "Diseño nuevo" en AgendaPlanB.jsx (ver
-   useEstiloPlanB.js), que fija [data-estilo-planb="nuevo"] en <html>
-   mientras esa pantalla esté montada. Solo cambia apariencia (fondo,
-   bordes, sombras, iconos) reutilizando las mismas variables --color-*
-   de tokens.css -- el tema claro/oscuro sigue funcionando igual encima
-   de este estilo, y el diseño "clásico" (default) queda intacto porque
-   todas estas reglas están acotadas al atributo.
 
-   El atributo va en <html> (no en .planb) porque los modales de Plan B
-   usan un portal a document.body (ver Modal.jsx) y quedan fuera del
-   árbol de .planb -- por eso las reglas de modal de aquí abajo también
-   están acotadas por el mismo atributo en vez de por .planb.
+/* ======================================================================
+   Agenda Plan B — diseño único "grafito"
+   ======================================================================
+   El cliente decidió quedarse únicamente con el estilo "grafito" (2026-08-21).
+   Los otros tres diseños que existieron aquí (clásico, índigo, navy) se
+   eliminaron por completo -- ya no hay alternancia de estilos: el atributo
+   [data-estilo-planb="grafito"] se fija siempre en <html> mientras la
+   pantalla de Agenda Plan B esté montada (ver useEstiloPlanB.js).
    ========================================================================= */
 
-[data-estilo-planb="nuevo"] .planb {
-  background:
-    radial-gradient(var(--color-border) 1px, transparent 1px) 0 0 / 22px 22px,
-    var(--color-bg);
-}
-
-[data-estilo-planb="nuevo"] .planb__topbar {
-  background: transparent;
-  border-bottom: none;
-  padding: var(--space-4) var(--space-4) 0;
-}
-
-[data-estilo-planb="nuevo"] .planb__contenido {
-  background: var(--color-surface);
-  border-radius: 28px;
-  box-shadow: 0 12px 40px rgba(15, 36, 56, 0.12);
-  padding: var(--space-5);
-  margin-top: var(--space-3);
-}
-
-[data-estilo-planb="nuevo"] .planb__semana-titulo {
-  font-family: var(--font-display);
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: var(--color-heading);
-  text-transform: none;
-}
-
-[data-estilo-planb="nuevo"] .planb__semana-tarjeta {
-  border-radius: 16px;
-  border-color: transparent;
-  background: var(--color-pending-bg);
-}
-
-[data-estilo-planb="nuevo"] .planb__semana-tarjeta--activa {
-  background: var(--color-teal-600);
-  border-radius: 16px;
-}
-
-[data-estilo-planb="nuevo"] .card,
-[data-estilo-planb="nuevo"] .planb__tarjeta {
-  border-radius: 18px;
-  border-color: transparent;
-  box-shadow: 0 2px 10px rgba(15, 36, 56, 0.06);
-}
-
-[data-estilo-planb="nuevo"] .planb__tarjeta {
-  align-items: center;
-  text-align: center;
-  gap: 10px;
-  padding: var(--space-4) var(--space-3);
-}
-
-[data-estilo-planb="nuevo"] .planb__tarjeta:hover,
-[data-estilo-planb="nuevo"] .planb__tarjeta:focus-visible {
-  box-shadow: 0 4px 16px rgba(15, 36, 56, 0.12);
-  border-color: transparent;
-}
-
-/* Icono en círculo suave, mismo lenguaje que el badge de "Sensible"
-   (fondo tenue + color pleno del acento) -- oculto por completo en el
-   diseño clásico (la tarjeta no lo necesitaba). */
-[data-estilo-planb="nuevo"] .planb__tarjeta-icono {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 999px;
-  background: var(--color-sensible-bg);
-  font-size: 1.3rem;
-}
-
+/* Oculto por default (rige mientras no está el atributo de grafito puesto,
+   ej. durante el primer render antes del useEffect) -- el bloque de
+   grafito más abajo lo muestra explícitamente. Mismo patrón para el botón
+   de acción de "Pendientes" (ver PendientesUrgentes.jsx). */
 .planb__tarjeta-icono {
   display: none;
 }
 
-[data-estilo-planb="nuevo"] .planb__pendiente-fila {
-  border-bottom: none;
-  border-radius: 12px;
-  padding: 10px 12px;
-  background: var(--color-pending-bg);
-  margin-bottom: 8px;
+.planb__pendiente-accion {
+  display: none;
 }
 
-[data-estilo-planb="nuevo"] .badge--urgente {
+.planb__avatar {
+  display: none;
+}
+
+/* ======================================================================
+   Agenda Plan B — diseño único "grafito"
+   ======================================================================
+   A partir de bocetos de referencia SOLO oscuros (fondo casi negro,
+   tarjetas elevadas gris-azulado, acento verde-azulado/teal). Reacciona
+   al botón de tema ☀️/🌙 (paleta clara inventada razonablemente, misma
+   identidad de acento verde-azulado). Variables --pb2-* propias, sin
+   tocar --color-*.
+
+   Este es el ÚNICO diseño de Agenda Plan B (el cliente decidió quedarse
+   solo con grafito, 2026-08-21) -- el atributo [data-estilo-planb="grafito"]
+   se fija siempre en <html> mientras la pantalla esté montada, ver
+   useEstiloPlanB.js.
+
+   Alcance (confirmado con Yue: "es el diseño, no el contenido"): se
+   restylea la pantalla única existente de Agenda Plan B -- SIN barra de
+   navegación inferior, SIN pantallas nuevas (Schedule/Tasks/Team de la
+   referencia no se construyen), SIN fotos de perfil (se usan iniciales)
+   y SIN niveles de prioridad inventados (el modelo de datos real solo
+   tiene urgente sí/no + % de avance real, que sí se usa: ver la barra de
+   progreso en PendientesUrgentes.jsx).
+   ========================================================================= */
+
+:root[data-estilo-planb="grafito"] {
+  /* Paleta clara por defecto (2026-08-21: Grafito pasó de fijo-oscuro a
+     reactivo al botón de tema, a petición de Yue -- mismo mecanismo ya
+     usado para Índigo: este bloque es la base clara, y el de abajo
+     [data-theme="oscuro"] tiene mayor especificidad y gana cuando
+     coincide, sin importar el orden en el archivo). */
+  color-scheme: light;
+  --pb2-bg: #f5f6f8;
+  --pb2-dot: #e3e5ea;
+  --pb2-surface: #ffffff;
+  --pb2-surface-alt: #eef1f4;
+  --pb2-border: #e2e6ea;
+  --pb2-text: #101828;
+  --pb2-text-muted: #6b7280;
+  --pb2-accent: #0d9488;
+  --pb2-accent-text: #ffffff;
+  --pb2-danger-bg: #fdecea;
+  --pb2-danger-text: #b42318;
+  --pb2-avatar-bg: #0d9488;
+  --pb2-tareas: #2563eb;
+  --pb2-agenda: #ea580c;
+}
+
+:root[data-estilo-planb="grafito"][data-theme="oscuro"] {
+  color-scheme: dark;
+  --pb2-bg: #12151f;
+  --pb2-dot: #1c2130;
+  --pb2-surface: #262b3a;
+  --pb2-surface-alt: #2f3547;
+  --pb2-border: #333a4d;
+  --pb2-text: #f4f5f7;
+  --pb2-text-muted: #98a1b3;
+  --pb2-accent: #2dd6be;
+  --pb2-accent-text: #0b1720;
+  --pb2-danger-bg: #3a1f1c;
+  --pb2-danger-text: #e08277;
+  --pb2-avatar-bg: #2dd6be;
+  --pb2-tareas: #5b8def;
+  --pb2-agenda: #ff9151;
+}
+
+[data-estilo-planb="grafito"] .planb {
+  background:
+    radial-gradient(var(--pb2-dot) 1px, transparent 1px) 0 0 / 22px 22px,
+    var(--pb2-bg);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="grafito"] .planb__topbar {
+  background: transparent;
+  border-bottom: none;
+  padding: var(--space-4) var(--space-4) 0;
+  align-items: center;
+}
+
+[data-estilo-planb="grafito"] .planb__topbar h1 {
+  color: var(--pb2-text);
+  font-weight: 800;
+}
+
+[data-estilo-planb="grafito"] .planb__topbar p {
+  color: var(--pb2-text-muted) !important;
+}
+
+[data-estilo-planb="grafito"] .planb__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: var(--pb2-avatar-bg);
+  color: var(--pb2-accent-text);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+[data-estilo-planb="grafito"] .planb__contenido {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  margin-top: var(--space-3);
+}
+
+[data-estilo-planb="grafito"] .planb__semana {
+  background: var(--pb2-surface);
+  border: 1px solid var(--pb2-border);
+  border-radius: 18px;
+}
+
+[data-estilo-planb="grafito"] .planb__semana-titulo {
+  color: var(--pb2-text);
+  font-weight: 700;
+}
+
+/* Segmento tipo "Month | Week" de la referencia -- pastilla oscura con
+   el activo relleno de acento teal y texto oscuro (mismo contraste que
+   "Week" en la imagen). */
+[data-estilo-planb="grafito"] .planb__semana-tarjeta {
+  background: var(--pb2-surface-alt);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="grafito"] .planb__semana-tarjeta:hover {
+  border-color: var(--pb2-accent);
+}
+
+[data-estilo-planb="grafito"] .planb__semana-tarjeta--activa {
+  background: var(--pb2-accent);
+  color: var(--pb2-accent-text);
+  border-radius: 999px;
+  box-shadow: none;
+}
+
+[data-estilo-planb="grafito"] h2 {
+  color: var(--pb2-text);
+  font-weight: 800;
+}
+
+[data-estilo-planb="grafito"] .card {
+  background: var(--pb2-surface);
+  border: 1px solid var(--pb2-border);
+  border-radius: 18px;
+  box-shadow: none;
+}
+
+/* "Quick Actions": chip cuadrado elevado, icono blanco (no relleno de
+   acento -- así se ve en la referencia, el teal se reserva para
+   progreso/badges/botones). */
+[data-estilo-planb="grafito"] .planb__tarjeta {
+  border: 1px solid var(--pb2-border);
+  border-radius: 16px;
+  background: var(--pb2-surface-alt);
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: var(--space-4) var(--space-3);
+  box-shadow: none;
+}
+
+[data-estilo-planb="grafito"] .planb__tarjeta:hover,
+[data-estilo-planb="grafito"] .planb__tarjeta:focus-visible {
+  border-color: var(--pb2-accent);
+  box-shadow: 0 0 0 1px var(--pb2-accent);
+}
+
+[data-estilo-planb="grafito"] .planb__tarjeta-titulo {
+  color: var(--pb2-text);
+  font-weight: 700;
+}
+
+[data-estilo-planb="grafito"] .planb__tarjeta-texto {
+  color: var(--pb2-text-muted);
+}
+
+/* Chip circular detrás del icono (2026-08-21, a petición de Yue: "mejor
+   estilo" -- antes el icono era solo un trazo suelto, sin peso visual).
+   Fondo teñido con el acento (misma técnica que --pb2-danger-bg, un tinte
+   suave sobre el mismo hue) en vez de un color plano nuevo. */
+[data-estilo-planb="grafito"] .planb__tarjeta-icono {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  color: var(--pb2-accent);
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: rgba(45, 214, 190, 0.16);
+  background: color-mix(in srgb, var(--pb2-accent) 16%, transparent);
+}
+
+[data-estilo-planb="grafito"] .planb__tarjeta-icono svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* Fila de pendiente: tarjeta elevada con acento lateral -- teal para lo
+   normal, rojo para lo urgente (mismo espíritu que la tarjeta roja
+   "Design System Update" de la referencia), usando :has() para leer el
+   badge urgente ya presente en el DOM sin duplicar el dato en CSS. */
+[data-estilo-planb="grafito"] .planb__pendiente-fila {
+  background: var(--pb2-surface-alt);
+  border: 1px solid var(--pb2-border);
+  border-left: 3px solid var(--pb2-accent);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="grafito"] .planb__pendiente-fila:has(.badge--urgente) {
+  border-left-color: var(--color-danger);
+}
+
+[data-estilo-planb="grafito"] .planb__pendiente-fila a {
+  color: var(--pb2-text);
+  text-decoration: none;
+}
+
+[data-estilo-planb="grafito"] .planb__pendiente-fila a:hover {
+  color: var(--pb2-accent);
+}
+
+[data-estilo-planb="grafito"] .badge--urgente {
+  background: var(--pb2-danger-bg);
+  color: var(--pb2-danger-text);
   border-radius: 999px;
   font-weight: 700;
-  letter-spacing: 0.02em;
+  font-size: 0.7rem;
+  letter-spacing: 0.03em;
+  padding: 2px 10px;
 }
 
-/* Modales (portal a document.body, fuera del árbol de .planb — ver nota
-   arriba): mismo redondeo/sombra que las tarjetas de la pantalla
-   principal, para que "Crear tema" y el resto se sientan parte del mismo
-   diseño mientras el toggle esté en "nuevo". */
-[data-estilo-planb="nuevo"] .modal-card {
-  border-radius: 22px;
-  border-color: transparent;
-  box-shadow: 0 20px 60px rgba(15, 36, 56, 0.25);
+/* Barra de progreso con el % real de avance (ver PendientesUrgentes.jsx)
+   -- oculta en los otros 3 estilos. */
+.planb__pendiente-progreso {
+  display: none;
 }
 
-[data-estilo-planb="nuevo"] .btn--primary {
+[data-estilo-planb="grafito"] .planb__pendiente-progreso {
+  display: block;
+  margin-top: 8px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--pb2-border);
+  overflow: hidden;
+}
+
+[data-estilo-planb="grafito"] .planb__pendiente-progreso-fill {
+  height: 100%;
+  background: var(--pb2-accent);
   border-radius: 999px;
 }
 
-[data-estilo-planb="nuevo"] .input {
+[data-estilo-planb="grafito"] .planb__pendiente-boton-clasico {
+  display: none;
+}
+
+[data-estilo-planb="grafito"] .planb__pendiente-accion {
+  color: var(--pb2-text-muted);
+  border: none;
+  background: transparent;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-estilo-planb="grafito"] .planb__pendiente-accion:hover {
+  background: var(--pb2-border);
+  color: var(--pb2-accent);
+}
+
+[data-estilo-planb="grafito"] .planb__pendiente-accion svg {
+  width: 18px;
+  height: 18px;
+}
+
+[data-estilo-planb="grafito"] .btn--ghost {
   border-radius: 10px;
+  border-color: var(--pb2-border);
+  color: var(--pb2-text);
+  background: var(--pb2-surface-alt);
+}
+
+[data-estilo-planb="grafito"] .btn--ghost:hover {
+  background: var(--pb2-border);
+}
+
+[data-estilo-planb="grafito"] .btn--primary {
+  background: var(--pb2-accent);
+  color: var(--pb2-accent-text);
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+[data-estilo-planb="grafito"] .btn--primary:hover {
+  background: #25c2ac;
+}
+
+[data-estilo-planb="grafito"] .modal-overlay {
+  background: rgba(6, 8, 14, 0.6);
+}
+
+[data-estilo-planb="grafito"] .modal-card {
+  background: var(--pb2-surface);
+  border: 1px solid var(--pb2-border);
+  border-radius: 20px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="grafito"] .modal-card h2 {
+  color: var(--pb2-text);
+  font-weight: 800;
+}
+
+[data-estilo-planb="grafito"] .modal-card label > span:first-child {
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="grafito"] .input,
+[data-estilo-planb="grafito"] select.input,
+[data-estilo-planb="grafito"] textarea.input {
+  background: var(--pb2-surface-alt);
+  border: 1px solid var(--pb2-border);
+  border-radius: 10px;
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="grafito"] .input:focus,
+[data-estilo-planb="grafito"] select.input:focus,
+[data-estilo-planb="grafito"] textarea.input:focus {
+  outline: 2px solid var(--pb2-accent);
+  outline-offset: 1px;
+}
+
+/* Switch tipo iOS para "Marcar como urgente"/"Entregable sensible" --
+   acento teal. */
+[data-estilo-planb="grafito"] input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 40px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--pb2-border);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  flex-shrink: 0;
+}
+
+[data-estilo-planb="grafito"] input[type="checkbox"]::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+[data-estilo-planb="grafito"] input[type="checkbox"]:checked {
+  background: var(--pb2-accent);
+}
+
+[data-estilo-planb="grafito"] input[type="checkbox"]:checked::before {
+  transform: translateX(18px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-estilo-planb="grafito"] input[type="checkbox"],
+  [data-estilo-planb="grafito"] input[type="checkbox"]::before {
+    transition: none;
+  }
+}
+
+[data-estilo-planb="grafito"] .modal-card:has(.planb__calendario) .modal-card__header {
+  background: var(--pb2-surface-alt);
+  color: var(--pb2-text);
+  margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-4)) var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: 20px 20px 0 0;
+}
+
+[data-estilo-planb="grafito"] .modal-card:has(.planb__calendario) .modal-card__header h2 {
+  color: var(--pb2-text);
+}
+
+/* Selector de persona ("¿A quién le quieres asignar una tarea?"), a
+   partir de una referencia tipo "Team Directory": avatar circular con
+   iniciales (colorAvatar/iniciales, ver utils/avatarPersona.js -- el
+   sistema no tiene fotos de perfil reales) + botón "Elegir" en píldora
+   (repone la etiqueta "Contact" de la referencia por la acción real de
+   este componente). Sin punto de "en línea" -- no existe ese dato real. */
+[data-estilo-planb="grafito"] .planb__persona-fila {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  background: var(--pb2-surface-alt);
+  border: 1px solid var(--pb2-border);
+  border-radius: 12px;
+  padding: 10px 14px;
+}
+
+[data-estilo-planb="grafito"] .planb__persona-fila:hover,
+[data-estilo-planb="grafito"] .planb__persona-fila:focus-visible {
+  border-color: var(--pb2-accent);
+}
+
+[data-estilo-planb="grafito"] .planb__persona-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  color: var(--pb2-accent-text);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+[data-estilo-planb="grafito"] .planb__persona-datos {
+  flex: 1;
+  min-width: 0;
+}
+
+[data-estilo-planb="grafito"] .planb__persona-nombre {
+  color: var(--pb2-text);
+  font-weight: 700;
+  display: block;
+}
+
+[data-estilo-planb="grafito"] .planb__persona-puesto {
+  color: var(--pb2-text-muted);
+  font-size: 0.8rem;
+  display: block;
+}
+
+[data-estilo-planb="grafito"] .planb__persona-elegir {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: var(--pb2-accent);
+  color: var(--pb2-accent-text);
+  font-weight: 700;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+
+/* Calendario en estilo "grafito" (2026-08-21, a partir de una referencia
+   tipo "Schedule": barra Mes/Semana tipo pastilla teal, tarjetas de
+   evento oscuras). El toggle Mes/Semana/Día/Agenda y Personal/General/
+   Empresa ya son botones .btn/.btn--primary/.btn--ghost -- heredan el
+   restyle de esos botones definido arriba sin nada extra aquí.
+
+   LÍMITE, dicho con transparencia: la referencia usa una franja horizontal
+   de días (MON/TUE/WED...) + una lista vertical por HORA para un solo día.
+   Este sistema no tiene ese componente -- existe una vista "Agenda" ya
+   construida (VistaAgendaSemanal.jsx) que agrupa eventos por DÍA en una
+   lista vertical (con círculo "hoy", igual idea que el día resaltado de
+   la referencia). Se reestiliza ESA vista existente con los mismos colores
+   /acentos en vez de construir el componente de franja horizontal desde
+   cero -- misma "dinámica" del sistema, con el lenguaje visual nuevo. */
+
+[data-estilo-planb="grafito"] .agenda-dia {
+  background: var(--pb2-surface);
+  border: 1px solid var(--pb2-border);
+  border-radius: 14px;
+  padding: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+[data-estilo-planb="grafito"] .agenda-dia__fecha {
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="grafito"] .agenda-dia__numero {
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="grafito"] .agenda-dia__circulo-hoy {
+  background: var(--pb2-accent);
+  color: var(--pb2-accent-text);
+}
+
+[data-estilo-planb="grafito"] .agenda-evento-pill {
+  border-radius: 10px;
+  padding: var(--space-2) var(--space-3);
+  font-weight: 600;
+}
+
+[data-estilo-planb="grafito"] .agenda-sin-planes {
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="grafito"] .mes-banner {
+  background: var(--pb2-surface-alt);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="grafito"] .agenda-semana-vacia {
+  color: var(--pb2-text-muted);
+  border-bottom-color: var(--pb2-border);
+}
+
+/* Vistas nativas Mes/Semana/Día (react-big-calendar) -- pase básico de
+   oscuro para que no queden "claras" en medio de un modal grafito al
+   cambiar de vista (no se rediseñan a fondo, solo fondo/bordes/texto). */
+[data-estilo-planb="grafito"] .rbc-toolbar-label {
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="grafito"] .rbc-toolbar button {
+  border-color: var(--pb2-border);
+  color: var(--pb2-text);
+  background: var(--pb2-surface-alt);
+}
+
+[data-estilo-planb="grafito"] .rbc-toolbar button:hover {
+  background: var(--pb2-border);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="grafito"] .rbc-toolbar button.rbc-active,
+[data-estilo-planb="grafito"] .rbc-toolbar button.rbc-active:hover,
+[data-estilo-planb="grafito"] .rbc-toolbar button.rbc-active:focus {
+  background: var(--pb2-accent);
+  color: var(--pb2-accent-text);
+  border-color: var(--pb2-accent);
+}
+
+[data-estilo-planb="grafito"] .rbc-calendar,
+[data-estilo-planb="grafito"] .rbc-month-view,
+[data-estilo-planb="grafito"] .rbc-time-view,
+[data-estilo-planb="grafito"] .rbc-agenda-view {
+  background: var(--pb2-surface);
+  border-color: var(--pb2-border);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="grafito"] .rbc-header,
+[data-estilo-planb="grafito"] .rbc-day-bg,
+[data-estilo-planb="grafito"] .rbc-time-header,
+[data-estilo-planb="grafito"] .rbc-time-content,
+[data-estilo-planb="grafito"] .rbc-timeslot-group,
+[data-estilo-planb="grafito"] .rbc-month-row,
+[data-estilo-planb="grafito"] .rbc-date-cell {
+  border-color: var(--pb2-border) !important;
+}
+
+[data-estilo-planb="grafito"] .rbc-header,
+[data-estilo-planb="grafito"] .rbc-date-cell {
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="grafito"] .rbc-off-range-bg {
+  background: var(--pb2-surface-alt);
+}
+
+[data-estilo-planb="grafito"] .rbc-off-range {
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="grafito"] .rbc-today {
+  background: rgba(45, 214, 190, 0.12);
+}
+
+/* "Mi semana" (MiSemana.jsx, 2026-08-22) -- 2 columnas dentro de la
+   tarjeta de semana: tareas (azul, --pb2-tareas) a la izquierda, agenda
+   (naranja, --pb2-agenda) a la derecha, a petición de Yue. Se apilan en
+   una sola columna en móvil, mismo breakpoint que el resto del sistema. */
+.planb__misemana {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+/* A petición de Yue (2026-08-22, visto en celular real): las 2 columnas
+   se quedan lado a lado siempre -- mis tareas a la izquierda, mi agenda a
+   la derecha -- en vez de apilarse en móvil como hacen otros pares de
+   columnas del sistema. Solo se angosta el espaciado interno para que
+   quepan sin desbordar en una pantalla angosta. */
+@media (max-width: 640px) {
+  .planb__misemana {
+    gap: var(--space-2);
+  }
+
+  .planb__misemana-col {
+    padding: var(--space-2);
+  }
+
+  .planb__misemana-fila {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+}
+
+.planb__misemana-col {
+  border-radius: 12px;
+  padding: var(--space-3);
+  border-top: 3px solid transparent;
+  background: var(--pb2-surface-alt, var(--color-bg));
+  min-width: 0;
+}
+
+.planb__misemana-col h3 {
+  margin: 0 0 var(--space-2);
+  font-size: 0.9rem;
+}
+
+.planb__misemana-col--tareas {
+  border-top-color: var(--pb2-tareas, #2563eb);
+}
+
+.planb__misemana-col--agenda {
+  border-top-color: var(--pb2-agenda, #ea580c);
+}
+
+.planb__misemana-vacio {
+  font-size: 0.85rem;
+  color: var(--pb2-text-muted, var(--color-text-muted));
+  margin: 0;
+}
+
+.planb__misemana-fila {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--pb2-surface, var(--color-surface));
+  color: inherit;
+  text-decoration: none;
+  font-size: 0.85rem;
+  min-width: 0;
+}
+
+a.planb__misemana-fila:hover,
+a.planb__misemana-fila:focus-visible {
+  background: var(--pb2-border, var(--color-border));
+}
+
+.planb__misemana-fila-titulo {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.planb__misemana-fila-fecha {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: var(--pb2-text-muted, var(--color-text-muted));
+  text-transform: capitalize;
 }

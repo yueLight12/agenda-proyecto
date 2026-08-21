@@ -1,30 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 
-const CLAVE_ESTILO = "planb_estilo";
-
-// Mismo patron que useTema.js (claro/oscuro), pero sin sincronizar contra
-// ninguna preferencia del sistema -- "clasico" es el default hasta que el
-// usuario elige "nuevo" a proposito, y esa eleccion queda guardada por
-// dispositivo (localStorage) para que cada quien pueda alternar sin
-// afectar a los demas. Se aplica en <html> (no en el contenedor .planb)
-// porque los modales de Agenda Plan B usan un portal a document.body
-// (ver Modal.jsx) y quedan fuera del arbol de .planb -- con el atributo
-// en <html>, el CSS de app.css puede alcanzar tambien al modal. Se limpia
-// al desmontar para que otras pantallas (AppLayout, etc.) nunca lo vean.
+// El cliente decidió quedarse únicamente con el estilo "grafito" para
+// Agenda Plan B (2026-08-21) -- ya no hay alternancia entre estilos. Este
+// hook solo fija el atributo [data-estilo-planb="grafito"] en <html>
+// mientras la pantalla de Agenda Plan B esté montada, y lo quita al
+// desmontar (para que otras pantallas, ej. AppLayout, nunca lo vean). Se
+// aplica en <html> (no en el contenedor .planb) porque los modales de
+// Agenda Plan B usan un portal a document.body (ver Modal.jsx) y quedan
+// fuera del árbol de .planb -- con el atributo en <html>, el CSS de
+// app.css puede alcanzar también al modal.
 export function useEstiloPlanB() {
-  const [estilo, setEstilo] = useState(
-    () => localStorage.getItem(CLAVE_ESTILO) || "clasico"
-  );
-
   useEffect(() => {
-    localStorage.setItem(CLAVE_ESTILO, estilo);
-    document.documentElement.setAttribute("data-estilo-planb", estilo);
+    document.documentElement.setAttribute("data-estilo-planb", "grafito");
     return () => document.documentElement.removeAttribute("data-estilo-planb");
-  }, [estilo]);
-
-  const alternarEstilo = () => {
-    setEstilo((actual) => (actual === "nuevo" ? "clasico" : "nuevo"));
-  };
-
-  return { estilo, alternarEstilo };
+  }, []);
 }

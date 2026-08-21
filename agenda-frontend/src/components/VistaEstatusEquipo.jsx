@@ -73,8 +73,10 @@ export default function VistaEstatusEquipo() {
     try {
       await entregablesApi.actualizarAvance(entregable.id, porcentajeObjetivo);
       await cargar();
-    } catch {
-      setErrorAvance("No se pudo mover el entregable. Intenta de nuevo.");
+    } catch (err) {
+      setErrorAvance(
+        err.response?.data?.detail || "No se pudo mover el entregable. Intenta de nuevo."
+      );
     }
   };
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { equipoResumenApi } from "../api/endpoints";
+import { miEquipoApi } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
 import Modal from "../components/Modal";
 import ModalAsignarTareaRapida from "../components/ModalAsignarTareaRapida";
@@ -11,6 +11,8 @@ import TarjetasAsignar from "../components/planB/TarjetasAsignar";
 import SelectorPersona from "../components/planB/SelectorPersona";
 import PendientesUrgentes from "../components/planB/PendientesUrgentes";
 import { useEstiloPlanB } from "../hooks/useEstiloPlanB";
+import { useTema } from "../hooks/useTema";
+import { iniciales } from "../utils/avatarPersona";
 
 // Pantalla única "Agenda Plan B" (2026-08-20, a petición de Yue, a partir de
 // un boceto a mano) -- ES la ventana principal del sistema ahora ("/" monta
@@ -26,7 +28,8 @@ import { useEstiloPlanB } from "../hooks/useEstiloPlanB";
 // ModalEditarProyecto, CalendarioGlobal), sin duplicar lógica.
 export default function AgendaPlanB() {
   const { usuario, logout } = useAuth();
-  const { estilo, alternarEstilo } = useEstiloPlanB();
+  useEstiloPlanB();
+  const { tema, alternarTema } = useTema();
   const [fechaRef, setFechaRef] = useState(new Date());
   const [equipo, setEquipo] = useState([]);
   const [cargandoEquipo, setCargandoEquipo] = useState(true);
@@ -35,12 +38,25 @@ export default function AgendaPlanB() {
   const [personaElegida, setPersonaElegida] = useState(null);
   const [recargarPendientes, setRecargarPendientes] = useState(0);
 
+  // "A quién le puedo asignar" en Agenda Plan B (2026-08-21, a petición de
+  // Yue tras probar el organigrama real): antes usaba equipoResumenApi
+  // (cruza TODOS los proyectos donde el usuario es N1/N2, aplanando todos
+  // los niveles -- para Bernardo eso mezclaba a David/Diana/Jasso con la
+  // gente de SUS equipos, imposible de navegar). Ahora usa /mi-equipo
+  // (miEquipoApi.listar -- plantilla personal + reportes reales con
+  // supervisor_id == tú en cualquier tema, ver
+  // listar_mi_equipo_efectivo en el backend), que es exactamente "las
+  // personas directamente debajo de mí" -- el mismo mecanismo que ya
+  // usa cada quien para armar su equipo, así que se generaliza solo por
+  // nivel: David ve a Ana/Iván/Juan, no a quien reporte a ellos. No es un
+  // cambio de permisos (query_entregables_visibles/listar_equipo_visible
+  // no se tocaron) -- solo cambia qué lista alimenta este selector.
   const cargarEquipo = useCallback(() => {
     setCargandoEquipo(true);
     setErrorEquipo("");
-    return equipoResumenApi
-      .resumen()
-      .then((data) => setEquipo(data.miembros))
+    return miEquipoApi
+      .listar()
+      .then((data) => setEquipo(data))
       .catch(() => setErrorEquipo("No se pudo cargar tu equipo."))
       .finally(() => setCargandoEquipo(false));
   }, []);
@@ -71,22 +87,27 @@ export default function AgendaPlanB() {
           )}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          {/* Alternar entre el diseño clásico y el nuevo (2026-08-21, a
-              petición de Yue) -- mismo patrón que el botón de tema
-              claro/oscuro, pero solo afecta esta pantalla (atributo
-              data-estilo-planb en el propio contenedor .planb, no en
-              <html>), ver useEstiloPlanB.js y app.css. */}
+          {/* Tema claro/oscuro (2026-08-21, a petición de Yue) -- ya
+              existía en AppLayout.jsx pero Agenda Plan B es una pantalla
+              independiente (sin AppLayout), así que no lo heredaba. Mismo
+              hook/patrón exacto que AppLayout.jsx, ver useTema.js. */}
           <button
             type="button"
-            className="btn btn--ghost"
-            onClick={alternarEstilo}
-            aria-pressed={estilo === "nuevo"}
+            className="btn btn--ghost topbar-tema-btn"
+            onClick={alternarTema}
+            aria-label={tema === "oscuro" ? "Cambiar a tema claro" : "Cambiar a tema oscuro"}
+            aria-pressed={tema === "oscuro"}
           >
-            {estilo === "nuevo" ? "Diseño clásico" : "Diseño nuevo"}
+            {tema === "oscuro" ? "☀️" : "🌙"}
           </button>
           <button type="button" className="btn btn--ghost" onClick={logout}>
             Salir
           </button>
+          {usuario && (
+            <span className="planb__avatar" aria-hidden="true">
+              {iniciales(usuario.nombre)}
+            </span>
+          )}
         </div>
       </div>
 
@@ -101,9 +122,27 @@ export default function AgendaPlanB() {
         <PendientesUrgentes recargarSenal={recargarPendientes} />
       </div>
 
-      {modalActivo === "tarea" && !cargandoEquipo && (
+      {/* "Tarea" y "Persona" comparten el mismo flujo de selección de
+          persona (2026-08-21, a petición de Yue: usar la vista con
+          buscador+avatares también al asignar una tarea, no solo desde la
+          tarjeta "Persona") -- antes "Tarea" abría ModalAsignarTareaRapida
+          directo con un <select> plano para elegir persona; ahora ambas
+          tarjetas pasan primero por SelectorPersona. */}
+      {(modalActivo === "tarea" || modalActivo === "persona") &&
+        !personaElegida &&
+        !cargandoEquipo && (
+          <SelectorPersona
+            equipo={equipo}
+            error={errorEquipo}
+            onElegir={setPersonaElegida}
+            onCerrar={cerrarModal}
+          />
+        )}
+
+      {(modalActivo === "tarea" || modalActivo === "persona") && personaElegida && (
         <ModalAsignarTareaRapida
           equipo={equipo}
+          personaInicialId={personaElegida}
           onCerrar={cerrarModal}
           onCreado={alTerminarAsignacion}
         />
@@ -111,24 +150,6 @@ export default function AgendaPlanB() {
 
       {modalActivo === "proyecto" && (
         <ModalEditarProyecto onCerrar={cerrarModal} onGuardado={alTerminarAsignacion} />
-      )}
-
-      {modalActivo === "persona" && !personaElegida && !cargandoEquipo && (
-        <SelectorPersona
-          equipo={equipo}
-          error={errorEquipo}
-          onElegir={setPersonaElegida}
-          onCerrar={cerrarModal}
-        />
-      )}
-
-      {modalActivo === "persona" && personaElegida && (
-        <ModalAsignarTareaRapida
-          equipo={equipo}
-          personaInicialId={personaElegida}
-          onCerrar={cerrarModal}
-          onCreado={alTerminarAsignacion}
-        />
       )}
 
       {modalActivo === "agenda" && (

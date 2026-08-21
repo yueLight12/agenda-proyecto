@@ -35,6 +35,23 @@ class Settings(BaseSettings):
     claude_api_key: str = ""
     claude_modelo: str = "claude-opus-5"
 
+    # Correo de aviso "nunca has entrado al sistema" (2026-08-21, a
+    # petición de Yue: obligar a que todos en la organización usen la
+    # app) -- vía SMTP de Outlook/Office 365, con la cuenta real de la
+    # empresa. Si smtp_usuario/smtp_password quedan vacíos (default), el
+    # envío se simula (se registra en el log) en vez de fallar -- así el
+    # resto del sistema no depende de tener ya la cuenta remitente
+    # configurada. Ver app/services/email_cliente.py.
+    smtp_host: str = "smtp.office365.com"
+    smtp_puerto: int = 587
+    smtp_usuario: str = ""
+    smtp_password: str = ""
+    smtp_nombre_remitente: str = "Agenda Inteligente"
+    # URL donde la persona entra a usar el sistema (web) -- se incluye en
+    # el correo de aviso. Sin valor real todavía, hay que configurarlo
+    # cuando se decida la URL pública definitiva.
+    url_app: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 

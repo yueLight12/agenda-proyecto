@@ -208,7 +208,7 @@ def _notificar_nota_nueva(db: Session, usuario: Usuario, nota: Nota) -> None:
 
     if entregable_id is not None:
         entregable = obtener_entregable_o_404(db, entregable_id)
-        destinatarios = {entregable.responsable_id}
+        destinatarios = {entregable.responsable_id, entregable.creado_por}
         mensaje = f'{usuario.nombre} {verbo} en el entregable "{entregable.nombre}".'
         entregable_id_notif = entregable.id
     elif proyecto_id is not None:

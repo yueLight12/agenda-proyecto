@@ -1,6 +1,8 @@
 """
 Router de autenticación: login y datos del usuario actual.
 """
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -32,6 +34,12 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Usuario inactivo"
         )
+
+    # ultimo_login (2026-08-21): así el sistema sabe quién nunca ha
+    # entrado a la app, para el aviso por correo -- ver
+    # app/services/avisos_acceso.py.
+    usuario.ultimo_login = datetime.utcnow()
+    db.commit()
 
     token = crear_access_token(data={"sub": str(usuario.id)})
     return Token(access_token=token)

@@ -2,7 +2,8 @@
 Router de entregables: CRUD, actualización de avance con historial,
 y consulta de historial. Toda la visibilidad pasa por app.core.permissions.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.permissions import (
@@ -24,8 +25,10 @@ from app.schemas.entregable import (
     MoverEntregableRequest,
     ReasignarEntregableRequest,
 )
+from app.services.almacenamiento import ruta_absoluta
 from app.services.entregables import actualizar_avance as actualizar_avance_servicio
 from app.services.entregables import actualizar_entregable as actualizar_entregable_servicio
+from app.services.entregables import agregar_comprobante as agregar_comprobante_servicio
 from app.services.entregables import crear_entregable as crear_entregable_servicio
 from app.services.entregables import eliminar_entregable as eliminar_entregable_servicio
 from app.services.entregables import entregable_a_out
@@ -78,6 +81,7 @@ def crear_entregable(
         fecha_entrega=datos.fecha_entrega,
         sensible=datos.sensible,
         urgente_manual=datos.urgente_manual,
+        requiere_comprobante=datos.requiere_comprobante,
     )
     db.commit()
     db.refresh(nuevo)
@@ -179,6 +183,41 @@ def actualizar_avance(
     db.commit()
     db.refresh(entregable)
     return entregable_a_out(db, usuario, entregable)
+
+
+@router.post("/entregables/{entregable_id}/comprobante", response_model=EntregableOut)
+async def subir_comprobante(
+    entregable_id: int,
+    archivo: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Adjunta (o reemplaza) la imagen de comprobante de un entregable
+    (2026-08-21, a petición de Yue) -- se manda por separado de PATCH
+    /entregables/{id} porque esa sigue siendo JSON puro, sin volverla
+    multipart."""
+    entregable = await agregar_comprobante_servicio(db, usuario, entregable_id, archivo)
+    db.commit()
+    db.refresh(entregable)
+    return entregable_a_out(db, usuario, entregable)
+
+
+@router.get("/entregables/{entregable_id}/comprobante")
+def obtener_comprobante(
+    entregable_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Sirve el archivo -- autenticado y con el mismo permiso de ver el
+    entregable, nunca un mount estático público."""
+    entregable = db.query(Entregable).filter(Entregable.id == entregable_id).first()
+    if not entregable:
+        raise HTTPException(status_code=404, detail="Entregable no encontrado")
+    if not puede_ver_entregable(db, usuario, entregable):
+        raise HTTPException(status_code=403, detail="No tienes acceso a este entregable")
+    if not entregable.comprobante_path:
+        raise HTTPException(status_code=404, detail="Este entregable no tiene comprobante")
+    return FileResponse(ruta_absoluta(entregable.comprobante_path))
 
 
 @router.get(

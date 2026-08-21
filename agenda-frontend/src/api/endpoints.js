@@ -79,6 +79,24 @@ export const entregablesApi = {
         nota,
       })
     ).data,
+  // Comprobante (imagen) requerido antes de poder marcar 100% de avance
+  // (2026-08-21, a petición de Yue) -- mismo patrón que notasApi.subirImagen
+  // / notasApi.imagenBlobUrl.
+  subirComprobante: async (entregableId, archivo) => {
+    const form = new FormData();
+    form.append("archivo", archivo);
+    return (
+      await api.post(`/entregables/${entregableId}/comprobante`, form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      })
+    ).data;
+  },
+  comprobanteBlobUrl: async (entregableId) => {
+    const { data } = await api.get(`/entregables/${entregableId}/comprobante`, {
+      responseType: "blob",
+    });
+    return URL.createObjectURL(data);
+  },
 };
 
 export const dashboardApi = {
