@@ -8,12 +8,14 @@ Nota: es idempotente-parcial (no falla si usuarios ya existen), pero está
 pensado para correrse una sola vez sobre una base de datos limpia.
 """
 from app.core.security import hash_password
-from app.database import Base, SessionLocal, engine
+from app.database import SessionLocal
 from app.models.proyecto import Proyecto
 from app.models.usuario import RolEnum, Usuario
 from app.models.usuario_proyecto_rol import UsuarioProyectoRol
 
-Base.metadata.create_all(bind=engine)
+# El esquema se maneja con Alembic (ver migrations/) -- correr
+# "alembic upgrade head" antes de este script. No se llama create_all()
+# aquí para no desincronizar el historial de migraciones.
 
 db = SessionLocal()
 
@@ -21,7 +23,7 @@ PASSWORD_DEMO = "Demo1234!"
 
 usuarios_data = [
     ("Dirección Uno", "n1@demo.com"),
-    ("Lider Proyecto A", "n1@demo.com"),
+    ("Lider Proyecto A", "n2a@demo.com"),
     ("Lider Proyecto B", "n2b@demo.com"),
     ("Colaborador Uno", "n3a@demo.com"),
     ("Colaborador Dos", "n3b@demo.com"),
