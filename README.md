@@ -13,9 +13,15 @@ Pantalla única de agenda/entregables — evolución del MVP original
 
 ## Levantar todo con un solo comando
 
-Este stack es **autocontenido**: trae su propio PostgreSQL y su propio
-Whisper (transcripción de voz), no depende de ningún otro proyecto ni
-contenedor externo.
+Usa `docker-compose.dev-local.yml` — **no** `docker-compose.nueva.yml`
+(ese es el que usa la Pi para producción real, apunta por red compartida a
+contenedores que solo existen ahí; usarlo en otra máquina no levanta nada
+útil, y usarlo por error contra la Pi puede desconectar producción de su
+base de datos real, como ya pasó una vez).
+
+Este stack (`dev-local`) es **autocontenido**: trae su propio PostgreSQL y
+su propio Whisper (transcripción de voz), no depende de ningún otro
+proyecto ni contenedor externo.
 
 1. Clona el repo y entra a la rama `nueva-version`:
    ```bash
@@ -32,24 +38,24 @@ contenedor externo.
    `GEMINI_API_KEY`, según cuál uses) — **nunca la de producción**.
 3. Levanta primero la base de datos y espera a que esté lista:
    ```bash
-   docker compose -f docker-compose.nueva.yml up -d db whisper
+   docker compose -f docker-compose.dev-local.yml up -d db whisper
    ```
 4. Aplica las migraciones **antes** de levantar la API — el arranque de la
    API corre un barrido de recordatorios que consulta tablas reales, así
    que si la API arranca contra una base sin migrar, se cae en un loop de
    reinicios:
    ```bash
-   docker compose -f docker-compose.nueva.yml build api
-   docker compose -f docker-compose.nueva.yml run --rm api alembic upgrade head
+   docker compose -f docker-compose.dev-local.yml build api
+   docker compose -f docker-compose.dev-local.yml run --rm api alembic upgrade head
    ```
 5. Carga datos de prueba (primera vez):
    ```bash
-   docker compose -f docker-compose.nueva.yml run --rm api python seed.py
+   docker compose -f docker-compose.dev-local.yml run --rm api python seed.py
    ```
    Imprime los correos de prueba (contraseña `Demo1234!` para todos).
 6. Ahora sí, levanta todo:
    ```bash
-   docker compose -f docker-compose.nueva.yml up -d
+   docker compose -f docker-compose.dev-local.yml up -d
    ```
    Esto deja corriendo:
    - PostgreSQL en `localhost:5452` (base `agenda_nueva`)
@@ -65,7 +71,7 @@ contenedor externo.
   producción (`vite build` + `vite preview`), igual que en la Pi. Si editas
   el frontend y quieres verlo reflejado en Docker, reconstruye:
   ```bash
-  docker compose -f docker-compose.nueva.yml up -d --build web
+  docker compose -f docker-compose.dev-local.yml up -d --build web
   ```
   Para desarrollar con hot-reload de verdad, corre `npm run dev` localmente
   (ver `agenda-frontend/README.md`) apuntando `VITE_API_URL` a

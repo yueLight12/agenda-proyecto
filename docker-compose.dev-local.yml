@@ -1,0 +1,76 @@
+name: agenda-nueva-dev-local
+
+# Self-contained, PARA DESARROLLO LOCAL DE UN TERCERO -- no depende de
+# contenedores de otro proyecto ni de la Pi. Puertos y nombre de base de
+# datos elegidos a proposito distintos a los de agenda-proyecto
+# (5442/8012/8010/5183) Y a los de docker-compose.nueva.yml (el que usa la
+# Pi en produccion, apunta a contenedores reales por red compartida) para
+# que los tres puedan convivir en la misma maquina sin chocar.
+#
+# IMPORTANTE (2026-08-21): este archivo tiene un `name:` distinto a
+# proposito -- el 2026-08-20 este mismo contenido vivia en
+# docker-compose.nueva.yml (incidente real: un `docker compose up` con ese
+# nombre de archivo en la Pi tumbo brevemente produccion real, recreando
+# api/web contra una base nueva vacia en vez de la real). Nunca reutilizar
+# el nombre `agenda-nueva` para el proyecto Docker de este archivo.
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: agenda_nueva
+    ports:
+      - "5452:5432"
+    volumes:
+      - agenda_nueva_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  whisper:
+    image: onerahmet/openai-whisper-asr-webservice:latest
+    restart: unless-stopped
+    environment:
+      ASR_MODEL: small
+      ASR_ENGINE: faster_whisper
+    volumes:
+      - agenda_nueva_whisper_models:/root/.cache/whisper
+    ports:
+      - "8013:9000"
+
+  api:
+    build: ./agenda-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - ./agenda-backend/.env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/agenda_nueva
+      SECRET_KEY: dev-secret-key-cambiar-en-produccion
+      WHISPER_URL: http://whisper:9000
+    ports:
+      - "8011:8000"
+    volumes:
+      - ./agenda-backend:/code
+
+  web:
+    build:
+      context: ./agenda-frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8011}
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "5184:5173"
+
+volumes:
+  agenda_nueva_db_data:
+  agenda_nueva_whisper_models:

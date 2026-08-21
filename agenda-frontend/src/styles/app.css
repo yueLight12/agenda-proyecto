@@ -1075,3 +1075,128 @@
   max-width: 100%;
   overflow-x: auto;
 }
+/* ======================================================================
+   Agenda Plan B — diseño alternativo "nuevo" (2026-08-21)
+   ======================================================================
+   Activado por el botón "Diseño nuevo" en AgendaPlanB.jsx (ver
+   useEstiloPlanB.js), que fija [data-estilo-planb="nuevo"] en <html>
+   mientras esa pantalla esté montada. Solo cambia apariencia (fondo,
+   bordes, sombras, iconos) reutilizando las mismas variables --color-*
+   de tokens.css -- el tema claro/oscuro sigue funcionando igual encima
+   de este estilo, y el diseño "clásico" (default) queda intacto porque
+   todas estas reglas están acotadas al atributo.
+
+   El atributo va en <html> (no en .planb) porque los modales de Plan B
+   usan un portal a document.body (ver Modal.jsx) y quedan fuera del
+   árbol de .planb -- por eso las reglas de modal de aquí abajo también
+   están acotadas por el mismo atributo en vez de por .planb.
+   ========================================================================= */
+
+[data-estilo-planb="nuevo"] .planb {
+  background:
+    radial-gradient(var(--color-border) 1px, transparent 1px) 0 0 / 22px 22px,
+    var(--color-bg);
+}
+
+[data-estilo-planb="nuevo"] .planb__topbar {
+  background: transparent;
+  border-bottom: none;
+  padding: var(--space-4) var(--space-4) 0;
+}
+
+[data-estilo-planb="nuevo"] .planb__contenido {
+  background: var(--color-surface);
+  border-radius: 28px;
+  box-shadow: 0 12px 40px rgba(15, 36, 56, 0.12);
+  padding: var(--space-5);
+  margin-top: var(--space-3);
+}
+
+[data-estilo-planb="nuevo"] .planb__semana-titulo {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-heading);
+  text-transform: none;
+}
+
+[data-estilo-planb="nuevo"] .planb__semana-tarjeta {
+  border-radius: 16px;
+  border-color: transparent;
+  background: var(--color-pending-bg);
+}
+
+[data-estilo-planb="nuevo"] .planb__semana-tarjeta--activa {
+  background: var(--color-teal-600);
+  border-radius: 16px;
+}
+
+[data-estilo-planb="nuevo"] .card,
+[data-estilo-planb="nuevo"] .planb__tarjeta {
+  border-radius: 18px;
+  border-color: transparent;
+  box-shadow: 0 2px 10px rgba(15, 36, 56, 0.06);
+}
+
+[data-estilo-planb="nuevo"] .planb__tarjeta {
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: var(--space-4) var(--space-3);
+}
+
+[data-estilo-planb="nuevo"] .planb__tarjeta:hover,
+[data-estilo-planb="nuevo"] .planb__tarjeta:focus-visible {
+  box-shadow: 0 4px 16px rgba(15, 36, 56, 0.12);
+  border-color: transparent;
+}
+
+/* Icono en círculo suave, mismo lenguaje que el badge de "Sensible"
+   (fondo tenue + color pleno del acento) -- oculto por completo en el
+   diseño clásico (la tarjeta no lo necesitaba). */
+[data-estilo-planb="nuevo"] .planb__tarjeta-icono {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: var(--color-sensible-bg);
+  font-size: 1.3rem;
+}
+
+.planb__tarjeta-icono {
+  display: none;
+}
+
+[data-estilo-planb="nuevo"] .planb__pendiente-fila {
+  border-bottom: none;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: var(--color-pending-bg);
+  margin-bottom: 8px;
+}
+
+[data-estilo-planb="nuevo"] .badge--urgente {
+  border-radius: 999px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* Modales (portal a document.body, fuera del árbol de .planb — ver nota
+   arriba): mismo redondeo/sombra que las tarjetas de la pantalla
+   principal, para que "Crear tema" y el resto se sientan parte del mismo
+   diseño mientras el toggle esté en "nuevo". */
+[data-estilo-planb="nuevo"] .modal-card {
+  border-radius: 22px;
+  border-color: transparent;
+  box-shadow: 0 20px 60px rgba(15, 36, 56, 0.25);
+}
+
+[data-estilo-planb="nuevo"] .btn--primary {
+  border-radius: 999px;
+}
+
+[data-estilo-planb="nuevo"] .input {
+  border-radius: 10px;
+}

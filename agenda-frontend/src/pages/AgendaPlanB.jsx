@@ -10,6 +10,7 @@ import SelectorSemanaDestacado from "../components/planB/SelectorSemanaDestacado
 import TarjetasAsignar from "../components/planB/TarjetasAsignar";
 import SelectorPersona from "../components/planB/SelectorPersona";
 import PendientesUrgentes from "../components/planB/PendientesUrgentes";
+import { useEstiloPlanB } from "../hooks/useEstiloPlanB";
 
 // Pantalla única "Agenda Plan B" (2026-08-20, a petición de Yue, a partir de
 // un boceto a mano) -- ES la ventana principal del sistema ahora ("/" monta
@@ -25,6 +26,7 @@ import PendientesUrgentes from "../components/planB/PendientesUrgentes";
 // ModalEditarProyecto, CalendarioGlobal), sin duplicar lógica.
 export default function AgendaPlanB() {
   const { usuario, logout } = useAuth();
+  const { estilo, alternarEstilo } = useEstiloPlanB();
   const [fechaRef, setFechaRef] = useState(new Date());
   const [equipo, setEquipo] = useState([]);
   const [cargandoEquipo, setCargandoEquipo] = useState(true);
@@ -69,6 +71,19 @@ export default function AgendaPlanB() {
           )}
         </div>
         <div style={{ display: "flex", gap: 8 }}>
+          {/* Alternar entre el diseño clásico y el nuevo (2026-08-21, a
+              petición de Yue) -- mismo patrón que el botón de tema
+              claro/oscuro, pero solo afecta esta pantalla (atributo
+              data-estilo-planb en el propio contenedor .planb, no en
+              <html>), ver useEstiloPlanB.js y app.css. */}
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={alternarEstilo}
+            aria-pressed={estilo === "nuevo"}
+          >
+            {estilo === "nuevo" ? "Diseño clásico" : "Diseño nuevo"}
+          </button>
           <button type="button" className="btn btn--ghost" onClick={logout}>
             Salir
           </button>
