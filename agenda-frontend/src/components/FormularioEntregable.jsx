@@ -69,6 +69,18 @@ export default function FormularioEntregable({
   // viendo el formulario de siempre.
   const esVistaSimpleResponsable =
     esEdicion && entregable.responsable_id === usuarioActualId && !esAdministrador;
+  // Vista de SOLO SUPERVISIÓN (2026-08-23, a petición de Yue): un líder
+  // (N1/N2) que ve esta tarea solo por administrar el TEMA -- sin haberla
+  // creado él mismo ni ser el responsable -- no debería ver el formulario
+  // completo de edición (eso es exclusivo de quien la creó,
+  // entregable.puede_editar, ver permissions.puede_editar_entregable) ni
+  // el botón de "Concluir" (eso es del responsable). Reutiliza casi igual
+  // la vista simple del responsable -- misma info de solo lectura +
+  // comentarios -- pero SIN el botón de concluir, solo el estado actual.
+  const esVistaSoloSupervision =
+    esEdicion &&
+    entregable.responsable_id !== usuarioActualId &&
+    !entregable.puede_editar;
   const [nombre, setNombre] = useState(entregable?.nombre || "");
   const [descripcion, setDescripcion] = useState(entregable?.descripcion || "");
   const [responsableId, setResponsableId] = useState(
@@ -289,6 +301,69 @@ export default function FormularioEntregable({
             tituloPersonalizado="¿Tienes dudas? Déjalas aquí"
             textoBoton="Enviar mensaje"
             placeholderTexto="Escribe tu duda..."
+          />
+        </div>
+      </Modal>
+    );
+  }
+
+  if (esVistaSoloSupervision) {
+    const yaConcluida = entregable.porcentaje_avance >= 100;
+    const responsable = miembros.find((m) => m.usuario_id === entregable.responsable_id);
+    return (
+      <Modal titulo={entregable.nombre} onCerrar={onCerrar}>
+        <div className="stack" style={{ gap: 12 }}>
+          {proyectoNombre && (
+            <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem", margin: 0 }}>
+              Tema: {proyectoNombre}
+            </p>
+          )}
+
+          {entregable.descripcion && <p style={{ margin: 0 }}>{entregable.descripcion}</p>}
+
+          <div className="stack" style={{ gap: 4 }}>
+            {responsable && (
+              <p style={{ margin: 0, fontSize: "0.85rem" }}>
+                <strong>Responsable:</strong> {responsable.nombre}
+              </p>
+            )}
+            {creador && (
+              <p style={{ margin: 0, fontSize: "0.85rem" }}>
+                <strong>Asignado por:</strong> {creador.nombre}
+              </p>
+            )}
+            <p style={{ margin: 0, fontSize: "0.85rem" }}>
+              <strong>Fecha límite:</strong>{" "}
+              {new Date(`${entregable.fecha_entrega}T00:00:00`).toLocaleDateString("es-MX", {
+                dateStyle: "long",
+              })}
+            </p>
+            <p style={{ margin: 0, fontSize: "0.85rem" }}>
+              <strong>Urgente:</strong> {entregable.urgente ? "Sí" : "No"}
+            </p>
+          </div>
+
+          {/* Solo supervisa -- no es el responsable ni quien la creó, así
+              que no ve el botón "Concluir" (eso lo decide el responsable)
+              ni campos editables (eso es solo de quien la creó). */}
+          <p
+            style={{
+              margin: 0,
+              fontWeight: 600,
+              color: yaConcluida ? "var(--color-success)" : "var(--color-text-muted)",
+            }}
+          >
+            {yaConcluida ? "✓ Ya está marcada como concluida." : "Estatus: pendiente de concluir."}
+          </p>
+        </div>
+
+        <div style={{ marginTop: 16, borderTop: "1px solid var(--color-border)", paddingTop: 16 }}>
+          <SeccionNotas
+            entregableId={entregable.id}
+            puedeAdministrar={false}
+            tituloPersonalizado="Comentarios / dudas"
+            textoBoton="Enviar mensaje"
+            placeholderTexto="Escribe un comentario..."
           />
         </div>
       </Modal>
