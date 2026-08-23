@@ -1,12 +1,13 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import FabAsistenteVoz from "./FabAsistenteVoz";
 
 // Pila de módulo con los modales abiertos ahora mismo (puede haber más de
 // uno, ej. un ConfirmDialog sobre un formulario) — Escape solo cierra el de
 // hasta arriba, no todos a la vez.
 const pilaModales = [];
 
-export default function Modal({ titulo, onCerrar, children }) {
+export default function Modal({ titulo, onCerrar, children, ocultarAsistenteVoz = false }) {
   const idRef = useRef({});
 
   useEffect(() => {
@@ -43,7 +44,21 @@ export default function Modal({ titulo, onCerrar, children }) {
             Cerrar
           </button>
         </div>
-        {children}
+        {/* El scroll interno (si el contenido no cabe) vive AQUÍ, no en
+            .modal-card completo -- así el botón del asistente de abajo
+            queda fuera del área que se desplaza y siempre visible en su
+            esquina, en vez de "viajar" con el scroll del formulario. */}
+        <div className="modal-card__cuerpo">{children}</div>
+        {/* Asistente de voz también DENTRO del modal (2026-08-23, a
+            petición de Yue) -- antes solo existía el flotante global de
+            la pantalla base, que un modal (position: fixed, cubre casi
+            toda la pantalla) tapaba visualmente aunque tuviera mayor
+            z-index. Se excluye del propio ModalAsistenteVoz vía
+            `ocultarAsistenteVoz` -- no tiene sentido un botón para abrir
+            el asistente DENTRO del asistente mismo. */}
+        {!ocultarAsistenteVoz && (
+          <FabAsistenteVoz proyectoIdContexto={null} variante="dentro-modal" />
+        )}
       </div>
     </div>,
     document.body

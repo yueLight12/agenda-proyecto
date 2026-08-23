@@ -807,10 +807,12 @@
 }
 
 .modal-card {
+  position: relative;
   width: 100%;
   max-width: 480px;
   max-height: 90vh;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .modal-card__header {
@@ -818,6 +820,15 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: var(--space-3);
+}
+
+/* Ver Modal.jsx: el scroll interno vive aquí (no en .modal-card completo)
+   para que el botón del asistente de voz (.fab-asistente-voz--en-modal)
+   quede fuera del área desplazable, siempre anclado a su esquina.
+   padding-bottom deja hueco para que el botón no tape el último campo. */
+.modal-card__cuerpo {
+  overflow-y: auto;
+  padding-bottom: 56px;
 }
 
 /* Vista Semana tipo Teams (2026-08-22, ver VistaSemana.jsx) -- usada tanto
@@ -1192,6 +1203,24 @@
      campo) sin tener que cerrar el modal/ventana flotante que esté
      abierto encima. */
   z-index: 300;
+}
+
+/* Copia del botón DENTRO de cada Modal.jsx (2026-08-23, a petición de
+   Yue, ver Modal.jsx) -- en vez de `fixed` a toda la pantalla, queda
+   anclado a la esquina inferior izquierda de LA TARJETA del modal,
+   incluso si esta tiene scroll interno (.modal-card: overflow-y: auto).
+   El truco: un contenedor `sticky` sin alto propio (no empuja el resto
+   del contenido) que ancla al fondo del área visible del scroll, con el
+   botón en `absolute` dentro de él. */
+.fab-asistente-voz--en-modal {
+  position: absolute;
+  right: auto;
+  left: var(--space-3);
+  bottom: var(--space-3);
+  width: 48px;
+  height: 48px;
+  font-size: 1.2rem;
+  z-index: 5;
 }
 
 /* Agenda Plan B (2026-08-20): pantalla �nica alterna, sin sidebar/topbar de

@@ -328,7 +328,7 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
   }, [fase, aclaracionActual, propuesta, mensaje, respuestaTexto, mensajesAcumulados]);
 
   return (
-    <Modal titulo="Asistente de voz" onCerrar={onCerrar}>
+    <Modal titulo="Asistente de voz" onCerrar={onCerrar} ocultarAsistenteVoz>
       <div className="stack">
         {vozSoportada && (
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
