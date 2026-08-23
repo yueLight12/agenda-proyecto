@@ -50,6 +50,14 @@ export default function ModalReunion({
   miembros,
   organizadorId,
   puedeAdministrar = false,
+  // Fecha/hora prellenada al crear (2026-08-22, calendario tipo Teams):
+  // viene de arrastrar una franja en semana/día (desktop, ver onSelectSlot
+  // en CalendarioEntregables) o de tocar el encabezado de un día en la
+  // vista Agenda (móvil, ver onDiaClick en VistaAgendaSemanal) -- en ese
+  // segundo caso `hora` viene null (solo se conoce el día), y cae al
+  // default de abajo. Se ignora si `reunion`/`serie` ya traen su propia
+  // fecha (edición).
+  fechaHoraSugerida = null,
   onGuardado,
   onCerrar,
 }) {
@@ -63,10 +71,14 @@ export default function ModalReunion({
 
   const [titulo, setTitulo] = useState(reunion?.titulo || serie?.titulo || "");
   const [notas, setNotas] = useState(reunion?.notas || "");
-  const [fecha, setFecha] = useState(fechaInicial || new Date().toISOString().slice(0, 10));
-  const [hora, setHora] = useState(horaInicial || serie?.hora?.slice(0, 5) || "09:00");
+  const [fecha, setFecha] = useState(
+    fechaInicial || fechaHoraSugerida?.fecha || new Date().toISOString().slice(0, 10)
+  );
+  const [hora, setHora] = useState(
+    horaInicial || serie?.hora?.slice(0, 5) || fechaHoraSugerida?.hora || "09:00"
+  );
   const [duracionMinutos, setDuracionMinutos] = useState(
-    reunion?.duracion_minutos || serie?.duracion_minutos || 30
+    reunion?.duracion_minutos || serie?.duracion_minutos || fechaHoraSugerida?.duracionMinutos || 30
   );
   const [participantesIds, setParticipantesIds] = useState(
     reunion?.participantes?.map((p) => p.usuario_id) ||

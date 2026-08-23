@@ -10,6 +10,7 @@ import "react-big-calendar/lib/css/react-big-calendar.css";
 import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
 import { colorDeEvento } from "../utils/eventosCalendario";
 import VistaAgendaSemanal from "./VistaAgendaSemanal";
+import VistaSemana from "./VistaSemana";
 
 const localizer = dateFnsLocalizer({
   format,
@@ -21,26 +22,26 @@ const localizer = dateFnsLocalizer({
 
 const CalendarioDnD = withDragAndDrop(Calendar);
 
-const MENSAJES_ES = {
+// react-big-calendar solo se usa para "Mes" desde 2026-08-22 (Semana y
+// Agenda son vistas propias, ver VistaSemana.jsx/VistaAgendaSemanal.jsx) --
+// Yue pidió expresamente conservar el mes completo como tercera opción.
+const MENSAJES_MES = {
   next: "Sig.",
   previous: "Ant.",
   today: "Hoy",
   month: "Mes",
-  week: "Semana",
-  day: "Día",
-  agenda: "Agenda",
   noEventsInRange: "No hay entregables en este rango.",
 };
 
-// Toolbar compacto para pantallas angostas (2026-08-20, a petición de Yue:
-// el toolbar nativo de react-big-calendar trae Mes/Semana/Día/Agenda todos
-// juntos -- si el usuario toca "Mes" en el celular, esa cuadrícula de 7
-// columnas no cabe sin volver a producir el scroll horizontal feo que ya
-// se había corregido para el caso "Agenda". En vez de pelear con el CSS
-// del toolbar nativo (sin clases propias por botón, solo por posición),
-// se reemplaza el toolbar completo -- oculta Mes/Semana/Día, deja
-// Ant/Hoy/Sig + Agenda (la única vista que sí es responsiva).
-function ToolbarCompacto({ label, onNavigate }) {
+const ETIQUETA_VISTA = { semana: "Semana", month: "Mes", agenda: "Agenda" };
+const VISTAS_DISPONIBLES = ["semana", "month", "agenda"];
+
+// Toolbar compacto para react-big-calendar en modo Mes: solo Ant/Hoy/Sig +
+// etiqueta -- el switcher Semana/Mes/Agenda real vive arriba (nuestro
+// propio .agenda-semanal__header), así que no hace falta que
+// react-big-calendar dibuje sus propios botones de vista (que además ya
+// no aplican, solo tiene una vista montada).
+function ToolbarSoloNav({ label, onNavigate }) {
   return (
     <div className="rbc-toolbar">
       <span className="rbc-btn-group">
@@ -92,20 +93,11 @@ export default function CalendarioEntregables({
   onEntregableClick,
   onReunionClick,
   onEventoEmpresaClick,
+  onSeleccionarFranja,
   alto = 600,
 }) {
   const [error, setError] = useState("");
-
-  // La vista "Mes" es una cuadrícula de 7 columnas — no cabe en una
-  // pantalla de celular sin scroll horizontal. En pantallas ≤768px (mismo
-  // umbral que el drawer del sidebar, ver AppLayout.jsx) arranca en
-  // "Agenda" (lista vertical, sin cuadrícula) en vez de "Mes". El usuario
-  // puede seguir cambiando de vista manualmente con el toolbar.
-  const [vista, setVista] = useState(() =>
-    typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches
-      ? "agenda"
-      : "month"
-  );
+  const [vista, setVista] = useState("semana");
   const [esPantallaAngosta, setEsPantallaAngosta] = useState(
     () => typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches
   );
@@ -177,46 +169,63 @@ export default function CalendarioEntregables({
     }
   };
 
+  // Clic en un día vacío de la vista Mes para crear una reunión ahí --
+  // react-big-calendar solo renderiza Mes ahora, así que `start` nunca
+  // trae una hora útil (medianoche); se prellena solo la fecha, la hora
+  // default (09:00) la pone ModalReunion.
+  const handleSelectSlot = ({ start }) => {
+    if (!onSeleccionarFranja) return;
+    onSeleccionarFranja({ fecha: isoDesdeFechaLocal(start), hora: null, duracionMinutos: 30 });
+  };
+
   return (
     <div className="stack">
       {error && <p className="error-text">{error}</p>}
       <div
-        className={`calendar-responsive${vista === "agenda" ? " calendar-responsive--agenda" : ""}`}
-        style={{ height: alto, overflowY: "auto" }}
+        className={`calendar-responsive${vista !== "month" ? " calendar-responsive--agenda" : ""}`}
+        style={{ height: alto, overflowY: vista === "semana" ? "hidden" : "auto" }}
       >
+        <div className="agenda-semanal__header">
+          {VISTAS_DISPONIBLES.map((v) => (
+            <button
+              key={v}
+              type="button"
+              className={`btn ${vista === v ? "btn--primary" : "btn--ghost"}`}
+              onClick={() => setVista(v)}
+            >
+              {ETIQUETA_VISTA[v]}
+            </button>
+          ))}
+        </div>
         {vista === "agenda" ? (
-          <>
-            <div className="agenda-semanal__header">
-              {/* En pantallas angostas solo se ofrece "Agenda" -- Mes/
-                  Semana/Día son cuadrículas de columnas fijas que no caben
-                  sin volver al scroll horizontal que ya se corrigió
-                  (2026-08-20, reporte real de Yue). */}
-              {(esPantallaAngosta ? ["agenda"] : ["month", "week", "day", "agenda"]).map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  className={`btn ${vista === v ? "btn--primary" : "btn--ghost"}`}
-                  onClick={() => setVista(v)}
-                >
-                  {MENSAJES_ES[v]}
-                </button>
-              ))}
-            </div>
-            <VistaAgendaSemanal
-              eventos={eventos}
-              onEntregableClick={onEntregableClick}
-              onReunionClick={onReunionClick}
-              onEventoEmpresaClick={onEventoEmpresaClick}
-            />
-          </>
+          <VistaAgendaSemanal
+            eventos={eventos}
+            onEntregableClick={onEntregableClick}
+            onReunionClick={onReunionClick}
+            onEventoEmpresaClick={onEventoEmpresaClick}
+            onDiaClick={
+              onSeleccionarFranja
+                ? (fecha) => onSeleccionarFranja({ fecha: isoDesdeFechaLocal(fecha), hora: null, duracionMinutos: 30 })
+                : undefined
+            }
+          />
+        ) : vista === "semana" ? (
+          <VistaSemana
+            eventos={eventos}
+            onEntregableClick={onEntregableClick}
+            onReunionClick={onReunionClick}
+            onEventoEmpresaClick={onEventoEmpresaClick}
+            onSeleccionarFranja={onSeleccionarFranja}
+            columnasFijas={!esPantallaAngosta}
+          />
         ) : (
           <CalendarioDnD
             localizer={localizer}
             events={eventos}
             culture="es"
-            messages={MENSAJES_ES}
-            view={vista}
-            onView={setVista}
+            messages={MENSAJES_MES}
+            view="month"
+            views={["month"]}
             startAccessor="start"
             endAccessor="end"
             eventPropGetter={eventPropGetter}
@@ -225,12 +234,14 @@ export default function CalendarioEntregables({
             }
             resizable={false}
             onEventDrop={handleEventDrop}
+            selectable={Boolean(onSeleccionarFranja)}
+            onSelectSlot={handleSelectSlot}
             onSelectEvent={(evento) => {
               if (evento.resource.tipo === "reunion") onReunionClick?.(evento.resource.datos);
               else if (evento.resource.tipo === "entregable") onEntregableClick?.(evento.resource.datos);
               else if (evento.resource.tipo === "evento_empresa") onEventoEmpresaClick?.(evento.resource.datos);
             }}
-            components={esPantallaAngosta ? { toolbar: ToolbarCompacto } : undefined}
+            components={{ toolbar: ToolbarSoloNav }}
           />
         )}
       </div>

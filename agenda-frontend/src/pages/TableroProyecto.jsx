@@ -47,6 +47,9 @@ export default function TableroProyecto() {
   const [valorEdicion, setValorEdicion] = useState(0);
   const [modalEntregable, setModalEntregable] = useState(null); // null | "nuevo" | entregable a editar
   const [modalReunion, setModalReunion] = useState(null); // null | "nueva" | reunion a editar
+  // Franja de hora elegida al arrastrar en la vista semana/día del
+  // calendario (2026-08-22, calendario tipo Teams) -- ver onSeleccionarFranja.
+  const [franjaSugerida, setFranjaSugerida] = useState(null);
   const [modalSerie, setModalSerie] = useState(null); // null | "nueva" | serie a editar
   const [mostrarModalEquipo, setMostrarModalEquipo] = useState(false);
   const [modalSubtema, setModalSubtema] = useState(false);
@@ -168,7 +171,7 @@ export default function TableroProyecto() {
     setErrorEliminarTema("");
     try {
       await proyectosApi.eliminar(proyectoId);
-      const destino = ancestros.length > 0 ? `/app/proyectos/${ancestros[ancestros.length - 1].id}` : "/app/proyectos";
+      const destino = ancestros.length > 0 ? `/proyectos/${ancestros[ancestros.length - 1].id}` : "/";
       navigate(destino);
     } catch (err) {
       setErrorEliminarTema(err.response?.data?.detail || "No se pudo eliminar este tema.");
@@ -238,7 +241,7 @@ export default function TableroProyecto() {
                 {subtemas.map((s) => (
                   <Link
                     key={s.id}
-                    to={`/app/proyectos/${s.id}`}
+                    to={`/proyectos/${s.id}`}
                     className="kanban-column"
                     style={{ color: "inherit", textDecoration: "none" }}
                   >
@@ -344,6 +347,14 @@ export default function TableroProyecto() {
             onReprogramar={reprogramarEntregable}
             onEntregableClick={(e) => setModalEntregable(e)}
             onReunionClick={(r) => setModalReunion(r)}
+            onSeleccionarFranja={
+              puedeAdministrar
+                ? (franja) => {
+                    setFranjaSugerida(franja);
+                    setModalReunion("nueva");
+                  }
+                : undefined
+            }
           />
         </div>
       )}
@@ -462,6 +473,9 @@ export default function TableroProyecto() {
           miembros={equipo}
           proyectoNombre={proyecto?.nombre}
           puedeAsignarAOtros={puedeAdministrar}
+          puedeAdministrarProyecto={
+            modalEntregable === "nuevo" ? puedeAdministrar : Boolean(modalEntregable?.puede_administrar)
+          }
           usuarioActualId={usuario?.id}
           onGuardado={async () => {
             setModalEntregable(null);
@@ -534,8 +548,12 @@ export default function TableroProyecto() {
           miembros={invitablesReunion}
           organizadorId={modalReunion === "nueva" ? usuario?.id : modalReunion.organizador_id}
           puedeAdministrar={puedeAdministrar}
+          fechaHoraSugerida={modalReunion === "nueva" ? franjaSugerida : null}
           onGuardado={cargarTodo}
-          onCerrar={() => setModalReunion(null)}
+          onCerrar={() => {
+            setModalReunion(null);
+            setFranjaSugerida(null);
+          }}
         />
       )}
 

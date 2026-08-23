@@ -47,11 +47,28 @@ export default function FormularioEntregable({
   miembros,
   proyectoNombre,
   puedeAsignarAOtros = true,
+  // Señal explícita de "administra este tema" (N1/N2/super_admin),
+  // independiente de si además es el responsable (2026-08-22, ver
+  // VistaSimpleEntregable abajo) -- distinto de `puedeAsignarAOtros`, que
+  // en algunos llamadores (CalendarioGlobal.jsx) ya vale true para el
+  // propio responsable aunque no administre nada (viene de
+  // entregable.puede_editar, que incluye "soy el responsable"). Si no se
+  // pasa, se usa `puedeAsignarAOtros` tal cual, para no cambiar el
+  // comportamiento de los llamadores que todavía no la pasan.
+  puedeAdministrarProyecto = null,
   usuarioActualId,
   onGuardado,
   onCerrar,
 }) {
   const esEdicion = Boolean(entregable);
+  const esAdministrador = puedeAdministrarProyecto ?? puedeAsignarAOtros;
+  // Vista simple de solo lectura + comentarios + "Marcar concluida"
+  // (2026-08-22, a petición de Yue): quien abre SU PROPIA tarea sin ser
+  // quien administra el tema ve esto en vez del formulario completo de
+  // edición -- quien administra (o quien no es el responsable) sigue
+  // viendo el formulario de siempre.
+  const esVistaSimpleResponsable =
+    esEdicion && entregable.responsable_id === usuarioActualId && !esAdministrador;
   const [nombre, setNombre] = useState(entregable?.nombre || "");
   const [descripcion, setDescripcion] = useState(entregable?.descripcion || "");
   const [responsableId, setResponsableId] = useState(
@@ -127,6 +144,19 @@ export default function FormularioEntregable({
     }
   };
 
+  const [marcandoConcluida, setMarcandoConcluida] = useState(false);
+  const handleMarcarConcluida = async () => {
+    setError("");
+    setMarcandoConcluida(true);
+    try {
+      await entregablesApi.actualizarAvance(entregable.id, 100);
+      onGuardado();
+    } catch (err) {
+      setError(err.response?.data?.detail || "No se pudo marcar como concluida.");
+      setMarcandoConcluida(false);
+    }
+  };
+
   const handleEliminar = async () => {
     setConfirmandoEliminar(false);
     setEliminando(true);
@@ -174,6 +204,96 @@ export default function FormularioEntregable({
   const creador = esEdicion
     ? miembros.find((m) => m.usuario_id === entregable.creado_por)
     : null;
+
+  if (esVistaSimpleResponsable) {
+    const yaConcluida = entregable.porcentaje_avance >= 100;
+    return (
+      <Modal titulo={entregable.nombre} onCerrar={onCerrar}>
+        <div className="stack" style={{ gap: 12 }}>
+          {proyectoNombre && (
+            <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem", margin: 0 }}>
+              Tema: {proyectoNombre}
+            </p>
+          )}
+
+          {entregable.descripcion && <p style={{ margin: 0 }}>{entregable.descripcion}</p>}
+
+          <div className="stack" style={{ gap: 4 }}>
+            {creador && (
+              <p style={{ margin: 0, fontSize: "0.85rem" }}>
+                <strong>Asignado por:</strong> {creador.nombre}
+              </p>
+            )}
+            <p style={{ margin: 0, fontSize: "0.85rem" }}>
+              <strong>Fecha límite:</strong>{" "}
+              {new Date(`${entregable.fecha_entrega}T00:00:00`).toLocaleDateString("es-MX", {
+                dateStyle: "long",
+              })}
+            </p>
+            <p style={{ margin: 0, fontSize: "0.85rem" }}>
+              <strong>Urgente:</strong> {entregable.urgente ? "Sí" : "No"}
+            </p>
+            <p style={{ margin: 0, fontSize: "0.85rem" }}>
+              <strong>Requiere comprobante:</strong> {requiereComprobante ? "Sí" : "No"}
+            </p>
+          </div>
+
+          {requiereComprobante && (
+            <div className="stack" style={{ gap: 4 }}>
+              <label style={{ fontSize: "0.78rem", color: "var(--color-text-muted)" }}>
+                Comprobante (imagen) -- necesario para poder marcar como concluida
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={(e) => setComprobanteArchivo(e.target.files?.[0] || null)}
+                  style={{ display: "block", marginTop: 4, fontSize: "0.78rem" }}
+                />
+              </label>
+              <button
+                type="button"
+                className="btn btn--ghost"
+                disabled={!comprobanteArchivo || subiendoComprobante}
+                onClick={handleSubirComprobante}
+                style={{ alignSelf: "flex-start" }}
+              >
+                {subiendoComprobante ? "Subiendo..." : "Subir comprobante"}
+              </button>
+              {errorComprobante && <p className="error-text">{errorComprobante}</p>}
+              {tieneComprobante && <ImagenComprobante entregableId={entregable.id} />}
+            </div>
+          )}
+
+          {error && <p className="error-text">{error}</p>}
+
+          {yaConcluida ? (
+            <p style={{ margin: 0, color: "var(--color-success)", fontWeight: 600 }}>
+              ✓ Ya está marcada como concluida.
+            </p>
+          ) : (
+            <button
+              type="button"
+              className="btn btn--primary"
+              onClick={handleMarcarConcluida}
+              disabled={marcandoConcluida}
+              style={{ alignSelf: "flex-start" }}
+            >
+              {marcandoConcluida ? "Concluyendo..." : "Concluir"}
+            </button>
+          )}
+        </div>
+
+        <div style={{ marginTop: 16, borderTop: "1px solid var(--color-border)", paddingTop: 16 }}>
+          <SeccionNotas
+            entregableId={entregable.id}
+            puedeAdministrar={false}
+            tituloPersonalizado="¿Tienes dudas? Déjalas aquí"
+            textoBoton="Enviar mensaje"
+            placeholderTexto="Escribe tu duda..."
+          />
+        </div>
+      </Modal>
+    );
+  }
 
   return (
     <Modal titulo={esEdicion ? "Editar entregable" : "Nuevo entregable"} onCerrar={onCerrar}>
@@ -419,7 +539,9 @@ export default function FormularioEntregable({
           <SeccionNotas
             entregableId={entregable.id}
             puedeAdministrar={puedeAsignarAOtros}
-            tituloPersonalizado="¿Tienes dudas? Escríbelas aquí"
+            tituloPersonalizado="¿Tienes dudas? Déjalas aquí"
+            textoBoton="Enviar mensaje"
+            placeholderTexto="Escribe tu duda..."
           />
         </div>
       )}

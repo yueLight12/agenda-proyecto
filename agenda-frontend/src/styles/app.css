@@ -355,6 +355,22 @@
   text-transform: capitalize;
 }
 
+/* Encabezado de día tocable en Agenda móvil (2026-08-22, calendario tipo
+   Teams): abre "Nueva reunión" con esa fecha -- reset de <button> nativo
+   para que se vea idéntico al <div> de antes, solo con feedback táctil. */
+.agenda-dia__fecha--tocable {
+  background: none;
+  border: none;
+  padding: var(--space-1);
+  margin: calc(-1 * var(--space-1));
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+}
+
+.agenda-dia__fecha--tocable:active {
+  background: var(--color-bg-hover, rgba(0, 0, 0, 0.06));
+}
+
 .agenda-dia__numero {
   font-family: var(--font-display);
   font-size: 1rem;
@@ -802,6 +818,309 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: var(--space-3);
+}
+
+/* Vista Semana tipo Teams (2026-08-22, ver VistaSemana.jsx) -- usada tanto
+   en celular (columnas angostas + scroll horizontal + snap, default) como
+   en escritorio (columnasFijas: 7 columnas repartiendo el ancho, sin
+   scroll -- clase raíz .vsem--fijo). El resto del CSS es compartido; solo
+   las reglas bajo .vsem--fijo cambian el layout de columnas. */
+.vsem {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  font-family: var(--font-body);
+}
+
+.vsem__nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-1);
+}
+
+.vsem__nav-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+}
+.vsem__nav-btn:hover,
+.vsem__nav-btn:active {
+  background: color-mix(in srgb, var(--color-teal-500) 12%, var(--color-surface));
+  border-color: var(--color-teal-500);
+}
+
+.vsem__nav-hoy {
+  height: 30px;
+  padding: 0 var(--space-2);
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.vsem__nav-hoy:hover,
+.vsem__nav-hoy:active {
+  background: color-mix(in srgb, var(--color-teal-500) 12%, var(--color-surface));
+  border-color: var(--color-teal-500);
+}
+
+.vsem__nav-label {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--color-heading);
+  margin-left: var(--space-1);
+}
+
+.vsem__tira-dias {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  border-bottom: 1px solid var(--color-border);
+  padding-left: 46px;
+  scrollbar-width: none;
+}
+.vsem__tira-dias::-webkit-scrollbar {
+  display: none;
+}
+
+.vsem__dia-chip {
+  scroll-snap-align: start;
+  flex: 0 0 auto;
+  width: 25%;
+  min-width: 74px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) 0 var(--space-2);
+  border: none;
+  background: transparent;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+.vsem__dia-chip-nombre {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.vsem__dia-chip-numero {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-heading);
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+}
+
+.vsem__dia-chip--hoy .vsem__dia-chip-numero {
+  background: var(--color-teal-500);
+  color: #fff;
+}
+
+.vsem__dia-chip-punto {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--color-teal-500);
+  opacity: 0;
+}
+.vsem__dia-chip-punto--visible {
+  opacity: 1;
+}
+
+.vsem__grilla-wrap {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.vsem__grilla {
+  display: flex;
+  min-height: 100%;
+}
+
+.vsem__columna-horas {
+  flex: 0 0 46px;
+  position: sticky;
+  left: 0;
+  background: var(--color-bg);
+  z-index: 2;
+  border-right: 1px solid var(--color-border);
+}
+
+.vsem__todo-el-dia-espaciador {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.vsem__hora-marca {
+  text-align: right;
+  padding-right: var(--space-1);
+  font-size: 0.68rem;
+  color: var(--color-text-muted);
+  position: relative;
+  top: -6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.vsem__dias-scroll {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  flex: 1;
+  scrollbar-width: none;
+}
+.vsem__dias-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.vsem__columna-dia {
+  flex: 0 0 auto;
+  width: 25%;
+  min-width: 74px;
+  scroll-snap-align: start;
+  border-right: 1px solid var(--color-border);
+}
+
+/* Escritorio: 7 columnas fijas repartiendo el ancho, sin scroll horizontal
+   ni snap -- ver prop columnasFijas en VistaSemana.jsx. */
+.vsem--fijo .vsem__tira-dias,
+.vsem--fijo .vsem__dias-scroll {
+  overflow-x: visible;
+  scroll-snap-type: none;
+}
+.vsem--fijo .vsem__dia-chip,
+.vsem--fijo .vsem__columna-dia {
+  width: 14.2857%;
+  min-width: 0;
+}
+
+.vsem__todo-el-dia {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px;
+  border-bottom: 1px solid var(--color-border);
+  overflow: hidden;
+}
+
+.vsem__todo-el-dia-mas {
+  font-size: 0.6rem;
+  color: var(--color-text-muted);
+  padding-left: 2px;
+}
+
+.vsem__horas-dia {
+  position: relative;
+}
+
+.vsem__franja-hora {
+  border-bottom: 1px solid var(--color-border);
+  cursor: pointer;
+}
+.vsem__franja-hora:hover,
+.vsem__franja-hora:active {
+  background: color-mix(in srgb, var(--color-teal-500) 10%, transparent);
+}
+
+.vsem__linea-ahora {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 2px solid var(--color-danger);
+  z-index: 1;
+  pointer-events: none;
+}
+.vsem__linea-ahora::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-danger);
+}
+.vsem__linea-ahora-etiqueta {
+  position: absolute;
+  left: 6px;
+  top: -8px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--color-danger);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.vsem-evento {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  border-radius: 7px;
+  padding: 3px 5px;
+  font-size: 0.66rem;
+  line-height: 1.25;
+  font-weight: 600;
+  color: #fff;
+  overflow: hidden;
+  cursor: pointer;
+  border: none;
+  text-align: left;
+  font-family: var(--font-body);
+  box-shadow: 0 1px 3px rgba(15, 36, 56, 0.2);
+}
+
+.vsem-evento--todoeldia {
+  position: static;
+  width: 100%;
+}
+
+.vsem-evento__hora {
+  display: block;
+  font-weight: 500;
+  opacity: 0.85;
+  font-size: 0.6rem;
+}
+
+.vsem-evento--reunion {
+  background: var(--color-navy-700);
+}
+.vsem-evento--pendiente {
+  background: var(--color-text-muted);
+}
+.vsem-evento--en_progreso {
+  background: var(--color-warning);
+  color: #2a1c00;
+}
+.vsem-evento--cumplido {
+  background: var(--color-success);
+}
+.vsem-evento--empresa {
+  background: var(--color-teal-500);
 }
 
 .list-inline {
@@ -1786,8 +2105,39 @@
 }
 
 a.planb__misemana-fila:hover,
-a.planb__misemana-fila:focus-visible {
+a.planb__misemana-fila:focus-visible,
+button.planb__misemana-fila:hover,
+button.planb__misemana-fila:focus-visible {
   background: var(--pb2-border, var(--color-border));
+}
+
+/* Reset de <button> nativo -- MiSemana.jsx usa botones en vez de <Link>
+   desde 2026-08-22 (abren el detalle sobre Agenda Plan B en vez de
+   navegar a /proyectos/:id, ver AgendaPlanB.jsx::abrirEntregable/abrirReunion). */
+button.planb__misemana-fila {
+  border: none;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+/* Link de texto sin clase propia, ahora <button> (2026-08-22, mismo
+   motivo que arriba, ver PendientesUrgentes.jsx) -- mismo look que el <a>
+   default de tokens.css (color, sin subrayado propio salvo hover). */
+.planb__enlace-simple {
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: var(--color-teal-600);
+  text-align: left;
+  cursor: pointer;
+}
+.planb__enlace-simple:hover,
+.planb__enlace-simple:focus-visible {
+  text-decoration: underline;
 }
 
 .planb__misemana-fila-titulo {

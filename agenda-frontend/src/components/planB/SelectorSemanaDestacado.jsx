@@ -33,7 +33,7 @@ function sumarSemanas(fecha, delta) {
 // Al hacer clic en la tarjeta activa se despliega "Mi semana" (MiSemana.jsx,
 // mis tareas + mi agenda de esa semana) en vez del resumen de temas de
 // minuta que se mostraba antes -- reemplazado a petición de Yue (2026-08-22).
-export default function SelectorSemanaDestacado({ fechaRef, onCambiarFecha }) {
+export default function SelectorSemanaDestacado({ fechaRef, onCambiarFecha, onAbrirEntregable, onAbrirReunion }) {
   const [mostrarDetalle, setMostrarDetalle] = useState(false);
   const semanaVigente = semanaActual(fechaRef);
   const numeroSemanaHoy = semanaActual(new Date()).numero;
@@ -113,7 +113,7 @@ export default function SelectorSemanaDestacado({ fechaRef, onCambiarFecha }) {
 
       {mostrarDetalle && (
         <div style={{ marginTop: 12 }}>
-          <MiSemana semana={semanaVigente} />
+          <MiSemana semana={semanaVigente} onAbrirEntregable={onAbrirEntregable} onAbrirReunion={onAbrirReunion} />
         </div>
       )}
     </div>

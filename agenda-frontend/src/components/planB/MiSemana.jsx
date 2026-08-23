@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { entregablesApi, proyectosApi, reunionesApi } from "../../api/endpoints";
 import { useAuth } from "../../context/AuthContext";
 import { fechaLocal } from "../../utils/fechas";
@@ -15,7 +14,7 @@ import { fechaLocal } from "../../utils/fechas";
 // "personal" que ahí ya existe (responsable_id / organizador_id /
 // participantes), para no duplicar la regla de qué es "mío" -- solo se le
 // agrega el filtro de rango de fechas de la semana.
-export default function MiSemana({ semana }) {
+export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) {
   const { usuario } = useAuth();
   const [entregables, setEntregables] = useState([]);
   const [reuniones, setReuniones] = useState([]);
@@ -88,10 +87,11 @@ export default function MiSemana({ semana }) {
         ) : (
           <div className="stack" style={{ gap: 6 }}>
             {tareas.map((e) => (
-              <Link
+              <button
                 key={e.id}
-                to={`/app/proyectos/${e.proyecto_id}?entregable=${e.id}`}
+                type="button"
                 className="planb__misemana-fila"
+                onClick={() => onAbrirEntregable?.(e.proyecto_id, e.id)}
               >
                 <span className="planb__misemana-fila-titulo">{e.nombre}</span>
                 <span className="planb__misemana-fila-fecha">
@@ -100,7 +100,7 @@ export default function MiSemana({ semana }) {
                     day: "numeric",
                   })}
                 </span>
-              </Link>
+              </button>
             ))}
           </div>
         )}
@@ -114,10 +114,11 @@ export default function MiSemana({ semana }) {
           <div className="stack" style={{ gap: 6 }}>
             {agenda.map((r) =>
               r.proyecto_id ? (
-                <Link
+                <button
                   key={r.id}
-                  to={`/app/proyectos/${r.proyecto_id}?reunion=${r.id}`}
+                  type="button"
                   className="planb__misemana-fila"
+                  onClick={() => onAbrirReunion?.(r.proyecto_id, r.id)}
                 >
                   <span className="planb__misemana-fila-titulo">{r.titulo}</span>
                   <span className="planb__misemana-fila-fecha">
@@ -126,7 +127,7 @@ export default function MiSemana({ semana }) {
                       day: "numeric",
                     })}
                   </span>
-                </Link>
+                </button>
               ) : (
                 <div key={r.id} className="planb__misemana-fila">
                   <span className="planb__misemana-fila-titulo">{r.titulo}</span>

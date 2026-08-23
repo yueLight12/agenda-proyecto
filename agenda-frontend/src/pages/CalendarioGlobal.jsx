@@ -25,6 +25,10 @@ export default function CalendarioGlobal({ altoCalendario } = {}) {
   const [modalEventoEmpresa, setModalEventoEmpresa] = useState(null);
   const [modo, setModo] = useState("general"); // "personal" | "general" | "empresa"
   const [eventosEmpresa, setEventosEmpresa] = useState([]);
+  // Franja de hora elegida al arrastrar en la vista semana/día (2026-08-22,
+  // calendario tipo Teams) -- se pasa como sugerencia al abrir "Nueva
+  // reunión general", ver onSeleccionarFranja en CalendarioEntregables.
+  const [franjaSugerida, setFranjaSugerida] = useState(null);
 
   const cargarTodo = async () => {
     const raices = await proyectosApi.listar();
@@ -153,9 +157,6 @@ export default function CalendarioGlobal({ altoCalendario } = {}) {
             Empresa
           </button>
         </div>
-        <button className="btn btn--ghost" onClick={() => setModalReunion("nueva-general")}>
-          Nueva reunión general
-        </button>
       </div>
       {modo !== "empresa" && entregablesMostrados.length === 0 && reunionesMostradas.length === 0 && (
         <p style={{ color: "var(--color-text-muted)" }}>
@@ -180,6 +181,10 @@ export default function CalendarioGlobal({ altoCalendario } = {}) {
           onEntregableClick={(e) => setModalEntregable(e)}
           onReunionClick={(r) => setModalReunion(r)}
           onEventoEmpresaClick={(ev) => setModalEventoEmpresa(ev)}
+          onSeleccionarFranja={(franja) => {
+            setFranjaSugerida(franja);
+            setModalReunion("nueva-general");
+          }}
           {...(altoCalendario ? { alto: altoCalendario } : {})}
         />
       </div>
@@ -190,6 +195,7 @@ export default function CalendarioGlobal({ altoCalendario } = {}) {
           entregable={modalEntregable}
           miembros={equiposPorProyecto[modalEntregable.proyecto_id] || []}
           puedeAsignarAOtros={puedeEditar(modalEntregable)}
+          puedeAdministrarProyecto={Boolean(modalEntregable.puede_administrar)}
           usuarioActualId={usuario?.id}
           onGuardado={async () => {
             setModalEntregable(null);
@@ -226,8 +232,12 @@ export default function CalendarioGlobal({ altoCalendario } = {}) {
           miembros={invitablesGenerales}
           organizadorId={usuario?.id}
           puedeAdministrar
+          fechaHoraSugerida={franjaSugerida}
           onGuardado={cargarTodo}
-          onCerrar={() => setModalReunion(null)}
+          onCerrar={() => {
+            setModalReunion(null);
+            setFranjaSugerida(null);
+          }}
         />
       )}
     </div>

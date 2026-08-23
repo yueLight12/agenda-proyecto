@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { dashboardApi, entregablesApi, notificacionesApi } from "../../api/endpoints";
 import { useEventosTiempoReal } from "../../hooks/useEventosTiempoReal";
 import BadgeUrgente from "../BadgeUrgente";
@@ -12,7 +11,7 @@ import { IconoCheck } from "./IconosPlanB";
 // que el backend ya calcula (es_urgente, urgencia vencido/próximo). Se
 // recarga cuando `recargarSenal` cambia (AgendaPlanB.jsx lo incrementa
 // después de crear una tarea/proyecto).
-export default function PendientesUrgentes({ recargarSenal }) {
+export default function PendientesUrgentes({ recargarSenal, onAbrirEntregable, onAbrirReunion }) {
   const [notificaciones, setNotificaciones] = useState([]);
   const [entregablesAtencion, setEntregablesAtencion] = useState([]);
   const [reunionesHoy, setReunionesHoy] = useState([]);
@@ -143,9 +142,13 @@ export default function PendientesUrgentes({ recargarSenal }) {
             marcando={marcandoId === e.id}
             onMarcarConcluido={marcarConcluido}
           >
-            <Link to={`/app/proyectos/${e.proyecto_id}?entregable=${e.id}`}>
+            <button
+              type="button"
+              className="planb__enlace-simple"
+              onClick={() => onAbrirEntregable?.(e.proyecto_id, e.id)}
+            >
               "{e.nombre}" de {e.responsable_nombre} ya venció ({e.proyecto_nombre})
-            </Link>
+            </button>
           </FilaPendiente>
         ))}
 
@@ -158,17 +161,25 @@ export default function PendientesUrgentes({ recargarSenal }) {
             marcando={marcandoId === e.id}
             onMarcarConcluido={marcarConcluido}
           >
-            <Link to={`/app/proyectos/${e.proyecto_id}?entregable=${e.id}`}>
+            <button
+              type="button"
+              className="planb__enlace-simple"
+              onClick={() => onAbrirEntregable?.(e.proyecto_id, e.id)}
+            >
               "{e.nombre}" de {e.responsable_nombre} vence pronto ({e.proyecto_nombre})
-            </Link>
+            </button>
           </FilaPendiente>
         ))}
 
         {reunionesHoy.map((r) => (
           <FilaPendiente key={`reu-${r.id}`} urgente>
-            <Link to={`/app/proyectos/${r.proyecto_id}?reunion=${r.id}`}>
+            <button
+              type="button"
+              className="planb__enlace-simple"
+              onClick={() => onAbrirReunion?.(r.proyecto_id, r.id)}
+            >
               Reunión "{r.titulo}" con {r.organizador_nombre} — hoy
-            </Link>
+            </button>
           </FilaPendiente>
         ))}
 
@@ -181,15 +192,17 @@ export default function PendientesUrgentes({ recargarSenal }) {
           // proyecto_id (notificación genérica, sin entregable/reunión
           // detrás) se queda como texto plano, igual que antes.
           const contenido = n.proyecto_id ? (
-            <Link
-              to={
+            <button
+              type="button"
+              className="planb__enlace-simple"
+              onClick={() =>
                 n.entregable_id
-                  ? `/app/proyectos/${n.proyecto_id}?entregable=${n.entregable_id}`
-                  : `/app/proyectos/${n.proyecto_id}?reunion=${n.reunion_id}`
+                  ? onAbrirEntregable?.(n.proyecto_id, n.entregable_id)
+                  : onAbrirReunion?.(n.proyecto_id, n.reunion_id)
               }
             >
               {n.mensaje}
-            </Link>
+            </button>
           ) : (
             n.mensaje
           );

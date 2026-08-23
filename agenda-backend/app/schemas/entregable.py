@@ -85,6 +85,12 @@ class EntregableOut(EntregableBase):
     # usuario.roles_por_proyecto, que se rompe con herencia. Ver
     # app/services/entregables.py::entregable_a_out.
     puede_editar: bool = False
+    # Distinto de puede_editar: true SOLO para N1/N2/super_admin del
+    # proyecto, false para un responsable plano editando su propia tarea
+    # (2026-08-22) -- el frontend lo usa para decidir si mostrar el
+    # formulario completo o la vista simple de solo lectura + comentarios +
+    # "Marcar concluida". Ver app/core/permissions.py::puede_administrar_entregable.
+    puede_administrar: bool = False
     # Urgencia COMBINADA (manual OR vencido OR vence en ≤3 días) --
     # 2026-08-20, a petición del cliente: el frontend nunca debe recalcular
     # esto, siempre usa este campo. Ver

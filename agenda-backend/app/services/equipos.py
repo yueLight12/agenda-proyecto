@@ -8,12 +8,16 @@ from typing import Optional
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.permissions import requerir_participacion_en_proyecto, requerir_rol_minimo
+from app.core.permissions import (
+    obtener_rol_en_proyecto,
+    requerir_participacion_en_proyecto,
+    requerir_rol_minimo,
+)
 from app.core.security import hash_password
 from app.models.equipo_miembro import EquipoMiembro
 from app.models.usuario import RolEnum, Usuario
 from app.models.usuario_proyecto_rol import UsuarioProyectoRol
-from app.schemas.equipo import EquipoMiembroOut
+from app.schemas.equipo import EquipoMiembroOut, ProyectoDeMiembroSimpleOut
 
 # Misma contraseña por defecto que seed_usuarios_reales.py/reset_passwords_reales.py
 # -- la persona la cambia desde "Cambiar contraseña" en su primer login.
@@ -57,6 +61,34 @@ def equipo_miembro_a_out(registro: EquipoMiembro) -> EquipoMiembroOut:
     )
 
 
+def _proyectos_administrables_de(db: Session, viewer: Usuario, miembro_id: int) -> list[ProyectoDeMiembroSimpleOut]:
+    """Temas donde `miembro_id` participa y `viewer` puede administrar
+    (N1/N2 local, o super_admin) -- para el selector de tema de "Asignar
+    tarea a mi equipo" (2026-08-22, ver ModalAsignarTareaRapida.jsx, que
+    filtra exactamente por viewer_puede_administrar). No usa
+    listar_proyectos_visibles(viewer) porque el punto es precisamente
+    poder asignarle una tarea a alguien en un tema que el viewer administra
+    aunque él mismo no tenga entregables ahí -- solo importa su rol."""
+    filas = db.query(UsuarioProyectoRol).filter(UsuarioProyectoRol.usuario_id == miembro_id).all()
+    resultado = []
+    for fila in filas:
+        if viewer.es_super_admin:
+            puede_administrar = True
+        else:
+            rol_viewer = obtener_rol_en_proyecto(db, viewer.id, fila.proyecto_id)
+            puede_administrar = rol_viewer is not None and rol_viewer.rol in (RolEnum.N1, RolEnum.N2)
+        if not puede_administrar:
+            continue
+        resultado.append(
+            ProyectoDeMiembroSimpleOut(
+                proyecto_id=fila.proyecto_id,
+                proyecto_nombre=fila.proyecto.nombre,
+                viewer_puede_administrar=True,
+            )
+        )
+    return resultado
+
+
 def listar_mi_equipo_efectivo(db: Session, usuario: Usuario) -> list[EquipoMiembroOut]:
     """Plantilla guardada + reportes reales (supervisor_id == usuario.id en
     cualquier tema, ver UsuarioProyectoRol) que todavía no estén guardados
@@ -76,6 +108,7 @@ def listar_mi_equipo_efectivo(db: Session, usuario: Usuario) -> list[EquipoMiemb
             email=m.usuario.email,
             rol=m.rol,
             guardado=True,
+            proyectos=_proyectos_administrables_de(db, usuario, m.usuario.id),
         )
         for m in plantilla
     ]
@@ -100,6 +133,7 @@ def listar_mi_equipo_efectivo(db: Session, usuario: Usuario) -> list[EquipoMiemb
                 email=fila.usuario.email,
                 rol=fila.rol,
                 guardado=False,
+                proyectos=_proyectos_administrables_de(db, usuario, fila.usuario.id),
             )
         )
     return resultado

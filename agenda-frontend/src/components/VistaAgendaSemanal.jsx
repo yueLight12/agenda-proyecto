@@ -24,6 +24,7 @@ export default function VistaAgendaSemanal({
   onEntregableClick,
   onReunionClick,
   onEventoEmpresaClick,
+  onDiaClick,
 }) {
   const filas = agruparEventosEnFilas(eventos);
 
@@ -54,12 +55,26 @@ export default function VistaAgendaSemanal({
 
         return (
           <div key={`dia-${indice}`} className="agenda-dia">
-            <div className="agenda-dia__fecha">
-              <span>{abreviarDiaSemana(fila.fecha)}</span>
-              <span className={fila.esHoy ? "agenda-dia__circulo-hoy" : "agenda-dia__numero"}>
-                {format(fila.fecha, "d")}
-              </span>
-            </div>
+            {onDiaClick ? (
+              <button
+                type="button"
+                className="agenda-dia__fecha agenda-dia__fecha--tocable"
+                onClick={() => onDiaClick(fila.fecha)}
+                aria-label={`Nueva reunión el ${format(fila.fecha, "d 'de' MMMM", { locale: es })}`}
+              >
+                <span>{abreviarDiaSemana(fila.fecha)}</span>
+                <span className={fila.esHoy ? "agenda-dia__circulo-hoy" : "agenda-dia__numero"}>
+                  {format(fila.fecha, "d")}
+                </span>
+              </button>
+            ) : (
+              <div className="agenda-dia__fecha">
+                <span>{abreviarDiaSemana(fila.fecha)}</span>
+                <span className={fila.esHoy ? "agenda-dia__circulo-hoy" : "agenda-dia__numero"}>
+                  {format(fila.fecha, "d")}
+                </span>
+              </div>
+            )}
             <div className="agenda-dia__eventos">
               {fila.eventos.length === 0 ? (
                 <span className="agenda-sin-planes">No tienes planes.</span>

@@ -1,15 +1,10 @@
-import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import RutaProtegida from "./components/RutaProtegida";
-import AppLayout from "./components/AppLayout";
 import Login from "./pages/Login";
-import TableroProyecto from "./pages/TableroProyecto";
-import Equipo from "./pages/Equipo";
-import MisPendientes from "./pages/MisPendientes";
-import CalendarioGlobal from "./pages/CalendarioGlobal";
-import Chatbot from "./pages/Chatbot";
-import Perfil from "./pages/Perfil";
 import AgendaPlanB from "./pages/AgendaPlanB";
+import TableroProyecto from "./pages/TableroProyecto";
+import Perfil from "./pages/Perfil";
 
 export default function App() {
   return (
@@ -37,33 +32,30 @@ export default function App() {
               </RutaProtegida>
             }
           />
-          {/* Sistema anterior (2026-08-20, a petición de Yue: "no quiero que
-              lo elimines, guárdalo como un backup... como un segundo plan")
-              -- se conserva COMPLETO e intacto, solo se movió de "/" a
-              "/app" y ya no tiene ningún link visible desde Agenda Plan B
-              (Yue: "no quiero que haya botón para acceder a la agenda
-              anterior"). Sigue siendo accesible tecleando la URL directo. */}
+          {/* Detalle de tema y perfil (2026-08-22): antes vivían bajo /app
+              (sistema anterior, ya retirado) -- se conservan aquí solo
+              porque Agenda Plan B enlaza directo a ellos desde las tarjetas
+              de pendientes urgentes y "Mi semana" (ver
+              components/planB/PendientesUrgentes.jsx y MiSemana.jsx) y
+              desde el detalle de un miembro del equipo (KanbanEquipoProyecto.jsx).
+              Sin AppLayout/sidebar -- se navega a ellas por link, no por
+              menú. */}
           <Route
-            path="/app"
+            path="/proyectos/:proyectoId"
             element={
               <RutaProtegida>
-                <AppLayout />
+                <TableroProyecto />
               </RutaProtegida>
             }
-          >
-            <Route index element={<Equipo />} />
-            {/* "Temas" (lista propia) se retiró 2026-08-17 -- se fusionó
-                con "Equipo" (columna "Yo"), ver KanbanSupervisores.jsx.
-                Redirect en vez de 404 por si alguien tiene el link guardado. */}
-            <Route path="proyectos" element={<Navigate to="/app/equipo" replace />} />
-            <Route path="proyectos/:proyectoId" element={<TableroProyecto />} />
-            <Route path="equipo" element={<Equipo />} />
-            <Route path="mis-pendientes" element={<MisPendientes />} />
-            <Route path="calendario" element={<CalendarioGlobal />} />
-            <Route path="chatbot" element={<Chatbot />} />
-            <Route path="perfil" element={<Perfil />} />
-            <Route path="perfil/:usuarioId" element={<Perfil />} />
-          </Route>
+          />
+          <Route
+            path="/perfil/:usuarioId"
+            element={
+              <RutaProtegida>
+                <Perfil />
+              </RutaProtegida>
+            }
+          />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

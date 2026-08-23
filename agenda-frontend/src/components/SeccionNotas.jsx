@@ -87,6 +87,12 @@ export default function SeccionNotas({
   temaId = null,
   puedeAdministrar = false,
   tituloPersonalizado = null,
+  // Texto del botón/placeholder personalizables (2026-08-22, ver
+  // FormularioEntregable.jsx: en un entregable esta sección se presenta
+  // como "mensajes" en vez de "notas") -- default conserva el texto de
+  // siempre para los demás usos (reuniones, proyectos, minutas).
+  textoBoton = null,
+  placeholderTexto = null,
 }) {
   const { usuario } = useAuth();
   const [notas, setNotas] = useState([]);
@@ -254,7 +260,7 @@ export default function SeccionNotas({
         <textarea
           className="input"
           rows={2}
-          placeholder="Agregar una nota, aviso o pendiente..."
+          placeholder={placeholderTexto || "Agregar una nota, aviso o pendiente..."}
           value={contenido}
           onChange={(e) => setContenido(e.target.value)}
         />
@@ -273,7 +279,7 @@ export default function SeccionNotas({
           disabled={enviando || !contenido.trim()}
           style={{ alignSelf: "flex-start" }}
         >
-          {enviando ? "Agregando..." : "Agregar nota"}
+          {enviando ? (textoBoton ? "Enviando..." : "Agregando...") : textoBoton || "Agregar nota"}
         </button>
       </form>
 

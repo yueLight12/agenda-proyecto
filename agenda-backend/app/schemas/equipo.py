@@ -20,6 +20,21 @@ class PersonaNuevaCrear(BaseModel):
     rol: RolEnum
 
 
+class ProyectoDeMiembroSimpleOut(BaseModel):
+    """Versión liviana de ProyectoDeMiembroOut (ver
+    app/schemas/equipo_resumen.py) -- solo lo que necesita el selector de
+    tema de ModalAsignarTareaRapida.jsx (2026-08-22, bug real: ese selector
+    filtraba `persona.proyectos`, campo que EquipoMiembroOut nunca traía,
+    así que el selector de tema quedaba SIEMPRE vacío)."""
+
+    proyecto_id: int
+    proyecto_nombre: str
+    viewer_puede_administrar: bool = False
+
+    class Config:
+        from_attributes = True
+
+
 class EquipoMiembroOut(BaseModel):
     usuario_id: int
     nombre: str
@@ -33,6 +48,11 @@ class EquipoMiembroOut(BaseModel):
     # para no romper los demás usos de este schema (agregar/aplicar
     # plantilla), que siempre son filas guardadas de verdad.
     guardado: bool = True
+    # Temas donde esta persona participa y QUIEN VE la pantalla puede
+    # administrar (2026-08-22) -- default [] para no afectar los otros usos
+    # de este schema (POST /mi-equipo, aplicar-mi-equipo), que solo lo
+    # llenan en GET /mi-equipo (ver listar_mi_equipo_efectivo).
+    proyectos: list[ProyectoDeMiembroSimpleOut] = []
 
     class Config:
         from_attributes = True

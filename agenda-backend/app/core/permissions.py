@@ -281,28 +281,57 @@ def puede_ver_entregable(db: Session, usuario: Usuario, entregable: Entregable) 
 
 def puede_editar_entregable(db: Session, usuario: Usuario, entregable: Entregable) -> bool:
     """
-    N1/N2 (de ese proyecto) pueden editar cualquier campo.
-    El propio responsable puede editar (usado principalmente para actualizar avance).
-    """
+    Editar los CAMPOS de un entregable (nombre, descripción, fecha,
+    sensible, urgente_manual, requiere_comprobante, eliminar) es exclusivo
+    de quien lo creó, o super_admin (2026-08-22, a petición de Yue: "solo
+    quien lo creó puede editarlo, y ya, nadie más" -- reemplaza la regla
+    anterior, que también dejaba editar a cualquier N1/N2 del proyecto).
+    NO se usa para actualizar % de avance (ver puede_actualizar_avance_entregable,
+    que sigue dejando al propio responsable marcar su tarea) ni para
+    reasignar (ver puede_reasignar_entregable, que conserva la excepción ya
+    existente para el responsable actual)."""
     if usuario.es_super_admin:
         return True
-    rol = obtener_rol_en_proyecto(db, usuario.id, entregable.proyecto_id)
-    if rol is None:
-        return False
-    if rol.rol in (RolEnum.N1, RolEnum.N2):
-        return True
-    return entregable.responsable_id == usuario.id
+    return entregable.creado_por == usuario.id
 
 
-# Alias semántico de puede_editar_entregable (2026-08-20, a petición del
-# cliente: "si alguien te asignó algo que no te pertenece, poder
-# reasignarlo") -- MISMO criterio (N1/N2 del proyecto, o el propio
-# responsable actual), sin regla de permisos nueva. Nombre propio para que
-# el llamador (reasignar_entregable en services/entregables.py) exprese la
-# intención sin acoplarse a un nombre pensado originalmente para "editar
-# cualquier campo".
-def puede_reasignar_entregable(db: Session, usuario: Usuario, entregable: Entregable) -> bool:
+def puede_administrar_entregable(db: Session, usuario: Usuario, entregable: Entregable) -> bool:
+    """Alias de puede_editar_entregable (2026-08-22): desde que "editar" se
+    restringió a solo el creador, ambas preguntas ("¿administro este
+    entregable?" / "¿puedo editarlo?") son la misma -- se mantiene como
+    función aparte solo para no acoplar EntregableOut.puede_administrar
+    (usado por el frontend para decidir formulario completo vs. vista
+    simple de solo lectura, ver FormularioEntregable.jsx) al nombre
+    genérico "editar"."""
     return puede_editar_entregable(db, usuario, entregable)
+
+
+def puede_actualizar_avance_entregable(db: Session, usuario: Usuario, entregable: Entregable) -> bool:
+    """Quién puede cambiar el % de avance / marcar como concluido: quien
+    creó el entregable, el RESPONSABLE actual (2026-08-22 -- a diferencia
+    de puede_editar_entregable, aquí sí se conserva la excepción: "marcar
+    concluida" es la acción central de la vista simple que ve el
+    responsable, tiene que seguir funcionando aunque ya no pueda editar los
+    demás campos), o super_admin."""
+    if usuario.es_super_admin:
+        return True
+    return entregable.creado_por == usuario.id or entregable.responsable_id == usuario.id
+
+
+# Reasignar sigue siendo una EXCEPCIÓN explícita a "solo el creador edita"
+# (2026-08-22, confirmado con Yue al restringir puede_editar_entregable):
+# "si te asignaron algo que no te pertenece, poder reasignarlo" ya era una
+# función deliberada del propio responsable (2026-08-20, a petición del
+# cliente) -- se conserva el criterio ANTERIOR de puede_editar_entregable
+# (creador, N1/N2 del proyecto, o el responsable actual), en vez de
+# heredar la nueva restricción de esa función.
+def puede_reasignar_entregable(db: Session, usuario: Usuario, entregable: Entregable) -> bool:
+    if usuario.es_super_admin:
+        return True
+    if entregable.creado_por == usuario.id or entregable.responsable_id == usuario.id:
+        return True
+    rol = obtener_rol_en_proyecto(db, usuario.id, entregable.proyecto_id)
+    return rol is not None and rol.rol in (RolEnum.N1, RolEnum.N2)
 
 
 def query_reuniones_visibles(db: Session, usuario: Usuario, proyecto_id: int):
