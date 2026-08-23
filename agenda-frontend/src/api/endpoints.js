@@ -254,3 +254,9 @@ export const notificacionesApi = {
   marcarLeida: async (id) => (await api.patch(`/notificaciones/${id}`)).data,
   eliminar: async (id) => api.delete(`/notificaciones/${id}`),
 };
+
+export const pushApi = {
+  vapidPublicKey: async () => (await api.get("/push/vapid-public-key")).data,
+  suscribir: async (datos) => (await api.post("/push/suscribir", datos)).data,
+  desuscribir: async (endpoint) => api.delete("/push/suscribir", { data: { endpoint } }),
+};

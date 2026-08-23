@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
-import { miEquipoApi } from "../api/endpoints";
+import { entregablesApi, miEquipoApi, proyectosApi, reunionesApi } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
 import Modal from "../components/Modal";
 import ModalAsignarTareaRapida from "../components/ModalAsignarTareaRapida";
 import ModalEditarProyecto from "../components/ModalEditarProyecto";
+import FormularioEntregable from "../components/FormularioEntregable";
+import ModalReunion from "../components/ModalReunion";
 import CalendarioGlobal from "./CalendarioGlobal";
 import FabAsistenteVoz from "../components/FabAsistenteVoz";
+import BotonNotificacionesPush from "../components/BotonNotificacionesPush";
 import SelectorSemanaDestacado from "../components/planB/SelectorSemanaDestacado";
 import TarjetasAsignar from "../components/planB/TarjetasAsignar";
 import SelectorPersona from "../components/planB/SelectorPersona";
@@ -37,6 +40,81 @@ export default function AgendaPlanB() {
   const [modalActivo, setModalActivo] = useState(null); // 'tarea' | 'proyecto' | 'persona' | 'agenda' | null
   const [personaElegida, setPersonaElegida] = useState(null);
   const [recargarPendientes, setRecargarPendientes] = useState(0);
+
+  // Detalle de un entregable/reunión abierto desde un link de "Pendientes
+  // urgentes"/"Mi semana" (2026-08-22, a petición de Yue: "la única
+  // ventana estática es Agenda Plan B" -- antes esos links navegaban a
+  // /proyectos/:id?entregable=X, que SÍ es una página real (TableroProyecto.jsx,
+  // conservada como respaldo del sistema anterior) y dejaba ver su fondo
+  // detrás del modal en vez del de Plan B). Carga solo lo que
+  // FormularioEntregable/ModalReunion necesitan (entregable o reunión +
+  // equipo/invitables + nombre del tema) -- deliberadamente más liviano que
+  // TableroProyecto.cargarTodo, que pide 8 endpoints para poblar una
+  // pantalla completa que aquí no hace falta.
+  const [detalle, setDetalle] = useState(null); // { tipo: 'entregable'|'reunion', item, miembros, proyectoNombre }
+  const [cargandoDetalle, setCargandoDetalle] = useState(false);
+  const [errorDetalle, setErrorDetalle] = useState("");
+
+  const abrirEntregable = useCallback(async (proyectoId, entregableId) => {
+    setErrorDetalle("");
+    setCargandoDetalle(true);
+    try {
+      const [lista, miembros, proyecto] = await Promise.all([
+        entregablesApi.listarPorProyecto(proyectoId),
+        proyectosApi.equipo(proyectoId),
+        proyectosApi.obtener(proyectoId),
+      ]);
+      const item = lista.find((e) => e.id === entregableId);
+      if (!item) {
+        setErrorDetalle("Ya no se encontró ese entregable.");
+        return;
+      }
+      setDetalle({ tipo: "entregable", item, miembros, proyectoNombre: proyecto.nombre });
+    } catch {
+      setErrorDetalle("No se pudo abrir el entregable.");
+    } finally {
+      setCargandoDetalle(false);
+    }
+  }, []);
+
+  const abrirReunion = useCallback(async (proyectoId, reunionId) => {
+    setErrorDetalle("");
+    setCargandoDetalle(true);
+    try {
+      const [lista, invitables] = await Promise.all([
+        reunionesApi.listarPorProyecto(proyectoId),
+        reunionesApi.invitables(proyectoId),
+      ]);
+      const item = lista.find((r) => r.id === reunionId);
+      if (!item) {
+        setErrorDetalle("Ya no se encontró esa reunión.");
+        return;
+      }
+      setDetalle({ tipo: "reunion", item, miembros: invitables });
+    } catch {
+      setErrorDetalle("No se pudo abrir la reunión.");
+    } finally {
+      setCargandoDetalle(false);
+    }
+  }, []);
+
+  const cerrarDetalle = () => {
+    setDetalle(null);
+    setErrorDetalle("");
+  };
+
+  // Guardar un entregable SÍ cierra el modal (mismo criterio que
+  // TableroProyecto.jsx/CalendarioGlobal.jsx). Guardar una reunión NO lo
+  // cierra -- ModalReunion mantiene su propio estado interno tras guardar
+  // (deja ver el checklist recién creado/editado, ver su docstring), solo
+  // hace falta refrescar el conteo de pendientes de fondo.
+  const alGuardarEntregable = () => {
+    cerrarDetalle();
+    setRecargarPendientes((n) => n + 1);
+  };
+  const alGuardarReunion = () => {
+    setRecargarPendientes((n) => n + 1);
+  };
 
   // "A quién le puedo asignar" en Agenda Plan B (2026-08-21, a petición de
   // Yue tras probar el organigrama real): antes usaba equipoResumenApi
@@ -86,7 +164,8 @@ export default function AgendaPlanB() {
             </p>
           )}
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <BotonNotificacionesPush />
           {/* Tema claro/oscuro (2026-08-21, a petición de Yue) -- ya
               existía en AppLayout.jsx pero Agenda Plan B es una pantalla
               independiente (sin AppLayout), así que no lo heredaba. Mismo
@@ -112,15 +191,62 @@ export default function AgendaPlanB() {
       </div>
 
       <div className="planb__contenido stack">
-        <SelectorSemanaDestacado fechaRef={fechaRef} onCambiarFecha={setFechaRef} />
+        <SelectorSemanaDestacado
+          fechaRef={fechaRef}
+          onCambiarFecha={setFechaRef}
+          onAbrirEntregable={abrirEntregable}
+          onAbrirReunion={abrirReunion}
+        />
 
         <div className="card">
           <h2 style={{ fontSize: "1rem", marginBottom: 12 }}>Quiero asignar</h2>
           <TarjetasAsignar onAbrir={setModalActivo} />
         </div>
 
-        <PendientesUrgentes recargarSenal={recargarPendientes} />
+        <PendientesUrgentes
+          recargarSenal={recargarPendientes}
+          onAbrirEntregable={abrirEntregable}
+          onAbrirReunion={abrirReunion}
+        />
       </div>
+
+      {cargandoDetalle && (
+        <Modal titulo="Cargando..." onCerrar={cerrarDetalle}>
+          <p style={{ color: "var(--color-text-muted)" }}>Cargando detalle...</p>
+        </Modal>
+      )}
+
+      {errorDetalle && !cargandoDetalle && (
+        <Modal titulo="No se pudo abrir" onCerrar={cerrarDetalle}>
+          <p className="error-text">{errorDetalle}</p>
+        </Modal>
+      )}
+
+      {detalle?.tipo === "entregable" && !cargandoDetalle && (
+        <FormularioEntregable
+          proyectoId={detalle.item.proyecto_id}
+          entregable={detalle.item}
+          miembros={detalle.miembros}
+          proyectoNombre={detalle.proyectoNombre}
+          puedeAsignarAOtros={Boolean(detalle.item.puede_editar)}
+          puedeAdministrarProyecto={Boolean(detalle.item.puede_administrar)}
+          usuarioActualId={usuario?.id}
+          onGuardado={alGuardarEntregable}
+          onCerrar={cerrarDetalle}
+        />
+      )}
+
+      {detalle?.tipo === "reunion" && !cargandoDetalle && (
+        <ModalReunion
+          proyectoId={detalle.item.proyecto_id}
+          reunion={detalle.item}
+          miembros={detalle.miembros}
+          organizadorId={detalle.item.organizador_id}
+          puedeAdministrar={Boolean(detalle.item.puede_editar)}
+          onGuardado={alGuardarReunion}
+          onCerrar={cerrarDetalle}
+        />
+      )}
 
       {/* "Tarea" y "Persona" comparten el mismo flujo de selección de
           persona (2026-08-21, a petición de Yue: usar la vista con

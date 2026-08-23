@@ -16,3 +16,4 @@ from app.models.pendiente import Pendiente  # noqa: F401
 from app.models.evento_empresa import EventoEmpresa, TipoEventoEmpresa  # noqa: F401
 from app.models.serie_reunion import SerieReunion, SerieReunionParticipante  # noqa: F401
 from app.models.agenda_item import AgendaItem, AgendaItemRevision, TipoAgendaItem, EstadoRevision  # noqa: F401
+from app.models.suscripcion_push import SuscripcionPush  # noqa: F401

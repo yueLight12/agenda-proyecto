@@ -7,6 +7,14 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
+      // injectManifest (en vez del generateSW por default) porque
+      // necesitamos código propio en el service worker para reaccionar a
+      // eventos "push"/"notificationclick" (2026-08-23, notificaciones
+      // urgentes fuera de la app) -- generateSW no permite agregar
+      // manejadores de eventos custom, solo configurar cacheo.
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.js",
       includeAssets: ["favicon.png", "apple-touch-icon.png"],
       manifest: {
         name: "Agenda Inteligente de Proyectos",

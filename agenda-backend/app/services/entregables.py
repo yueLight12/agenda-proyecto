@@ -12,6 +12,8 @@ from sqlalchemy.orm import Session
 from app.core.permissions import (
     obtener_rol_en_proyecto,
     obtener_rol_local_en_proyecto,
+    puede_actualizar_avance_entregable,
+    puede_administrar_entregable,
     puede_editar_entregable,
     puede_reasignar_entregable,
     requerir_participacion_en_proyecto,
@@ -28,6 +30,7 @@ from app.schemas.nota import NotaCrear
 from app.services.almacenamiento import eliminar_imagen, guardar_imagen
 from app.services.avisos_acceso import avisar_si_nunca_ha_entrado
 from app.services.proyectos import es_lider_en_algun_tema
+from app.services.push import enviar_push
 
 # Días de anticipación para que un entregable sea "urgente" solo por
 # fecha, sin que nadie lo haya marcado a mano (2026-08-20, a petición del
@@ -64,6 +67,7 @@ def entregable_a_out(db: Session, usuario: Usuario, entregable: Entregable) -> E
         fecha_creacion=entregable.fecha_creacion,
         orden=entregable.orden,
         puede_editar=puede_editar_entregable(db, usuario, entregable),
+        puede_administrar=puede_administrar_entregable(db, usuario, entregable),
         urgente=es_urgente(entregable),
         puede_reasignar=puede_reasignar_entregable(db, usuario, entregable),
         requiere_comprobante=entregable.requiere_comprobante,
@@ -165,6 +169,13 @@ def crear_entregable(
                 urgente=urgencia_combinada,
             )
         )
+        if urgencia_combinada:
+            enviar_push(
+                db,
+                responsable_id,
+                "Tarea urgente asignada",
+                f'{usuario.nombre} te asignó "{nuevo.nombre}" ({_texto_dias_restantes(nuevo.fecha_entrega)}).',
+            )
         responsable = db.query(Usuario).filter(Usuario.id == responsable_id).first()
         if responsable:
             avisar_si_nunca_ha_entrado(db, responsable, usuario, nuevo.nombre)
@@ -194,11 +205,15 @@ def obtener_entregable_o_404(db: Session, entregable_id: int) -> Entregable:
 def actualizar_entregable(
     db: Session, usuario: Usuario, entregable_id: int, campos: dict
 ) -> Entregable:
-    """Edición general del entregable (nombre, fecha, responsable, etc). Requiere N1/N2."""
+    """Edición general del entregable (nombre, fecha, responsable, etc).
+    Requiere ser quien lo creó, o super_admin (2026-08-22, ver
+    puede_editar_entregable)."""
     entregable = obtener_entregable_o_404(db, entregable_id)
 
-    rol = requerir_participacion_en_proyecto(db, usuario, entregable.proyecto_id)
-    requerir_rol_minimo(rol, [RolEnum.N1, RolEnum.N2])
+    if not puede_editar_entregable(db, usuario, entregable):
+        raise HTTPException(
+            status_code=403, detail="Solo quien creó este entregable puede editarlo"
+        )
 
     for campo, valor in campos.items():
         setattr(entregable, campo, valor)
@@ -238,9 +253,10 @@ def mover_entregable(db: Session, usuario: Usuario, entregable_id: int, direccio
 
 def eliminar_entregable(db: Session, usuario: Usuario, entregable_id: int) -> None:
     """
-    Elimina un entregable. Requiere N1/N2, mismo gate que actualizar_entregable
-    (no el propio responsable, para no perder trazabilidad de alguien
-    borrando su propio pendiente).
+    Elimina un entregable. Requiere ser quien lo creó, o super_admin
+    (2026-08-22, mismo gate que actualizar_entregable, ver
+    puede_editar_entregable) -- no el propio responsable, para no perder
+    trazabilidad de alguien borrando su propio pendiente.
 
     Historial de avance y notas cascadean solos (relaciones ORM en
     Entregable). Notificacion.entregable_id y AcuerdoMinuta.entregable_id son
@@ -252,8 +268,10 @@ def eliminar_entregable(db: Session, usuario: Usuario, entregable_id: int) -> No
     """
     entregable = obtener_entregable_o_404(db, entregable_id)
 
-    rol = requerir_participacion_en_proyecto(db, usuario, entregable.proyecto_id)
-    requerir_rol_minimo(rol, [RolEnum.N1, RolEnum.N2])
+    if not puede_editar_entregable(db, usuario, entregable):
+        raise HTTPException(
+            status_code=403, detail="Solo quien creó este entregable puede eliminarlo"
+        )
 
     db.query(Notificacion).filter(Notificacion.entregable_id == entregable_id).delete(
         synchronize_session=False
@@ -277,7 +295,7 @@ def actualizar_avance(
     """
     entregable = obtener_entregable_o_404(db, entregable_id)
 
-    if not puede_editar_entregable(db, usuario, entregable):
+    if not puede_actualizar_avance_entregable(db, usuario, entregable):
         raise HTTPException(
             status_code=403, detail="No tienes permiso para actualizar este entregable"
         )
@@ -451,6 +469,14 @@ def reasignar_entregable(
                 urgente=urgencia_combinada,
             )
         )
+        if urgencia_combinada:
+            enviar_push(
+                db,
+                nuevo_responsable_id,
+                "Tarea urgente asignada",
+                f'{usuario.nombre} te asignó "{entregable.nombre}" '
+                f"({_texto_dias_restantes(entregable.fecha_entrega)}).",
+            )
         nuevo_responsable = db.query(Usuario).filter(Usuario.id == nuevo_responsable_id).first()
         if nuevo_responsable:
             avisar_si_nunca_ha_entrado(db, nuevo_responsable, usuario, entregable.nombre)
@@ -472,11 +498,13 @@ async def agregar_comprobante(
 ) -> Entregable:
     """Adjunta (o reemplaza) la imagen de comprobante de un entregable
     (2026-08-21, a petición de Yue) -- mismo patrón que
-    app/services/notas.py::agregar_imagen_a_nota. Requiere poder editar el
-    entregable (puede_editar_entregable: N1/N2 del proyecto o el propio
-    responsable)."""
+    app/services/notas.py::agregar_imagen_a_nota. El comprobante es parte
+    del flujo de "marcar concluido" (2026-08-22, ver
+    puede_actualizar_avance_entregable), no de editar el entregable -- el
+    propio responsable debe poder subirlo aunque ya no pueda editar los
+    demás campos."""
     entregable = obtener_entregable_o_404(db, entregable_id)
-    if not puede_editar_entregable(db, usuario, entregable):
+    if not puede_actualizar_avance_entregable(db, usuario, entregable):
         raise HTTPException(
             status_code=403, detail="No tienes permiso para editar este entregable"
         )

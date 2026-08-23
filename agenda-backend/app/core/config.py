@@ -37,12 +37,14 @@ class Settings(BaseSettings):
 
     # Correo de aviso "nunca has entrado al sistema" (2026-08-21, a
     # petición de Yue: obligar a que todos en la organización usen la
-    # app) -- vía SMTP de Outlook/Office 365, con la cuenta real de la
-    # empresa. Si smtp_usuario/smtp_password quedan vacíos (default), el
-    # envío se simula (se registra en el log) en vez de fallar -- así el
-    # resto del sistema no depende de tener ya la cuenta remitente
-    # configurada. Ver app/services/email_cliente.py.
-    smtp_host: str = "smtp.office365.com"
+    # app) -- vía SMTP. Producción usará Outlook/Office 365 (pendiente de
+    # permisos de TI); el demo usa una cuenta de Gmail con contraseña de
+    # aplicación mientras tanto (ver .env.example). Si smtp_usuario/
+    # smtp_password quedan vacíos (default), el envío se simula (se
+    # registra en el log) en vez de fallar -- así el resto del sistema no
+    # depende de tener ya la cuenta remitente configurada.
+    # Ver app/services/email_cliente.py.
+    smtp_host: str = "smtp.gmail.com"
     smtp_puerto: int = 587
     smtp_usuario: str = ""
     smtp_password: str = ""
@@ -51,6 +53,21 @@ class Settings(BaseSettings):
     # el correo de aviso. Sin valor real todavía, hay que configurarlo
     # cuando se decida la URL pública definitiva.
     url_app: str = ""
+
+    # Notificaciones push del navegador (Web Push, VAPID) para entregables
+    # urgentes -- 2026-08-23, a petición de Yue: avisar aunque el celular
+    # esté con la pantalla apagada o la app cerrada, no solo con la
+    # notificación in-app. Par de llaves propio del proyecto (NO de un
+    # proveedor externo) -- se genera una sola vez con
+    # `vapid --gen` (paquete py-vapid) y no cambia después; si queda
+    # vacío, el envío se simula (mismo patrón que SMTP_USUARIO/PASSWORD).
+    # Ver app/services/push.py.
+    vapid_public_key: str = ""
+    vapid_private_key: str = ""
+    # Correo de contacto exigido por el estándar Web Push (va en el header
+    # `sub` del JWT VAPID) -- no se le manda nada, es solo para que el
+    # navegador/proveedor push tenga a quién contactar si hay abuso.
+    vapid_contact_email: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
