@@ -1186,7 +1186,12 @@
   align-items: center;
   justify-content: center;
   box-shadow: 0 4px 14px rgba(15, 36, 56, 0.35);
-  z-index: 120;
+  /* Por encima de CUALQUIER modal (createPortal a document.body,
+     z-index: 100) o el sidebar móvil (z-index: 200) -- 2026-08-23, a
+     petición de Yue: el asistente debe poder usarse (ej. para dictar un
+     campo) sin tener que cerrar el modal/ventana flotante que esté
+     abierto encima. */
+  z-index: 300;
 }
 
 /* Agenda Plan B (2026-08-20): pantalla �nica alterna, sin sidebar/topbar de
