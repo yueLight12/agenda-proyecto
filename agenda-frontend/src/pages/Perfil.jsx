@@ -20,13 +20,17 @@ import { etiquetaRol } from "../utils/rolLabels";
  */
 export default function Perfil() {
   const { usuarioId } = useParams();
-  const { usuario: usuarioActual } = useAuth();
+  const { usuario: usuarioActual, refrescarPerfil } = useAuth();
   const esPropio = !usuarioId;
 
   const [perfil, setPerfil] = useState(esPropio ? usuarioActual : null);
   const [cargando, setCargando] = useState(!esPropio);
   const [error, setError] = useState("");
   const [mostrarCambiarPassword, setMostrarCambiarPassword] = useState(false);
+  const [editandoTelefono, setEditandoTelefono] = useState(false);
+  const [telefonoInput, setTelefonoInput] = useState("");
+  const [guardandoTelefono, setGuardandoTelefono] = useState(false);
+  const [errorTelefono, setErrorTelefono] = useState("");
 
   useEffect(() => {
     if (esPropio) {
@@ -53,6 +57,27 @@ export default function Perfil() {
   if (error) return <p className="error-text">{error}</p>;
   if (!perfil) return null;
 
+  const iniciarEdicionTelefono = () => {
+    setTelefonoInput(perfil.telefono_whatsapp || "");
+    setErrorTelefono("");
+    setEditandoTelefono(true);
+  };
+
+  const guardarTelefono = async () => {
+    setGuardandoTelefono(true);
+    setErrorTelefono("");
+    try {
+      const actualizado = await usuariosApi.actualizarMiTelefono(telefonoInput.trim() || null);
+      setPerfil(actualizado);
+      await refrescarPerfil();
+      setEditandoTelefono(false);
+    } catch {
+      setErrorTelefono("No se pudo guardar el teléfono.");
+    } finally {
+      setGuardandoTelefono(false);
+    }
+  };
+
   return (
     <div className="stack">
       <h1>{esPropio ? "Mi perfil" : perfil.nombre}</h1>
@@ -69,6 +94,50 @@ export default function Perfil() {
         <div>
           <span style={{ fontSize: "0.8rem", color: "var(--color-text-muted)" }}>Email</span>
           <p style={{ margin: 0 }}>{perfil.email}</p>
+        </div>
+        <div>
+          <span style={{ fontSize: "0.8rem", color: "var(--color-text-muted)" }}>
+            Teléfono WhatsApp (avisos urgentes)
+          </span>
+          {esPropio && editandoTelefono ? (
+            <div className="stack" style={{ gap: 6, marginTop: 4 }}>
+              <input
+                type="tel"
+                className="input"
+                placeholder="+525512345678"
+                value={telefonoInput}
+                onChange={(e) => setTelefonoInput(e.target.value)}
+              />
+              {errorTelefono && <p className="error-text" style={{ margin: 0 }}>{errorTelefono}</p>}
+              <div className="list-inline">
+                <button
+                  className="btn btn--primary"
+                  type="button"
+                  disabled={guardandoTelefono}
+                  onClick={guardarTelefono}
+                >
+                  Guardar
+                </button>
+                <button
+                  className="btn btn--ghost"
+                  type="button"
+                  disabled={guardandoTelefono}
+                  onClick={() => setEditandoTelefono(false)}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="list-inline">
+              <p style={{ margin: 0 }}>{perfil.telefono_whatsapp || "—"}</p>
+              {esPropio && (
+                <button className="btn btn--ghost" type="button" onClick={iniciarEdicionTelefono}>
+                  Editar
+                </button>
+              )}
+            </div>
+          )}
         </div>
         {esPropio && (
           <button

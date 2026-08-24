@@ -43,6 +43,11 @@ class Usuario(Base):
     # cuando la persona SÍ inicia sesión (podría pasar mucho tiempo/varias
     # asignaciones antes de eso).
     aviso_acceso_enviado = Column(Boolean, default=False, nullable=False)
+    # Número de WhatsApp para notificaciones fuera de la app (2026-08-24,
+    # ver app/services/whatsapp.py) -- formato internacional completo, ej.
+    # "+525512345678". Nulo = esta persona no recibe avisos por WhatsApp
+    # (se omite el envío, no es error).
+    telefono_whatsapp = Column(String(30), nullable=True)
 
     roles_por_proyecto = relationship(
         "UsuarioProyectoRol",

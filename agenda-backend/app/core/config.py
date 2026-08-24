@@ -69,6 +69,20 @@ class Settings(BaseSettings):
     # navegador/proveedor push tenga a quién contactar si hay abuso.
     vapid_contact_email: str = ""
 
+    # Notificaciones por WhatsApp para entregables urgentes (2026-08-24, a
+    # petición de Yue: alcanzar también a quienes hoy usan WhatsApp y no
+    # instalan la app). DEMO vía Twilio WhatsApp Sandbox -- NO es la
+    # WhatsApp Business API definitiva, que requiere permisos de TI
+    # pendientes (ver CLAUDE.md sección 6). Mismo patrón que
+    # SMTP_USUARIO/VAPID_*: si faltan credenciales, el envío se SIMULA
+    # (se registra en el log) en vez de fallar. Ver app/services/whatsapp.py.
+    twilio_account_sid: str = ""
+    twilio_auth_token: str = ""
+    # Número sandbox de Twilio, con el prefijo "whatsapp:" que exige su API,
+    # ej. "whatsapp:+14155238886" (el mismo para todos los clientes en
+    # sandbox -- cada destinatario debe unirse una vez con su código "join").
+    twilio_whatsapp_from: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 

@@ -25,7 +25,13 @@ from app.database import get_db
 from app.dependencies import obtener_usuario_actual
 from app.models.usuario import RolEnum, Usuario
 from app.models.usuario_proyecto_rol import UsuarioProyectoRol
-from app.schemas.usuario import UsuarioActualizar, UsuarioConRolesOut, UsuarioCrear, UsuarioOut
+from app.schemas.usuario import (
+    MiTelefonoActualizar,
+    UsuarioActualizar,
+    UsuarioConRolesOut,
+    UsuarioCrear,
+    UsuarioOut,
+)
 from app.services.usuarios import (
     obtener_usuario_o_404,
     perfil_visible_a_out,
@@ -86,6 +92,22 @@ def crear_usuario(
     db.commit()
     db.refresh(nuevo)
     return nuevo
+
+
+@router.patch("/me", response_model=UsuarioOut)
+def actualizar_mi_telefono(
+    datos: MiTelefonoActualizar,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """A diferencia de PATCH /usuarios/{id} (solo dirección), esta ruta la
+    usa cualquier usuario para su PROPIO teléfono de WhatsApp (2026-08-24,
+    ver "Mi perfil" en el frontend) -- sin _requerir_n1, cada quien es
+    dueño de su propio dato de contacto."""
+    usuario.telefono_whatsapp = datos.telefono_whatsapp
+    db.commit()
+    db.refresh(usuario)
+    return usuario
 
 
 @router.get("/{usuario_id}/perfil", response_model=UsuarioConRolesOut)

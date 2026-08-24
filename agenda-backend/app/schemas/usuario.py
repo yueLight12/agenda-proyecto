@@ -13,6 +13,7 @@ class UsuarioBase(BaseModel):
     nombre: str
     puesto: Optional[str] = None
     email: EmailStr
+    telefono_whatsapp: Optional[str] = None
 
 
 class UsuarioCrear(UsuarioBase):
@@ -24,6 +25,14 @@ class UsuarioActualizar(BaseModel):
     puesto: Optional[str] = None
     activo: Optional[bool] = None
     password: Optional[str] = None
+
+
+class MiTelefonoActualizar(BaseModel):
+    """A diferencia de UsuarioActualizar (solo dirección), este campo lo
+    edita cualquier usuario sobre sí mismo -- ver PATCH /usuarios/me,
+    2026-08-24, necesario para notificaciones por WhatsApp."""
+
+    telefono_whatsapp: Optional[str] = None
 
 
 class UsuarioOut(UsuarioBase):

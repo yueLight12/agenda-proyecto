@@ -32,6 +32,7 @@ from app.services.almacenamiento import eliminar_imagen, guardar_imagen
 from app.services.avisos_acceso import avisar_si_nunca_ha_entrado
 from app.services.proyectos import es_lider_en_algun_tema
 from app.services.push import enviar_push
+from app.services.whatsapp import enviar_whatsapp
 
 # Días de anticipación para que un entregable sea "urgente" solo por
 # fecha, sin que nadie lo haya marcado a mano (2026-08-20, a petición del
@@ -182,6 +183,12 @@ def crear_entregable(
                 responsable_id,
                 "Tarea urgente asignada",
                 f'{usuario.nombre} te asignó "{nuevo.nombre}" ({_texto_dias_restantes(nuevo.fecha_entrega)}).',
+            )
+            enviar_whatsapp(
+                db,
+                responsable_id,
+                f'📌 {usuario.nombre} te asignó "{nuevo.nombre}" '
+                f"({_texto_dias_restantes(nuevo.fecha_entrega)}), {_texto_urgencia(True)}.",
             )
         responsable = db.query(Usuario).filter(Usuario.id == responsable_id).first()
         if responsable:
@@ -490,6 +497,12 @@ def reasignar_entregable(
                 "Tarea urgente asignada",
                 f'{usuario.nombre} te asignó "{entregable.nombre}" '
                 f"({_texto_dias_restantes(entregable.fecha_entrega)}).",
+            )
+            enviar_whatsapp(
+                db,
+                nuevo_responsable_id,
+                f'📌 {usuario.nombre} te asignó "{entregable.nombre}" '
+                f"({_texto_dias_restantes(entregable.fecha_entrega)}), {_texto_urgencia(True)}.",
             )
         nuevo_responsable = db.query(Usuario).filter(Usuario.id == nuevo_responsable_id).first()
         if nuevo_responsable:

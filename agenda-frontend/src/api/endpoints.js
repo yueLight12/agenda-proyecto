@@ -141,6 +141,8 @@ export const reunionesApi = {
 export const usuariosApi = {
   listar: async () => (await api.get("/usuarios")).data,
   perfil: async (usuarioId) => (await api.get(`/usuarios/${usuarioId}/perfil`)).data,
+  actualizarMiTelefono: async (telefonoWhatsapp) =>
+    (await api.patch("/usuarios/me", { telefono_whatsapp: telefonoWhatsapp })).data,
 };
 
 export const miEquipoApi = {
