@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { entregablesApi, miEquipoApi, proyectosApi, reunionesApi } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
 import Modal from "../components/Modal";
@@ -183,9 +184,9 @@ export default function AgendaPlanB() {
             Salir
           </button>
           {usuario && (
-            <span className="planb__avatar" aria-hidden="true">
+            <Link to="/perfil" className="planb__avatar" title="Mi perfil">
               {iniciales(usuario.nombre)}
-            </span>
+            </Link>
           )}
         </div>
       </div>
