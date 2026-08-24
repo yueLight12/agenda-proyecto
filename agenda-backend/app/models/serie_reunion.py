@@ -13,7 +13,7 @@ proyecto_id nullable, igual que Reunion -- puede ser una serie general.
 import enum
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, Date, DateTime, Enum, ForeignKey, Integer, String, Time
+from sqlalchemy import Boolean, Column, Date, DateTime, Enum, ForeignKey, Integer, String, Text, Time
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -31,6 +31,12 @@ class SerieReunion(Base):
     id = Column(Integer, primary_key=True, index=True)
     proyecto_id = Column(Integer, ForeignKey("proyectos.id"), nullable=True)
     titulo = Column(String(200), nullable=False)
+    # Nota/comentario libre sobre la serie (2026-08-25, a petición de Yue:
+    # el campo "Notas" del formulario desaparecía al elegir "Repetir" --
+    # Reunion.notas ya existía, esta columna es su equivalente para la
+    # serie. Se copia a cada ocurrencia materializada, ver
+    # app/services/materializar_series.py.
+    notas = Column(Text, nullable=True)
     organizador_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
     # Regla de recurrencia (2026-08-17, ampliado de "solo semanal" a
     # diaria/semanal/mensual -- ver app/services/materializar_series.py

@@ -72,6 +72,7 @@ def crear_serie(
         tipo_recurrencia=datos.tipo_recurrencia,
         dia_semana=datos.dia_semana,
         dia_mes=datos.dia_mes,
+        notas=datos.notas,
     )
     db.commit()
     db.refresh(nueva)

@@ -22,6 +22,7 @@ class ParticipanteSerieOut(BaseModel):
 class SerieReunionCrear(BaseModel):
     proyecto_id: Optional[int] = None
     titulo: str
+    notas: Optional[str] = None
     tipo_recurrencia: TipoRecurrencia = TipoRecurrencia.semanal
     dia_semana: Optional[int] = None  # requerido si tipo_recurrencia=semanal (0=lunes...6=domingo)
     dia_mes: Optional[int] = None  # requerido si tipo_recurrencia=mensual (1-31)
@@ -34,6 +35,7 @@ class SerieReunionCrear(BaseModel):
 
 class SerieReunionActualizar(BaseModel):
     titulo: Optional[str] = None
+    notas: Optional[str] = None
     # tipo_recurrencia NO es editable (no se puede cambiar de semanal a
     # mensual, ej. -- archivar y crear una serie nueva); dia_semana/dia_mes
     # sí, para poder mover "cada lunes" a "cada martes" sin recrear todo.
@@ -51,6 +53,7 @@ class SerieReunionOut(BaseModel):
     proyecto_id: Optional[int] = None
     proyecto_nombre: Optional[str] = None
     titulo: str
+    notas: Optional[str] = None
     organizador_id: int
     organizador_nombre: str
     tipo_recurrencia: TipoRecurrencia

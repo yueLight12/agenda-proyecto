@@ -70,7 +70,7 @@ export default function ModalReunion({
   const [serieActual, setSerieActual] = useState(serie);
 
   const [titulo, setTitulo] = useState(reunion?.titulo || serie?.titulo || "");
-  const [notas, setNotas] = useState(reunion?.notas || "");
+  const [notas, setNotas] = useState(reunion?.notas || serie?.notas || "");
   const [fecha, setFecha] = useState(
     fechaInicial || fechaHoraSugerida?.fecha || new Date().toISOString().slice(0, 10)
   );
@@ -139,6 +139,7 @@ export default function ModalReunion({
       if (esEdicionSerie) {
         const datos = {
           titulo,
+          notas: notas || null,
           hora: `${hora}:00`,
           duracion_minutos: Number(duracionMinutos),
           participantes_ids: participantesIds,
@@ -170,6 +171,7 @@ export default function ModalReunion({
         const nueva = await seriesReunionApi.crear({
           proyecto_id: proyectoId,
           titulo,
+          notas: notas || null,
           tipo_recurrencia: repetir,
           dia_semana: repetir === "semanal" ? diaSemanaDesdeFecha(fecha) : undefined,
           dia_mes: repetir === "mensual" ? Number(fecha.split("-")[2]) : undefined,
@@ -340,12 +342,10 @@ export default function ModalReunion({
               </label>
             )}
 
-            {!esEdicionSerie && repetir === "no" && (
-              <label className="stack" style={{ gap: 4 }}>
-                <span style={{ fontSize: "0.85rem" }}>Notas (opcional)</span>
-                <input className="input" value={notas} onChange={(e) => setNotas(e.target.value)} />
-              </label>
-            )}
+            <label className="stack" style={{ gap: 4 }}>
+              <span style={{ fontSize: "0.85rem" }}>Notas (opcional)</span>
+              <input className="input" value={notas} onChange={(e) => setNotas(e.target.value)} />
+            </label>
 
             {esEdicionSerie && (
               <label className="list-inline" style={{ borderBottom: "none", paddingBottom: 0 }}>

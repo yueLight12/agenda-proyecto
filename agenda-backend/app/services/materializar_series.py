@@ -97,6 +97,7 @@ def materializar_ocurrencias(db: Session, horizonte_dias: int = 14) -> int:
             nueva = Reunion(
                 proyecto_id=serie.proyecto_id,
                 titulo=serie.titulo,
+                notas=serie.notas,
                 fecha_inicio=fecha_inicio,
                 duracion_minutos=serie.duracion_minutos,
                 organizador_id=serie.organizador_id,

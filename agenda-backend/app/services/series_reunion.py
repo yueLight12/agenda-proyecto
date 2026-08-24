@@ -74,6 +74,7 @@ def serie_a_out(db: Session, usuario: Usuario, serie: SerieReunion) -> SerieReun
         proyecto_id=serie.proyecto_id,
         proyecto_nombre=serie.proyecto.nombre if serie.proyecto else None,
         titulo=serie.titulo,
+        notas=serie.notas,
         organizador_id=serie.organizador_id,
         organizador_nombre=serie.organizador.nombre,
         tipo_recurrencia=serie.tipo_recurrencia,
@@ -131,6 +132,7 @@ def crear_serie(
     tipo_recurrencia: TipoRecurrencia = TipoRecurrencia.semanal,
     dia_semana: int | None = None,
     dia_mes: int | None = None,
+    notas: str | None = None,
 ) -> SerieReunion:
     """Cualquier participante del tema puede proponer una serie -- mismo
     criterio que crear_reunion, no requiere N1/N2. `dia_semana` obligatorio
@@ -148,6 +150,7 @@ def crear_serie(
     nueva = SerieReunion(
         proyecto_id=proyecto_id,
         titulo=titulo,
+        notas=notas,
         organizador_id=usuario.id,
         tipo_recurrencia=tipo_recurrencia,
         dia_semana=dia_semana if tipo_recurrencia == TipoRecurrencia.semanal else None,
@@ -194,7 +197,10 @@ def actualizar_serie(db: Session, usuario: Usuario, serie_id: int, campos: dict)
     # cada ocurrencia futura (qué día cae, no solo a qué hora), mucho más
     # invasivo y fuera de lo pedido. Las ocurrencias que YA PASARON no se
     # tocan -- son historial, no plantilla.
-    if {"titulo", "hora", "duracion_minutos"} & campos_aplicados.keys() or participantes_ids is not None:
+    if (
+        {"titulo", "hora", "duracion_minutos", "notas"} & campos_aplicados.keys()
+        or participantes_ids is not None
+    ):
         ocurrencias_futuras = (
             db.query(Reunion)
             .filter(Reunion.serie_id == serie.id, Reunion.fecha_inicio > datetime.utcnow())
@@ -207,6 +213,8 @@ def actualizar_serie(db: Session, usuario: Usuario, serie_id: int, campos: dict)
                 ocurrencia.fecha_inicio = datetime.combine(ocurrencia.fecha_inicio.date(), serie.hora)
             if "duracion_minutos" in campos_aplicados:
                 ocurrencia.duracion_minutos = serie.duracion_minutos
+            if "notas" in campos_aplicados:
+                ocurrencia.notas = serie.notas
             if participantes_ids is not None:
                 db.query(ReunionParticipante).filter(
                     ReunionParticipante.reunion_id == ocurrencia.id
