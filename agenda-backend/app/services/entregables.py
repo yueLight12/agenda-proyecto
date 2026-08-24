@@ -9,6 +9,7 @@ from datetime import date, timedelta
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.permissions import (
     obtener_rol_en_proyecto,
     obtener_rol_local_en_proyecto,
@@ -100,6 +101,17 @@ def _texto_urgencia(urgente: bool) -> str:
     return "de carácter urgente" if urgente else "de carácter no urgente"
 
 
+def _sufijo_link_app() -> str:
+    """Línea con el link de la app para el mensaje de WhatsApp (2026-08-24,
+    a petición de Yue: mismo espíritu que el correo de "nunca has
+    entrado" -- ver avisos_acceso.py). Vacío si URL_APP no está
+    configurada, para no mandar un mensaje con "Entra aquí: " sin nada
+    después."""
+    if not settings.url_app:
+        return ""
+    return f"\nEntra aquí: {settings.url_app}"
+
+
 def _texto_dias_restantes(fecha_entrega: date) -> str:
     """Texto legible de cuánto falta/pasó para la fecha límite (2026-08-21,
     a petición de Yue para reformular el texto de las notificaciones de
@@ -188,7 +200,8 @@ def crear_entregable(
                 db,
                 responsable_id,
                 f'📌 {usuario.nombre} te asignó "{nuevo.nombre}" '
-                f"({_texto_dias_restantes(nuevo.fecha_entrega)}), {_texto_urgencia(True)}.",
+                f"({_texto_dias_restantes(nuevo.fecha_entrega)}), {_texto_urgencia(True)}."
+                + _sufijo_link_app(),
             )
         responsable = db.query(Usuario).filter(Usuario.id == responsable_id).first()
         if responsable:
@@ -502,7 +515,8 @@ def reasignar_entregable(
                 db,
                 nuevo_responsable_id,
                 f'📌 {usuario.nombre} te asignó "{entregable.nombre}" '
-                f"({_texto_dias_restantes(entregable.fecha_entrega)}), {_texto_urgencia(True)}.",
+                f"({_texto_dias_restantes(entregable.fecha_entrega)}), {_texto_urgencia(True)}."
+                + _sufijo_link_app(),
             )
         nuevo_responsable = db.query(Usuario).filter(Usuario.id == nuevo_responsable_id).first()
         if nuevo_responsable:
