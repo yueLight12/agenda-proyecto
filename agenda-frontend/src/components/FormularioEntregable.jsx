@@ -382,7 +382,7 @@ export default function FormularioEntregable({
           Asignado por: {creador.nombre}
         </p>
       )}
-      <form className="stack" onSubmit={handleSubmit}>
+      <form id="form-entregable" className="stack" onSubmit={handleSubmit}>
         <label className="stack" style={{ gap: 4 }}>
           <span style={{ fontSize: "0.85rem" }}>Nombre</span>
           <input
@@ -561,25 +561,6 @@ export default function FormularioEntregable({
         )}
 
         {error && <p className="error-text">{error}</p>}
-
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-          {esEdicion && puedeAsignarAOtros ? (
-            <button
-              type="button"
-              className="btn btn--ghost"
-              onClick={() => setConfirmandoEliminar(true)}
-              disabled={eliminando}
-              style={{ color: "var(--color-danger)" }}
-            >
-              {eliminando ? "Eliminando..." : "Eliminar"}
-            </button>
-          ) : (
-            <span />
-          )}
-          <button className="btn btn--primary" type="submit" disabled={guardando}>
-            {guardando ? "Guardando..." : esEdicion ? "Guardar cambios" : "Crear entregable"}
-          </button>
-        </div>
       </form>
 
       {confirmandoEliminar && (
@@ -620,6 +601,36 @@ export default function FormularioEntregable({
           />
         </div>
       )}
+
+      {/* Eliminar/Guardar cambios movidos al final de TODO el modal
+          (2026-08-23, a petición de Yue) -- antes quedaban justo después
+          de los campos del formulario, "en medio" de la pantalla con el
+          histórico y los comentarios debajo. `form="form-entregable"`
+          conecta el botón submit al <form> de más arriba aunque ya no
+          esté anidado dentro de él. */}
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 16 }}>
+        {esEdicion && puedeAsignarAOtros ? (
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={() => setConfirmandoEliminar(true)}
+            disabled={eliminando}
+            style={{ color: "var(--color-danger)" }}
+          >
+            {eliminando ? "Eliminando..." : "Eliminar"}
+          </button>
+        ) : (
+          <span />
+        )}
+        <button
+          className="btn btn--primary"
+          type="submit"
+          form="form-entregable"
+          disabled={guardando}
+        >
+          {guardando ? "Guardando..." : esEdicion ? "Guardar cambios" : "Crear entregable"}
+        </button>
+      </div>
     </Modal>
   );
 }
