@@ -2218,3 +2218,18 @@ button.planb__misemana-fila {
   color: var(--pb2-text-muted, var(--color-text-muted));
   text-transform: capitalize;
 }
+
+/* Encabezado de día dentro de "Mis tareas" / "Mis tareas asignadas"
+   (2026-08-24, a petición de Yue: agrupar por día y, dentro de cada día,
+   los urgentes primero -- ver agruparPorDiaYUrgencia en MiSemana.jsx). */
+.planb__misemana-grupo-dia + .planb__misemana-grupo-dia {
+  margin-top: var(--space-2);
+}
+
+.planb__misemana-dia {
+  margin: 0 0 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--pb2-text-muted, var(--color-text-muted));
+  text-transform: capitalize;
+}

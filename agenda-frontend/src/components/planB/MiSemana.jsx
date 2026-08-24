@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { entregablesApi, proyectosApi, reunionesApi } from "../../api/endpoints";
 import { useAuth } from "../../context/AuthContext";
 import { fechaLocal } from "../../utils/fechas";
+import BadgeUrgente from "../BadgeUrgente";
 
 // Vista "Mi semana" de Agenda Plan B (2026-08-22, a petición de Yue: al
 // hacer clic en la tarjeta activa de SelectorSemanaDestacado, en vez del
@@ -14,6 +15,30 @@ import { fechaLocal } from "../../utils/fechas";
 // "personal" que ahí ya existe (responsable_id / organizador_id /
 // participantes), para no duplicar la regla de qué es "mío" -- solo se le
 // agrega el filtro de rango de fechas de la semana.
+// Agrupa una lista de entregables por día de entrega y, dentro de cada día,
+// pone primero los urgentes (2026-08-24, a petición de Yue: "por dia y por
+// prioridad" en Mis tareas) -- "prioridad" aquí es el campo real `urgente`
+// que ya calcula el backend (es_urgente), no un nivel inventado (ver nota
+// en app.css sobre por qué Plan B no inventa niveles de prioridad).
+function agruparPorDiaYUrgencia(lista) {
+  const ordenada = [...lista].sort((a, b) => {
+    const porFecha = a.fecha_entrega.localeCompare(b.fecha_entrega);
+    if (porFecha !== 0) return porFecha;
+    if (a.urgente !== b.urgente) return a.urgente ? -1 : 1;
+    return a.nombre.localeCompare(b.nombre);
+  });
+  const grupos = [];
+  for (const e of ordenada) {
+    const ultimo = grupos[grupos.length - 1];
+    if (ultimo && ultimo.fecha_entrega === e.fecha_entrega) {
+      ultimo.items.push(e);
+    } else {
+      grupos.push({ fecha_entrega: e.fecha_entrega, items: [e] });
+    }
+  }
+  return grupos;
+}
+
 export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) {
   const { usuario } = useAuth();
   const [entregables, setEntregables] = useState([]);
@@ -63,9 +88,8 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
     return f >= semana.inicio && f <= finInclusive;
   });
 
-  const tareas = entregablesDeLaSemana
-    .filter((e) => e.responsable_id === usuario?.id)
-    .sort((a, b) => a.fecha_entrega.localeCompare(b.fecha_entrega));
+  const tareas = entregablesDeLaSemana.filter((e) => e.responsable_id === usuario?.id);
+  const gruposTareas = agruparPorDiaYUrgencia(tareas);
 
   // Tareas que YO asigné a alguien más (2026-08-24, a petición de Yue: que
   // Bernardo vea abajo de "Mis tareas" lo que le asignó a David, por
@@ -73,9 +97,10 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
   // reasignar (ver Entregable.creado_por), así que sigue siendo "lo que
   // asigné" aunque después se le haya cambiado el responsable a alguien
   // más. Se excluye lo que me asigné a mí mismo -- eso ya está arriba.
-  const asignadas = entregablesDeLaSemana
-    .filter((e) => e.creado_por === usuario?.id && e.responsable_id !== usuario?.id)
-    .sort((a, b) => a.fecha_entrega.localeCompare(b.fecha_entrega));
+  const asignadas = entregablesDeLaSemana.filter(
+    (e) => e.creado_por === usuario?.id && e.responsable_id !== usuario?.id
+  );
+  const gruposAsignadas = agruparPorDiaYUrgencia(asignadas);
 
   const agenda = reuniones
     .filter(
@@ -96,24 +121,29 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
         {tareas.length === 0 ? (
           <p className="planb__misemana-vacio">Sin tareas con fecha esta semana.</p>
         ) : (
-          <div className="stack" style={{ gap: 6 }}>
-            {tareas.map((e) => (
-              <button
-                key={e.id}
-                type="button"
-                className="planb__misemana-fila"
-                onClick={() => onAbrirEntregable?.(e.proyecto_id, e.id)}
-              >
-                <span className="planb__misemana-fila-titulo">{e.nombre}</span>
-                <span className="planb__misemana-fila-fecha">
-                  {fechaLocal(e.fecha_entrega).toLocaleDateString("es-MX", {
-                    weekday: "short",
-                    day: "numeric",
-                  })}
-                </span>
-              </button>
-            ))}
-          </div>
+          gruposTareas.map((grupo) => (
+            <div key={grupo.fecha_entrega} className="planb__misemana-grupo-dia">
+              <p className="planb__misemana-dia">
+                {fechaLocal(grupo.fecha_entrega).toLocaleDateString("es-MX", {
+                  weekday: "long",
+                  day: "numeric",
+                })}
+              </p>
+              <div className="stack" style={{ gap: 6 }}>
+                {grupo.items.map((e) => (
+                  <button
+                    key={e.id}
+                    type="button"
+                    className="planb__misemana-fila"
+                    onClick={() => onAbrirEntregable?.(e.proyecto_id, e.id)}
+                  >
+                    {e.urgente && <BadgeUrgente urgente={e.urgente} />}
+                    <span className="planb__misemana-fila-titulo">{e.nombre}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))
         )}
 
         {/* Tareas que asigné a alguien más, separadas abajo con acento
@@ -123,26 +153,34 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
         {asignadas.length === 0 ? (
           <p className="planb__misemana-vacio">Sin tareas asignadas por ti esta semana.</p>
         ) : (
-          <div className="stack" style={{ gap: 6 }}>
-            {asignadas.map((e) => (
-              <button
-                key={e.id}
-                type="button"
-                className="planb__misemana-fila planb__misemana-fila--asignada"
-                onClick={() => onAbrirEntregable?.(e.proyecto_id, e.id)}
-              >
-                <span className="planb__misemana-fila-titulo">
-                  {e.nombre} <span className="planb__misemana-fila-responsable">— {e.responsable_nombre}</span>
-                </span>
-                <span className="planb__misemana-fila-fecha">
-                  {fechaLocal(e.fecha_entrega).toLocaleDateString("es-MX", {
-                    weekday: "short",
-                    day: "numeric",
-                  })}
-                </span>
-              </button>
-            ))}
-          </div>
+          gruposAsignadas.map((grupo) => (
+            <div key={grupo.fecha_entrega} className="planb__misemana-grupo-dia">
+              <p className="planb__misemana-dia">
+                {fechaLocal(grupo.fecha_entrega).toLocaleDateString("es-MX", {
+                  weekday: "long",
+                  day: "numeric",
+                })}
+              </p>
+              <div className="stack" style={{ gap: 6 }}>
+                {grupo.items.map((e) => (
+                  <button
+                    key={e.id}
+                    type="button"
+                    className="planb__misemana-fila planb__misemana-fila--asignada"
+                    onClick={() => onAbrirEntregable?.(e.proyecto_id, e.id)}
+                  >
+                    {e.urgente && <BadgeUrgente urgente={e.urgente} />}
+                    <span className="planb__misemana-fila-titulo">
+                      {e.nombre}{" "}
+                      <span className="planb__misemana-fila-responsable">
+                        — {e.responsable_nombre}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))
         )}
       </div>
 
