@@ -153,13 +153,13 @@ export default function Perfil() {
 
       <div className="card">
         <h3 style={{ fontSize: "0.95rem", margin: "0 0 8px" }}>
-          {esPropio ? "Tus temas y roles" : "Temas y roles en común"}
+          {esPropio ? "Tus proyectos y roles" : "Proyectos y roles en común"}
         </h3>
         {(!perfil.roles_por_proyecto || perfil.roles_por_proyecto.length === 0) && (
           <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
             {esPropio
-              ? "Todavía no participas en ningún tema."
-              : "No hay temas en común visibles para ti."}
+              ? "Todavía no participas en ningún proyecto."
+              : "No hay proyectos en común visibles para ti."}
           </p>
         )}
         {perfil.roles_por_proyecto?.map((r) => (

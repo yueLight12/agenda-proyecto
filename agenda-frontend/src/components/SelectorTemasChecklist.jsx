@@ -131,7 +131,7 @@ export default function SelectorTemasChecklist({
         setSeleccionados(new Set(inicial));
         if (oculto && arranqueVacio && inicial.length > 0) guardar(new Set(inicial));
       })
-      .catch(() => setError("No se pudo cargar la lista de temas."))
+      .catch(() => setError("No se pudo cargar la lista de proyectos."))
       .finally(() => setCargando(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -144,7 +144,7 @@ export default function SelectorTemasChecklist({
       else await reunionesApi.actualizarTemas(reunionId, Array.from(idsAGuardar));
       await onGuardado();
     } catch {
-      setError("No se pudieron guardar los temas de esta junta.");
+      setError("No se pudieron guardar los proyectos de esta junta.");
     } finally {
       setGuardando(false);
     }
@@ -169,14 +169,14 @@ export default function SelectorTemasChecklist({
     <div className="stack" style={{ gap: 10 }}>
       {!inline && (
         <p style={{ fontSize: "0.85rem", color: "var(--color-text-muted)", margin: 0 }}>
-          Elige qué temas cubre esta junta — marcar un tema incluye también sus subtemas.
+          Elige qué proyectos cubre esta junta — marcar un proyecto incluye también sus subtemas.
         </p>
       )}
       {cargando ? (
-        <p style={{ fontSize: "0.85rem" }}>Cargando temas...</p>
+        <p style={{ fontSize: "0.85rem" }}>Cargando proyectos...</p>
       ) : raices.length === 0 ? (
         <p style={{ fontSize: "0.85rem", color: "var(--color-text-muted)" }}>
-          Ningún tema en común entre quien organiza y los invitados todavía.
+          Ningún proyecto en común entre quien organiza y los invitados todavía.
         </p>
       ) : (
         <div className="stack" style={{ gap: 2, maxHeight: inline ? "none" : 360, overflowY: inline ? "visible" : "auto" }}>
@@ -217,7 +217,7 @@ export default function SelectorTemasChecklist({
 
   if (inline) return contenido;
   return (
-    <Modal titulo="Temas de esta junta" onCerrar={onCerrar}>
+    <Modal titulo="Proyectos de esta junta" onCerrar={onCerrar}>
       {contenido}
     </Modal>
   );

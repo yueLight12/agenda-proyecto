@@ -97,7 +97,7 @@ verificó algo.
 - ✅ Fase 0/1/2/3 del MVP: modelos, auth, permisos por proyecto, entregables con histórico, notificaciones, dashboard ejecutivo, calendario, Kanban, "Mi equipo", chatbot local (Ollama), reuniones/minutas/acuerdos, app móvil (PWA).
 - ✅ Asistente de voz — Milestones A/B/C completos: transcripción, catálogo de acciones (crear/editar/eliminar entregables/proyectos/reuniones/acuerdos, roles, "Mi equipo"), consultas por voz, texto-a-voz + modo manos-libres. Principio confirmado: el asistente debe poder hacer todo lo que la UI puede hacer.
 - ✅ Motor de LLM configurable Ollama↔Gemini, con seudonimización de nombres reales antes de mandarlos a Gemini (protege lo estructurado, no prosa libre).
-- ✅ Jerarquía arbitraria de temas/subtemas (`Proyecto.parent_id`), terminología "tema" en toda la UI (el modelo/API interno sigue siendo `Proyecto`).
+- ✅ Jerarquía arbitraria de temas/subtemas (`Proyecto.parent_id`); el modelo/API interno sigue siendo `Proyecto`. La terminología visible en la UI volvió a "proyecto" (2026-08-24, a petición de Yue, revirtiendo la decisión anterior de decir "tema") — "subtema" se conserva para referirse a un proyecto hijo dentro de la jerarquía.
 - ✅ Migración a Alembic (2026-08-17 en adelante) — ya no se usan scripts sueltos de `ALTER TABLE`.
 - ✅ Reuniones recurrentes (`SerieReunion`) + checklist de agenda persistente (`AgendaItem`/`AgendaItemRevision`), agrupado por sección/tema, con auto-siembra de entregables/notas/pendientes al marcar un tema.
 - ✅ "Mi perfil" (propio y de un subordinado, de solo lectura).

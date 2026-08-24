@@ -12,8 +12,8 @@ export default function ModalEquipo({
   miembros,
   entregables = [],
   reuniones = [],
-  titulo = "Administrar equipo del tema",
-  // Rol efectivo de QUIEN ESTÁ VIENDO este modal en este tema (N1/N2, local
+  titulo = "Administrar equipo del proyecto",
+  // Rol efectivo de QUIEN ESTÁ VIENDO este modal en este proyecto (N1/N2, local
   // o heredado) -- decide de dónde sale la lista de "a quién puedo agregar"
   // (Yue, 2026-08-17: "un N2 solo debería poder administrar/asignar su
   // equipo"). Dirección (N1) sigue viendo el directorio completo de la
@@ -183,7 +183,7 @@ export default function ModalEquipo({
           </label>
 
           <label className="stack" style={{ gap: 4 }}>
-            <span style={{ fontSize: "0.85rem" }}>Rol en este tema</span>
+            <span style={{ fontSize: "0.85rem" }}>Rol en este proyecto</span>
             <select className="input" value={rol} onChange={(e) => setRol(e.target.value)}>
               {ROLES.map((r) => (
                 <option key={r} value={r}>
@@ -224,8 +224,8 @@ export default function ModalEquipo({
 
       {confirmandoQuitar !== null && (
         <ConfirmDialog
-          titulo="Quitar del tema"
-          mensaje="¿Quitar a este usuario del tema?"
+          titulo="Quitar del proyecto"
+          mensaje="¿Quitar a este usuario del proyecto?"
           textoConfirmar={quitando ? "Quitando..." : "Quitar"}
           onConfirmar={confirmarQuitar}
           onCancelar={() => setConfirmandoQuitar(null)}

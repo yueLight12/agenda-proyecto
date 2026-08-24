@@ -351,7 +351,7 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
             <p style={{ color: "var(--color-text-muted)", fontSize: "0.9rem" }}>
               Dicta lo que quieres hacer, por ejemplo: "crea un entregable para David, el informe de
               ventas, para el viernes", "agrega a Diana a la reunión con David" o "¿cómo va el
-              avance del tema Cubo?".
+              avance del proyecto Cubo?".
             </p>
             {errorMic && <p className="error-text">{errorMic}</p>}
             <button

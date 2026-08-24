@@ -120,7 +120,7 @@ export default function TableroProyecto() {
           setSearchParams({}, { replace: true });
         }
       })
-      .catch(() => setError("No se pudo cargar el tema. Intenta de nuevo más tarde."))
+      .catch(() => setError("No se pudo cargar el proyecto. Intenta de nuevo más tarde."))
       .finally(() => setCargando(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [proyectoId]);
@@ -174,13 +174,13 @@ export default function TableroProyecto() {
       const destino = ancestros.length > 0 ? `/proyectos/${ancestros[ancestros.length - 1].id}` : "/";
       navigate(destino);
     } catch (err) {
-      setErrorEliminarTema(err.response?.data?.detail || "No se pudo eliminar este tema.");
+      setErrorEliminarTema(err.response?.data?.detail || "No se pudo eliminar este proyecto.");
       setEliminandoTema(false);
       setConfirmandoEliminarTema(false);
     }
   };
 
-  if (cargando) return <p>Cargando tema...</p>;
+  if (cargando) return <p>Cargando proyecto...</p>;
   if (error) return <p className="error-text">{error}</p>;
 
   return (
@@ -205,7 +205,7 @@ export default function TableroProyecto() {
           )}
           {puedeAdministrar && (
             <button className="btn btn--ghost" onClick={() => setModalEditarTema(true)}>
-              Editar tema
+              Editar proyecto
             </button>
           )}
           {puedeAdministrar && ancestros.length > 0 && (
@@ -214,7 +214,7 @@ export default function TableroProyecto() {
               style={{ color: "var(--color-danger)" }}
               onClick={abrirConfirmarEliminarTema}
             >
-              Eliminar tema
+              Eliminar proyecto
             </button>
           )}
           <button className="btn btn--primary" onClick={() => setModalEntregable("nuevo")}>
@@ -232,7 +232,7 @@ export default function TableroProyecto() {
           </div>
           {subtemas.length === 0 && (
             <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
-              Este tema todavía no tiene subtemas.
+              Este proyecto todavía no tiene subtemas.
             </p>
           )}
           {subtemas.length > 0 && (
@@ -283,7 +283,7 @@ export default function TableroProyecto() {
         </div>
         {reuniones.length === 0 && (
           <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
-            No tienes reuniones agendadas en este tema.
+            No tienes reuniones agendadas en este proyecto.
           </p>
         )}
         {[...reuniones]
@@ -444,7 +444,7 @@ export default function TableroProyecto() {
             {entregables.length === 0 && (
               <tr>
                 <td colSpan={5} style={{ color: "var(--color-text-muted)" }}>
-                  No hay entregables visibles para ti en este tema todavía.
+                  No hay entregables visibles para ti en este proyecto todavía.
                 </td>
               </tr>
             )}
@@ -521,11 +521,11 @@ export default function TableroProyecto() {
 
       {confirmandoEliminarTema && (
         <ConfirmDialog
-          titulo="Eliminar tema"
+          titulo="Eliminar proyecto"
           mensaje={
             resumenEliminarTema && resumenEliminarTema.total_subtemas > 0
               ? `¿Eliminar "${proyecto?.nombre}"? Esto también borra ${resumenEliminarTema.total_subtemas} subtema(s), ${resumenEliminarTema.total_entregables} entregable(s) y ${resumenEliminarTema.total_reuniones} reunión(es) de todo su subárbol. Esta acción no se puede deshacer.`
-              : `¿Eliminar el tema "${proyecto?.nombre}"? Esto borra también su equipo, entregables y reuniones. Esta acción no se puede deshacer.`
+              : `¿Eliminar el proyecto "${proyecto?.nombre}"? Esto borra también su equipo, entregables y reuniones. Esta acción no se puede deshacer.`
           }
           textoConfirmar={eliminandoTema ? "Eliminando..." : "Eliminar"}
           onConfirmar={confirmarEliminarTema}

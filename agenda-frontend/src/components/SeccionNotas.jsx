@@ -249,7 +249,7 @@ export default function SeccionNotas({
             value={reutilizarId}
             onChange={(e) => handleReutilizar(e.target.value)}
           >
-            <option value="">Reutilizar una nota o pendiente ya escrito en este tema...</option>
+            <option value="">Reutilizar una nota o pendiente ya escrito en este proyecto...</option>
             {opcionesReutilizar.map((o) => (
               <option key={o.clave} value={o.clave}>
                 {o.etiqueta}

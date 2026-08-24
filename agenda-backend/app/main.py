@@ -93,6 +93,7 @@ app.include_router(chatbot.router)
 app.include_router(asistente.router)
 app.include_router(series_reunion.router)
 app.include_router(eventos_tiempo_real.router)
+# app.include_router(integraciones.router)  # INACTIVO 2026-08-24, ver app/routers/integraciones.py
 
 
 def _ejecutar_barrido_recordatorios():

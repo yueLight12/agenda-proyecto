@@ -8,7 +8,7 @@ export default function Breadcrumb({ ancestros, actual }) {
 
   return (
     <nav
-      aria-label="Ruta de temas"
+      aria-label="Ruta de proyectos"
       style={{ fontSize: "0.85rem", color: "var(--color-text-muted)", display: "flex", flexWrap: "wrap", gap: 4 }}
     >
       {ancestros.map((a) => (

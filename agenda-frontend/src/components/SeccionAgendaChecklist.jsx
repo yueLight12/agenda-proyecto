@@ -150,7 +150,7 @@ export default function SeccionAgendaChecklist({ serieId = null, reunionId = nul
       setTemaFaltanteId("");
       await cargarAgenda();
     } catch (err) {
-      setErrorTema(err.response?.data?.detail || "No se pudo agregar el tema.");
+      setErrorTema(err.response?.data?.detail || "No se pudo agregar el proyecto.");
     } finally {
       setAgregandoTema(false);
     }
@@ -234,15 +234,15 @@ export default function SeccionAgendaChecklist({ serieId = null, reunionId = nul
     <div className="stack" style={{ borderTop: "1px solid var(--color-border)", paddingTop: 12 }}>
       <h3 style={{ fontSize: "0.9rem", margin: 0 }}>Agenda de esta {serieId ? "junta" : "reunión"}</h3>
       <p style={{ color: "var(--color-text-muted)", fontSize: "0.78rem", margin: 0 }}>
-        Se llena sola con los temas de esta junta — entregables próximos, notas y pendientes.
-        Usa "Quitar" en un tema si no aplica a esta reunión. Lo que no se revise sigue
+        Se llena sola con los proyectos de esta junta — entregables próximos, notas y pendientes.
+        Usa "Quitar" en un proyecto si no aplica a esta reunión. Lo que no se revise sigue
         pendiente la próxima vez.
       </p>
 
       {cargandoAgenda && <p style={{ fontSize: "0.85rem" }}>Cargando...</p>}
       {!cargandoAgenda && agenda.length === 0 && (
         <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
-          Todavía no hay temas en común entre quien organiza y los invitados.
+          Todavía no hay proyectos en común entre quien organiza y los invitados.
         </p>
       )}
 
@@ -382,7 +382,7 @@ export default function SeccionAgendaChecklist({ serieId = null, reunionId = nul
             onChange={(e) => setTemaFaltanteId(e.target.value)}
             style={{ fontSize: "0.8rem" }}
           >
-            <option value="">Agregar un tema a esta agenda...</option>
+            <option value="">Agregar un proyecto a esta agenda...</option>
             {temasFaltantes.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.ruta}

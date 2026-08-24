@@ -136,7 +136,7 @@ function NodoSeccion({ grupo, hijosPorPadre, reunionId, onCambio, expandidos, on
             style={{ padding: "0 4px", fontSize: "0.7rem" }}
             onClick={() => onToggle(grupo.id)}
             aria-expanded={abierto}
-            aria-label={abierto ? "Colapsar tema" : "Expandir tema"}
+            aria-label={abierto ? "Colapsar proyecto" : "Expandir proyecto"}
           >
             {abierto ? "▼" : "▶"}
           </button>

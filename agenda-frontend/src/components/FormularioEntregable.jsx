@@ -224,7 +224,7 @@ export default function FormularioEntregable({
         <div className="stack" style={{ gap: 12 }}>
           {proyectoNombre && (
             <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem", margin: 0 }}>
-              Tema: {proyectoNombre}
+              Proyecto: {proyectoNombre}
             </p>
           )}
 
@@ -315,7 +315,7 @@ export default function FormularioEntregable({
         <div className="stack" style={{ gap: 12 }}>
           {proyectoNombre && (
             <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem", margin: 0 }}>
-              Tema: {proyectoNombre}
+              Proyecto: {proyectoNombre}
             </p>
           )}
 
@@ -374,7 +374,7 @@ export default function FormularioEntregable({
     <Modal titulo={esEdicion ? "Editar entregable" : "Nuevo entregable"} onCerrar={onCerrar}>
       {esEdicion && proyectoNombre && (
         <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem", marginTop: 0 }}>
-          Tema: {proyectoNombre}
+          Proyecto: {proyectoNombre}
         </p>
       )}
       {esEdicion && creador && (
@@ -440,7 +440,7 @@ export default function FormularioEntregable({
                 style={{ flex: 1 }}
               >
                 <option value="">Selecciona una persona...</option>
-                <optgroup label="Este tema">
+                <optgroup label="Este proyecto">
                   {miembros
                     .filter((m) => m.usuario_id !== entregable.responsable_id)
                     .map((m) => (

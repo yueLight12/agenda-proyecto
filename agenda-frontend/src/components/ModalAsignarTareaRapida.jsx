@@ -32,6 +32,7 @@ export default function ModalAsignarTareaRapida({ equipo, personaInicialId, onCe
   const [nombre, setNombre] = useState("");
   const [fechaEntrega, setFechaEntrega] = useState("");
   const [urgenteManual, setUrgenteManual] = useState(false);
+  const [requiereComprobante, setRequiereComprobante] = useState(false);
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
 
@@ -63,6 +64,7 @@ export default function ModalAsignarTareaRapida({ equipo, personaInicialId, onCe
         fecha_entrega: fechaEntrega,
         sensible: false,
         urgente_manual: urgenteManual,
+        requiere_comprobante: requiereComprobante,
       });
       onCreado();
     } catch (err) {
@@ -102,13 +104,13 @@ export default function ModalAsignarTareaRapida({ equipo, personaInicialId, onCe
 
         {personaId && (
           <label className="stack" style={{ gap: 4 }}>
-            <span style={{ fontSize: "0.85rem" }}>Tema (opcional)</span>
+            <span style={{ fontSize: "0.85rem" }}>Proyecto (opcional)</span>
             <select
               className="input"
               value={proyectoId}
               onChange={(e) => setProyectoId(e.target.value)}
             >
-              <option value="">Sin tema (tareas sueltas)</option>
+              <option value="">Sin proyecto (tareas sueltas)</option>
               {proyectosDisponibles.map((p) => (
                 <option key={p.proyecto_id} value={p.proyecto_id}>
                   {p.proyecto_nombre}
@@ -146,6 +148,17 @@ export default function ModalAsignarTareaRapida({ equipo, personaInicialId, onCe
             onChange={(e) => setUrgenteManual(e.target.checked)}
           />
           <span style={{ fontSize: "0.85rem" }}>Marcar como urgente</span>
+        </label>
+
+        <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <input
+            type="checkbox"
+            checked={requiereComprobante}
+            onChange={(e) => setRequiereComprobante(e.target.checked)}
+          />
+          <span style={{ fontSize: "0.85rem" }}>
+            Requiere comprobante (una imagen) para poder marcarse como completado
+          </span>
         </label>
 
         {error && <p className="error-text">{error}</p>}

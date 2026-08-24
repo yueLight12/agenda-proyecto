@@ -49,6 +49,22 @@ class Settings(BaseSettings):
     smtp_usuario: str = ""
     smtp_password: str = ""
     smtp_nombre_remitente: str = "Agenda Inteligente"
+
+    # INACTIVO desde 2026-08-24: envío de correo vía Power Automate Cloud,
+    # pensado para mandar desde el Outlook corporativo sin permisos de TI.
+    # El conector Office 365 Outlook de Power Automate falló al conectar
+    # ("Failed to create OAuth connection") -- bloqueado por política de
+    # la organización, pendiente de que TI lo habilite. Se deja la
+    # variable y el código comentado en app/services/email_cliente.py.
+    # power_automate_webhook_url_correo: str = ""
+
+    # INACTIVO desde 2026-08-24: envío vía Power Automate Desktop (Outlook
+    # de escritorio + bandeja de salida en la BD). Pausado por un problema
+    # de Outlook de escritorio en la laptop de Yue antes de terminar la
+    # prueba. Esta clave sería la que el flujo de escritorio manda en el
+    # header X-Api-Key -- ver app/routers/integraciones.py.
+    # integracion_correo_api_key: str = ""
+
     # URL donde la persona entra a usar el sistema (web) -- se incluye en
     # el correo de aviso. Sin valor real todavía, hay que configurarlo
     # cuando se decida la URL pública definitiva.

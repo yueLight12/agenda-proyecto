@@ -57,7 +57,7 @@ export default function ModalEditarProyecto({ proyecto = null, parentId = null, 
       }
       await onGuardado();
     } catch (err) {
-      setError(err.response?.data?.detail || "No se pudo guardar el tema.");
+      setError(err.response?.data?.detail || "No se pudo guardar el proyecto.");
     } finally {
       setGuardando(false);
     }
@@ -65,12 +65,12 @@ export default function ModalEditarProyecto({ proyecto = null, parentId = null, 
 
   return (
     <Modal
-      titulo={esEdicion ? "Editar tema" : parentId ? "Nuevo subtema" : "Crear tema"}
+      titulo={esEdicion ? "Editar proyecto" : parentId ? "Nuevo subtema" : "Crear proyecto"}
       onCerrar={onCerrar}
     >
       <form className="stack" onSubmit={handleGuardar}>
         <label className="stack" style={{ gap: 4 }}>
-          <span style={{ fontSize: "0.85rem" }}>Nombre del tema</span>
+          <span style={{ fontSize: "0.85rem" }}>Nombre del proyecto</span>
           <input
             className="input"
             value={nombre}
@@ -88,7 +88,7 @@ export default function ModalEditarProyecto({ proyecto = null, parentId = null, 
         </label>
         {esEdicion && (
           <label className="list-inline" style={{ borderBottom: "none", paddingBottom: 0 }}>
-            <span style={{ fontSize: "0.85rem" }}>Tema activo</span>
+            <span style={{ fontSize: "0.85rem" }}>Proyecto activo</span>
             <input
               type="checkbox"
               checked={activo}

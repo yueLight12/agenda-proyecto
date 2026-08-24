@@ -11,7 +11,7 @@ import { IconoAgenda, IconoPersona, IconoProyecto, IconoTarea } from "./IconosPl
 // (IconosPlanB.jsx), no una librería nueva.
 const TARJETAS = [
   { tipo: "tarea", Icono: IconoTarea, titulo: "Tarea", texto: "Asignar una tarea a alguien de tu equipo." },
-  { tipo: "proyecto", Icono: IconoProyecto, titulo: "Proyecto", texto: "Crear un tema nuevo, para ti o para tu equipo." },
+  { tipo: "proyecto", Icono: IconoProyecto, titulo: "Proyecto", texto: "Crear un proyecto nuevo, para ti o para tu equipo." },
   { tipo: "persona", Icono: IconoPersona, titulo: "Persona", texto: "Elegir a alguien y asignarle una tarea." },
   { tipo: "agenda", Icono: IconoAgenda, titulo: "Agenda (calendario)", texto: "Ver y reprogramar el calendario." },
 ];

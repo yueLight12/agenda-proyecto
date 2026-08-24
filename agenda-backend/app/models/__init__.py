@@ -18,3 +18,4 @@ from app.models.serie_reunion import SerieReunion, SerieReunionParticipante  # n
 from app.models.agenda_item import AgendaItem, AgendaItemRevision, TipoAgendaItem, EstadoRevision  # noqa: F401
 from app.models.suscripcion_push import SuscripcionPush  # noqa: F401
 from app.models.historial_responsable import HistorialResponsable  # noqa: F401
+from app.models.correo_pendiente import CorreoPendiente  # noqa: F401
