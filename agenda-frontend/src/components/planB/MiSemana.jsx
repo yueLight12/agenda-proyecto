@@ -39,6 +39,27 @@ function agruparPorDiaYUrgencia(lista) {
   return grupos;
 }
 
+// Igual que agruparPorDiaYUrgencia pero para reuniones (2026-08-24, a
+// petición de Yue: "lo mismo en mi agenda, como ahí no hay algo como
+// urgente, entonces solo por día") -- ordena por fecha_inicio y agrupa por
+// día calendario; dentro del día se conserva el orden por hora (sin
+// concepto de urgencia en reuniones).
+function agruparReunionesPorDia(lista) {
+  const ordenada = [...lista].sort((a, b) => a.fecha_inicio.localeCompare(b.fecha_inicio));
+  const grupos = [];
+  for (const r of ordenada) {
+    const f = new Date(r.fecha_inicio);
+    const clave = `${f.getFullYear()}-${f.getMonth()}-${f.getDate()}`;
+    const ultimo = grupos[grupos.length - 1];
+    if (ultimo && ultimo.clave === clave) {
+      ultimo.items.push(r);
+    } else {
+      grupos.push({ clave, fecha: f, items: [r] });
+    }
+  }
+  return grupos;
+}
+
 export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) {
   const { usuario } = useAuth();
   const [entregables, setEntregables] = useState([]);
@@ -113,6 +134,7 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
       return f >= semana.inicio && f <= finInclusive;
     })
     .sort((a, b) => a.fecha_inicio.localeCompare(b.fecha_inicio));
+  const gruposAgenda = agruparReunionesPorDia(agenda);
 
   return (
     <div className="planb__misemana">
@@ -189,36 +211,46 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
         {agenda.length === 0 ? (
           <p className="planb__misemana-vacio">Sin reuniones esta semana.</p>
         ) : (
-          <div className="stack" style={{ gap: 6 }}>
-            {agenda.map((r) =>
-              r.proyecto_id ? (
-                <button
-                  key={r.id}
-                  type="button"
-                  className="planb__misemana-fila"
-                  onClick={() => onAbrirReunion?.(r.proyecto_id, r.id)}
-                >
-                  <span className="planb__misemana-fila-titulo">{r.titulo}</span>
-                  <span className="planb__misemana-fila-fecha">
-                    {new Date(r.fecha_inicio).toLocaleDateString("es-MX", {
-                      weekday: "short",
-                      day: "numeric",
-                    })}
-                  </span>
-                </button>
-              ) : (
-                <div key={r.id} className="planb__misemana-fila">
-                  <span className="planb__misemana-fila-titulo">{r.titulo}</span>
-                  <span className="planb__misemana-fila-fecha">
-                    {new Date(r.fecha_inicio).toLocaleDateString("es-MX", {
-                      weekday: "short",
-                      day: "numeric",
-                    })}
-                  </span>
-                </div>
-              )
-            )}
-          </div>
+          gruposAgenda.map((grupo) => (
+            <div key={grupo.clave} className="planb__misemana-grupo-dia">
+              <p className="planb__misemana-dia">
+                {grupo.fecha.toLocaleDateString("es-MX", {
+                  weekday: "long",
+                  day: "numeric",
+                })}
+              </p>
+              <div className="stack" style={{ gap: 6 }}>
+                {grupo.items.map((r) =>
+                  r.proyecto_id ? (
+                    <button
+                      key={r.id}
+                      type="button"
+                      className="planb__misemana-fila"
+                      onClick={() => onAbrirReunion?.(r.proyecto_id, r.id)}
+                    >
+                      <span className="planb__misemana-fila-titulo">{r.titulo}</span>
+                      <span className="planb__misemana-fila-fecha">
+                        {new Date(r.fecha_inicio).toLocaleTimeString("es-MX", {
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </button>
+                  ) : (
+                    <div key={r.id} className="planb__misemana-fila">
+                      <span className="planb__misemana-fila-titulo">{r.titulo}</span>
+                      <span className="planb__misemana-fila-fecha">
+                        {new Date(r.fecha_inicio).toLocaleTimeString("es-MX", {
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
+                  )
+                )}
+              </div>
+            </div>
+          ))
         )}
       </div>
     </div>
