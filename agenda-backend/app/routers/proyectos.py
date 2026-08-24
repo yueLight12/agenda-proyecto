@@ -135,7 +135,7 @@ def obtener_tareas_sueltas(
     responsable = usuario
     if datos.responsable_id is not None and datos.responsable_id != usuario.id:
         responsable = obtener_usuario_o_404(db, datos.responsable_id)
-    proyecto = obtener_o_crear_tema_tareas_sueltas(db, responsable)
+    proyecto = obtener_o_crear_tema_tareas_sueltas(db, responsable, asignado_por=usuario)
     return proyecto_a_out(db, usuario, proyecto)
 
 

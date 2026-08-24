@@ -241,7 +241,9 @@ def crear_proyecto(
 NOMBRE_TEMA_TAREAS_SUELTAS = "Tareas sueltas"
 
 
-def obtener_o_crear_tema_tareas_sueltas(db: Session, usuario_responsable: Usuario) -> Proyecto:
+def obtener_o_crear_tema_tareas_sueltas(
+    db: Session, usuario_responsable: Usuario, asignado_por: Usuario | None = None
+) -> Proyecto:
     """Tema raíz personal "Tareas sueltas" de `usuario_responsable` (2026-08-20,
     a petición de Yue: hacer el tema opcional al crear una tarea -- si no se
     especifica ninguno, ni desde Agenda Plan B ni por voz, la tarea cae aquí
@@ -251,6 +253,16 @@ def obtener_o_crear_tema_tareas_sueltas(db: Session, usuario_responsable: Usuari
     de la tarea, nunca con quien la crea/asigna, para que el tema quede bajo
     la propiedad de quien de verdad debe verlo en su Seguimiento (mismo
     resultado que si esa persona lo hubiera creado ella misma a mano).
+
+    `asignado_por` (2026-08-24, a petición de Yue: que "Asigné" en
+    MiSemana.jsx siempre refleje la realidad) -- si se pasa y es distinto de
+    `usuario_responsable`, se asegura de que quede con un rol (N2,
+    supervisor) en este tema si todavía no tiene ninguno. Sin esto, alguien
+    que solo aparece en tu selector de "a quién asignar" por ya reportarte
+    en OTRO tema real (no por estar guardado en tu "Mi equipo", ver
+    listar_mi_equipo_efectivo) podía recibir su primera tarea suelta sin que
+    tú quedaras con acceso a ese tema personal -- la tarea desaparecía de tu
+    vista pese a haberla asignado tú.
 
     Hace su propio commit: se usa como paso de resolución previo e
     independiente (desde el router de tareas-sueltas o desde el asistente de
@@ -268,14 +280,51 @@ def obtener_o_crear_tema_tareas_sueltas(db: Session, usuario_responsable: Usuari
         .first()
     )
     if existente:
+        _asegurar_acceso_asignador(db, existente, usuario_responsable, asignado_por)
         return existente
 
     nuevo = crear_proyecto(
         db, usuario=usuario_responsable, nombre=NOMBRE_TEMA_TAREAS_SUELTAS, descripcion=None
     )
+    _asegurar_acceso_asignador(db, nuevo, usuario_responsable, asignado_por)
     db.commit()
     db.refresh(nuevo)
     return nuevo
+
+
+def _asegurar_acceso_asignador(
+    db: Session,
+    proyecto: Proyecto,
+    usuario_responsable: Usuario,
+    asignado_por: Usuario | None,
+) -> None:
+    """Ver docstring de `obtener_o_crear_tema_tareas_sueltas`. Si agrega una
+    fila nueva, comitea aquí mismo -- necesario para la rama "existente" de
+    esa función, que de otro modo no comitea nada (es un camino de solo
+    lectura salvo por este caso). Si no hay nada que hacer (sin
+    `asignado_por`, es la misma persona, o ya tenía un rol), no toca la
+    sesión."""
+    if asignado_por is None or asignado_por.id == usuario_responsable.id:
+        return
+    ya_tiene_rol = (
+        db.query(UsuarioProyectoRol)
+        .filter(
+            UsuarioProyectoRol.proyecto_id == proyecto.id,
+            UsuarioProyectoRol.usuario_id == asignado_por.id,
+        )
+        .first()
+    )
+    if ya_tiene_rol:
+        return
+    db.add(
+        UsuarioProyectoRol(
+            usuario_id=asignado_por.id,
+            proyecto_id=proyecto.id,
+            rol=RolEnum.N2,
+            supervisor_id=None,
+        )
+    )
+    db.commit()
 
 
 def listar_lideres_organizacion(db: Session) -> list[MiembroEquipoOut]:

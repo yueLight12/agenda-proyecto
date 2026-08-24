@@ -192,7 +192,7 @@ def _resolver_crear_entregable(
                 pregunta="No encontré a esa persona, ¿puedes repetir el nombre completo?",
                 tipo_entrada="texto",
             )
-        tema_sueltas = obtener_o_crear_tema_tareas_sueltas(db, responsable_obj)
+        tema_sueltas = obtener_o_crear_tema_tareas_sueltas(db, responsable_obj, asignado_por=usuario)
         proyecto_id = tema_sueltas.id
     else:
         proyecto_res = resolver_campo(
