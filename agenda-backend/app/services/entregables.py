@@ -21,6 +21,7 @@ from app.core.permissions import (
 )
 from app.models.entregable import Entregable, EstatusEntregable
 from app.models.historial_avance import HistorialAvance
+from app.models.historial_responsable import HistorialResponsable
 from app.models.minuta import AcuerdoMinuta
 from app.models.notificacion import Notificacion, TipoNotificacion
 from app.models.usuario import RolEnum, Usuario
@@ -153,6 +154,12 @@ def crear_entregable(
     )
     db.add(nuevo)
     db.flush()  # para tener nuevo.id antes de crear la notificación
+
+    # Historial de responsable (2026-08-23, ver query_entregables_visibles):
+    # registra al responsable ORIGINAL -- necesario para que quien lo creó
+    # (aunque no sea supervisor directo del responsable actual tras una
+    # futura reasignación) siga viéndolo por haber estado en la cadena.
+    db.add(HistorialResponsable(entregable_id=nuevo.id, usuario_id=responsable_id))
 
     if es_lider and responsable_id != usuario.id:
         urgencia_combinada = es_urgente(nuevo)
@@ -452,6 +459,13 @@ def reasignar_entregable(
         crear_nota(db, usuario, NotaCrear(entregable_id=entregable.id, contenido=nota))
 
     entregable.responsable_id = nuevo_responsable_id
+    # Historial de responsable (2026-08-23, ver query_entregables_visibles):
+    # una fila nueva por cada reasignación -- así quien fue responsable
+    # antes (o quien reasignó estando de por medio) sigue viendo la tarea
+    # aunque ya no sea el responsable actual ni supervisor directo del
+    # nuevo. No se borra ni modifica la fila anterior -- es historial, no
+    # estado actual.
+    db.add(HistorialResponsable(entregable_id=entregable.id, usuario_id=nuevo_responsable_id))
 
     if nuevo_responsable_id != usuario.id:
         urgencia_combinada = es_urgente(entregable)

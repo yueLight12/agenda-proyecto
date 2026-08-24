@@ -29,6 +29,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.models.entregable import Entregable
+from app.models.historial_responsable import HistorialResponsable
 from app.models.reunion import Reunion, ReunionParticipante
 from app.models.usuario import RolEnum, Usuario
 from app.models.usuario_proyecto_rol import UsuarioProyectoRol
@@ -208,6 +209,36 @@ def requerir_rol_minimo(rol_actual: UsuarioProyectoRol, roles_permitidos: list[R
         )
 
 
+def _ids_involucrado_por_cadena(db: Session, usuario_id: int, ids_entregables_candidatos) -> set[int]:
+    """IDs de entregable donde `usuario_id` estuvo en la CADENA (creador, o
+    responsable en algún punto de su historia, no solo el actual) -- ver
+    HistorialResponsable, poblado en crear_entregable/reasignar_entregable
+    (app/services/entregables.py). 2026-08-23, a petición de Yue: un N1/N2
+    que en algún momento asignó o fue responsable de una tarea la sigue
+    viendo aunque la haya reasignado y ya no sea su territorio directo."""
+    if not ids_entregables_candidatos:
+        return set()
+    ids_creador = {
+        e.id
+        for e in db.query(Entregable.id)
+        .filter(
+            Entregable.id.in_(ids_entregables_candidatos),
+            Entregable.creado_por == usuario_id,
+        )
+        .all()
+    }
+    ids_historial = {
+        h.entregable_id
+        for h in db.query(HistorialResponsable.entregable_id)
+        .filter(
+            HistorialResponsable.entregable_id.in_(ids_entregables_candidatos),
+            HistorialResponsable.usuario_id == usuario_id,
+        )
+        .all()
+    }
+    return ids_creador | ids_historial
+
+
 def query_entregables_visibles(
     db: Session, usuario: Usuario, proyecto_id: int
 ):
@@ -216,16 +247,24 @@ def query_entregables_visibles(
     SUBÁRBOL de proyecto_id (él mismo + todos sus descendientes, a
     cualquier profundidad):
 
-    - N1 (local o heredado de un ancestro): ve TODOS los entregables del subárbol.
-    - N2 heredado (lidera un ancestro estricto): igual que N1 -- quien
-      lidera un tema ve todo lo que cuelga debajo, sin filtro de equipo.
-    - N2 local (su fila vive exactamente en proyecto_id): en ESE nodo
-      exacto, solo su equipo (supervisor_id == usuario.id) + él mismo,
-      INCLUYENDO sensibles de su propio equipo -- igual que antes de la
-      jerarquía. En cualquier descendiente de proyecto_id, sin filtrar
-      (cascada de liderazgo: sigue siendo su territorio más abajo).
-    - N3/N4 (local o heredado): solo sus propios entregables, o no
-      sensibles, en todo el subárbol.
+    - N1/N2 heredado (lidera un ancestro estricto): ve TODOS los
+      entregables del subárbol, sin filtro -- SIN CAMBIOS respecto a
+      antes (quien lidera un tema entero administra todo lo que cuelga
+      debajo).
+    - N1/N2 LOCAL (2026-08-23, a petición de Yue -- reemplaza la regla
+      anterior de "N1 ve todo"): "a un líder solo le interesa lo que sus
+      reportes DIRECTOS hacen, no lo que los subordinados de sus
+      subordinados hacen en cascada, a menos que el líder esté
+      directamente involucrado". Ve un entregable si: (a) es el
+      responsable actual, (b) el responsable actual es su equipo DIRECTO
+      declarado (supervisor_id == usuario.id EN este nodo -- mismo
+      concepto que ya existía para N3/N4), o (c) él estuvo en la CADENA
+      de esa tarea específica (la creó, o fue responsable antes de una
+      reasignación -- ver _ids_involucrado_por_cadena). Ya NO ve
+      automáticamente lo que un N2 de su mismo tema delega a SU equipo,
+      ni el resto del subárbol, sin haber participado.
+    - N3/N4 (local o heredado): sin cambios -- solo sus propios
+      entregables, o no sensibles, en todo el subárbol.
 
     Devuelve un Query de SQLAlchemy ya filtrado (no ejecutado), listo para
     aplicar .all(), paginación, etc.
@@ -237,12 +276,14 @@ def query_entregables_visibles(
 
     heredado = rol.proyecto_id != proyecto_id
 
-    if rol.rol == RolEnum.N1 or (rol.rol == RolEnum.N2 and heredado):
+    if heredado and rol.rol in (RolEnum.N1, RolEnum.N2):
         return base_query
 
-    if rol.rol == RolEnum.N2:
-        # Local: equipo directo de ESTE nodo (supervisor_id == usuario.id
-        # EN proyecto_id) + entregables de CUALQUIER descendiente, sin filtrar.
+    if rol.rol in (RolEnum.N1, RolEnum.N2):
+        # Local: equipo DIRECTO de ESTE nodo (supervisor_id == usuario.id
+        # EN proyecto_id) + él mismo + entregables de CUALQUIER
+        # descendiente (cascada de liderazgo hacia subtemas, sin cambios
+        # ahí) + cualquier tarea de ESTE nodo donde estuvo en la cadena.
         ids_equipo = [
             r.usuario_id
             for r in db.query(UsuarioProyectoRol)
@@ -254,10 +295,23 @@ def query_entregables_visibles(
         ]
         ids_equipo.append(usuario.id)
         ids_descendientes = ids_subtree - {proyecto_id}
+
+        ids_candidatos_cadena = [
+            e.id
+            for e in db.query(Entregable.id)
+            .filter(
+                Entregable.proyecto_id == proyecto_id,
+                Entregable.responsable_id.notin_(ids_equipo),
+            )
+            .all()
+        ]
+        ids_por_cadena = _ids_involucrado_por_cadena(db, usuario.id, ids_candidatos_cadena)
+
         return base_query.filter(
             or_(
                 Entregable.responsable_id.in_(ids_equipo),
                 Entregable.proyecto_id.in_(ids_descendientes),
+                Entregable.id.in_(ids_por_cadena),
             )
         )
 
