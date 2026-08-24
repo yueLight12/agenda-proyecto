@@ -156,9 +156,7 @@ export default function ModalAsignarTareaRapida({ equipo, personaInicialId, onCe
             checked={requiereComprobante}
             onChange={(e) => setRequiereComprobante(e.target.checked)}
           />
-          <span style={{ fontSize: "0.85rem" }}>
-            Requiere comprobante (una imagen) para poder marcarse como completado
-          </span>
+          <span style={{ fontSize: "0.85rem" }}>Requiere comprobante</span>
         </label>
 
         {error && <p className="error-text">{error}</p>}

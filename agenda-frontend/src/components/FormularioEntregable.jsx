@@ -530,9 +530,7 @@ export default function FormularioEntregable({
             checked={requiereComprobante}
             onChange={(e) => setRequiereComprobante(e.target.checked)}
           />
-          <span style={{ fontSize: "0.85rem" }}>
-            Requiere comprobante (una imagen) para poder marcarse como completado
-          </span>
+          <span style={{ fontSize: "0.85rem" }}>Requiere comprobante</span>
         </label>
 
         {esEdicion && requiereComprobante && (
