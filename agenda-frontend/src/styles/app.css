@@ -2129,6 +2129,32 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
   margin: 0;
 }
 
+/* Subtítulo "Asigné" dentro de la columna de tareas (2026-08-24) --
+   separa visualmente lo que se me asignó a mí (arriba) de lo que yo le
+   asigné a alguien más (abajo, acento amarillo con --color-warning). */
+.planb__misemana-subtitulo {
+  margin: var(--space-3) 0 var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--pb2-border, var(--color-border));
+  font-size: 0.9rem;
+}
+
+.planb__misemana-fila--asignada {
+  background: var(--color-warning-bg);
+  border-left: 3px solid var(--color-warning);
+}
+
+.planb__misemana-fila--asignada:hover,
+.planb__misemana-fila--asignada:focus-visible {
+  background: var(--color-warning-bg);
+  filter: brightness(0.96);
+}
+
+.planb__misemana-fila-responsable {
+  font-weight: 400;
+  color: var(--pb2-text-muted, var(--color-text-muted));
+}
+
 .planb__misemana-fila {
   display: flex;
   justify-content: space-between;

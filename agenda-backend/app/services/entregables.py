@@ -75,6 +75,7 @@ def entregable_a_out(db: Session, usuario: Usuario, entregable: Entregable) -> E
         puede_reasignar=puede_reasignar_entregable(db, usuario, entregable),
         requiere_comprobante=entregable.requiere_comprobante,
         tiene_comprobante=entregable.comprobante_path is not None,
+        responsable_nombre=entregable.responsable.nombre if entregable.responsable else "",
     )
 
 

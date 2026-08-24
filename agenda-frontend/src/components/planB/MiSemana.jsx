@@ -58,12 +58,23 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
   const finInclusive = new Date(semana.fin);
   finInclusive.setHours(23, 59, 59, 999);
 
-  const tareas = entregables
+  const entregablesDeLaSemana = entregables.filter((e) => {
+    const f = fechaLocal(e.fecha_entrega);
+    return f >= semana.inicio && f <= finInclusive;
+  });
+
+  const tareas = entregablesDeLaSemana
     .filter((e) => e.responsable_id === usuario?.id)
-    .filter((e) => {
-      const f = fechaLocal(e.fecha_entrega);
-      return f >= semana.inicio && f <= finInclusive;
-    })
+    .sort((a, b) => a.fecha_entrega.localeCompare(b.fecha_entrega));
+
+  // Tareas que YO asigné a alguien más (2026-08-24, a petición de Yue: que
+  // Bernardo vea abajo de "Mis tareas" lo que le asignó a David, por
+  // ejemplo) -- `creado_por` es quien la creó originalmente y no cambia al
+  // reasignar (ver Entregable.creado_por), así que sigue siendo "lo que
+  // asigné" aunque después se le haya cambiado el responsable a alguien
+  // más. Se excluye lo que me asigné a mí mismo -- eso ya está arriba.
+  const asignadas = entregablesDeLaSemana
+    .filter((e) => e.creado_por === usuario?.id && e.responsable_id !== usuario?.id)
     .sort((a, b) => a.fecha_entrega.localeCompare(b.fecha_entrega));
 
   const agenda = reuniones
@@ -94,6 +105,35 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
                 onClick={() => onAbrirEntregable?.(e.proyecto_id, e.id)}
               >
                 <span className="planb__misemana-fila-titulo">{e.nombre}</span>
+                <span className="planb__misemana-fila-fecha">
+                  {fechaLocal(e.fecha_entrega).toLocaleDateString("es-MX", {
+                    weekday: "short",
+                    day: "numeric",
+                  })}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Tareas que asigné a alguien más, separadas abajo con acento
+            amarillo (2026-08-24, a petición de Yue) -- ver filtro
+            `asignadas` arriba. */}
+        <h3 className="planb__misemana-subtitulo">Asigné</h3>
+        {asignadas.length === 0 ? (
+          <p className="planb__misemana-vacio">Sin tareas asignadas por ti esta semana.</p>
+        ) : (
+          <div className="stack" style={{ gap: 6 }}>
+            {asignadas.map((e) => (
+              <button
+                key={e.id}
+                type="button"
+                className="planb__misemana-fila planb__misemana-fila--asignada"
+                onClick={() => onAbrirEntregable?.(e.proyecto_id, e.id)}
+              >
+                <span className="planb__misemana-fila-titulo">
+                  {e.nombre} <span className="planb__misemana-fila-responsable">— {e.responsable_nombre}</span>
+                </span>
                 <span className="planb__misemana-fila-fecha">
                   {fechaLocal(e.fecha_entrega).toLocaleDateString("es-MX", {
                     weekday: "short",

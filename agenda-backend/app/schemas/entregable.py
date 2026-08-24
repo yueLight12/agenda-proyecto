@@ -107,6 +107,11 @@ class EntregableOut(EntregableBase):
     # GET /entregables/{id}/comprobante (autenticado, mismo permiso que ver
     # el entregable).
     tiene_comprobante: bool = False
+    # Nombre del responsable, resuelto en servidor (2026-08-24, para la
+    # sección "Asigné" de MiSemana.jsx: mostrar a quién se le asignó una
+    # tarea sin que el frontend tenga que cruzar responsable_id contra el
+    # roster del equipo). Ver app/services/entregables.py::entregable_a_out.
+    responsable_nombre: str = ""
 
     class Config:
         from_attributes = True
