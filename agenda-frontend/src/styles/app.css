@@ -1460,19 +1460,25 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
 }
 
 /* ======================================================================
-   Agenda Plan B — diseño único "grafito"
+   Agenda Plan B — selector de estilos (Clásico / Grafito / Navy, más los
+   que se agreguen -- ej. Índigo)
    ======================================================================
-   El cliente decidió quedarse únicamente con el estilo "grafito" (2026-08-21).
-   Los otros tres diseños que existieron aquí (clásico, índigo, navy) se
-   eliminaron por completo -- ya no hay alternancia de estilos: el atributo
-   [data-estilo-planb="grafito"] se fija siempre en <html> mientras la
-   pantalla de Agenda Plan B esté montada (ver useEstiloPlanB.js).
+   El 2026-08-21 el cliente había decidido quedarse solo con "grafito" y
+   se eliminaron los otros 3 diseños que existían (clásico, índigo, navy).
+   El 2026-08-25 Yue pidió reactivar el selector: "clásico" volvió a ser
+   simplemente la ausencia del atributo (el look base de este archivo, sin
+   ningún bloque [data-estilo-planb=...] aplicado) y "navy" se reconstruyó
+   desde cero a partir de capturas de referencia reales (ver el bloque
+   "navy" más abajo). "índigo" queda pendiente hasta tener su propia
+   referencia. El atributo [data-estilo-planb="<estilo>"] se fija en
+   <html> mientras la pantalla de Agenda Plan B esté montada (ver
+   useEstiloPlanB.js) -- "grafito" sigue siendo el default.
    ========================================================================= */
 
-/* Oculto por default (rige mientras no está el atributo de grafito puesto,
-   ej. durante el primer render antes del useEffect) -- el bloque de
-   grafito más abajo lo muestra explícitamente. Mismo patrón para el botón
-   de acción de "Pendientes" (ver PendientesUrgentes.jsx). */
+/* Oculto por default (rige en "clásico", o durante el primer render antes
+   del useEffect) -- cada bloque de estilo más abajo lo muestra
+   explícitamente donde aplica. Mismo patrón para el botón de acción de
+   "Pendientes" (ver PendientesUrgentes.jsx). */
 .planb__tarjeta-icono {
   display: none;
 }
@@ -1486,18 +1492,13 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
 }
 
 /* ======================================================================
-   Agenda Plan B — diseño único "grafito"
+   Agenda Plan B — estilo "grafito" (default)
    ======================================================================
    A partir de bocetos de referencia SOLO oscuros (fondo casi negro,
    tarjetas elevadas gris-azulado, acento verde-azulado/teal). Reacciona
    al botón de tema ☀️/🌙 (paleta clara inventada razonablemente, misma
    identidad de acento verde-azulado). Variables --pb2-* propias, sin
    tocar --color-*.
-
-   Este es el ÚNICO diseño de Agenda Plan B (el cliente decidió quedarse
-   solo con grafito, 2026-08-21) -- el atributo [data-estilo-planb="grafito"]
-   se fija siempre en <html> mientras la pantalla esté montada, ver
-   useEstiloPlanB.js.
 
    Alcance (confirmado con Yue: "es el diseño, no el contenido"): se
    restylea la pantalla única existente de Agenda Plan B -- SIN barra de
@@ -2069,6 +2070,567 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
 
 [data-estilo-planb="grafito"] .rbc-today {
   background: rgba(45, 214, 190, 0.12);
+}
+
+/* ======================================================================
+   Agenda Plan B — diseño "navy" (2026-08-25, a petición de Yue: reactivar
+   el selector de estilos que existía antes del 2026-08-21 -- ver
+   useEstiloPlanB.js. A partir de capturas de referencia reales que Yue
+   pasó (paleta "Executive Petroleum": topbar azul marino sólido, acento
+   dorado, tarjetas claras con botones de contorno). Reutiliza la MISMA
+   estructura de selectores que "grafito" (mismas --pb2-* variables), solo
+   cambia la paleta y algunos overrides de marca al final del bloque.
+   ========================================================================= */
+
+:root[data-estilo-planb="navy"] {
+  color-scheme: light;
+  --pb2-bg: #eef1f6;
+  --pb2-dot: #e1e6ee;
+  --pb2-surface: #ffffff;
+  --pb2-surface-alt: #f4f6fa;
+  --pb2-border: #dbe1ea;
+  --pb2-text: #10233f;
+  --pb2-text-muted: #5b6b85;
+  --pb2-accent: #1c3a66;
+  --pb2-accent-text: #ffffff;
+  --pb2-danger-bg: #fdecea;
+  --pb2-danger-text: #b42318;
+  --pb2-avatar-bg: #1c3a66;
+  --pb2-tareas: #1c3a66;
+  --pb2-agenda: #b8862f;
+  --pb2-gold: #c9a227;
+  --pb2-navy-bar: #0f2340;
+}
+
+:root[data-estilo-planb="navy"][data-theme="oscuro"] {
+  color-scheme: dark;
+  --pb2-bg: #0a1626;
+  --pb2-dot: #122036;
+  --pb2-surface: #16273f;
+  --pb2-surface-alt: #1c3049;
+  --pb2-border: #2a3f5c;
+  --pb2-text: #eef2f8;
+  --pb2-text-muted: #94a3bd;
+  --pb2-accent: #d9ae4e;
+  --pb2-accent-text: #10233f;
+  --pb2-danger-bg: #3a1f1c;
+  --pb2-danger-text: #e08277;
+  --pb2-avatar-bg: #d9ae4e;
+  --pb2-tareas: #6f9be0;
+  --pb2-agenda: #d9ae4e;
+  --pb2-gold: #d9ae4e;
+  --pb2-navy-bar: #0a1626;
+}
+
+[data-estilo-planb="navy"] .planb {
+  background:
+    radial-gradient(var(--pb2-dot) 1px, transparent 1px) 0 0 / 22px 22px,
+    var(--pb2-bg);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="navy"] .planb__topbar {
+  background: transparent;
+  border-bottom: none;
+  padding: var(--space-4) var(--space-4) 0;
+  align-items: center;
+}
+
+[data-estilo-planb="navy"] .planb__topbar h1 {
+  color: var(--pb2-text);
+  font-weight: 800;
+}
+
+[data-estilo-planb="navy"] .planb__topbar p {
+  color: var(--pb2-text-muted) !important;
+}
+
+[data-estilo-planb="navy"] .planb__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: var(--pb2-avatar-bg);
+  color: var(--pb2-accent-text);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+[data-estilo-planb="navy"] .planb__contenido {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  margin-top: var(--space-3);
+}
+
+[data-estilo-planb="navy"] .planb__semana {
+  background: var(--pb2-surface);
+  border: 1px solid var(--pb2-border);
+  border-radius: 18px;
+}
+
+[data-estilo-planb="navy"] .planb__semana-titulo {
+  color: var(--pb2-text);
+  font-weight: 700;
+}
+
+[data-estilo-planb="navy"] .planb__semana-tarjeta {
+  background: var(--pb2-surface-alt);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="navy"] .planb__semana-tarjeta:hover {
+  border-color: var(--pb2-accent);
+}
+
+[data-estilo-planb="navy"] .planb__semana-tarjeta--activa {
+  background: var(--pb2-accent);
+  color: var(--pb2-accent-text);
+  border-radius: 999px;
+  box-shadow: none;
+}
+
+[data-estilo-planb="navy"] h2 {
+  color: var(--pb2-text);
+  font-weight: 800;
+}
+
+[data-estilo-planb="navy"] .card {
+  background: var(--pb2-surface);
+  border: 1px solid var(--pb2-border);
+  border-radius: 18px;
+  box-shadow: none;
+}
+
+[data-estilo-planb="navy"] .planb__tarjeta {
+  border: 1px solid var(--pb2-border);
+  border-radius: 16px;
+  background: var(--pb2-surface-alt);
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: var(--space-4) var(--space-3);
+  box-shadow: none;
+}
+
+[data-estilo-planb="navy"] .planb__tarjeta:hover,
+[data-estilo-planb="navy"] .planb__tarjeta:focus-visible {
+  border-color: var(--pb2-accent);
+  box-shadow: 0 0 0 1px var(--pb2-accent);
+}
+
+[data-estilo-planb="navy"] .planb__tarjeta-titulo {
+  color: var(--pb2-text);
+  font-weight: 700;
+}
+
+[data-estilo-planb="navy"] .planb__tarjeta-texto {
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="navy"] .planb__tarjeta-icono {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  color: var(--pb2-accent);
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pb2-accent) 16%, transparent);
+}
+
+[data-estilo-planb="navy"] .planb__tarjeta-icono svg {
+  width: 22px;
+  height: 22px;
+}
+
+[data-estilo-planb="navy"] .planb__pendiente-fila {
+  background: var(--pb2-surface-alt);
+  border: 1px solid var(--pb2-border);
+  border-left: 3px solid var(--pb2-accent);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="navy"] .planb__pendiente-fila:has(.badge--urgente) {
+  border-left-color: var(--color-danger);
+}
+
+[data-estilo-planb="navy"] .planb__pendiente-fila a {
+  color: var(--pb2-text);
+  text-decoration: none;
+}
+
+[data-estilo-planb="navy"] .planb__pendiente-fila a:hover {
+  color: var(--pb2-accent);
+}
+
+[data-estilo-planb="navy"] .badge--urgente {
+  background: var(--pb2-danger-bg);
+  color: var(--pb2-danger-text);
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.7rem;
+  letter-spacing: 0.03em;
+  padding: 2px 10px;
+}
+
+[data-estilo-planb="navy"] .planb__pendiente-progreso {
+  display: block;
+  margin-top: 8px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--pb2-border);
+  overflow: hidden;
+}
+
+[data-estilo-planb="navy"] .planb__pendiente-progreso-fill {
+  height: 100%;
+  background: var(--pb2-accent);
+  border-radius: 999px;
+}
+
+[data-estilo-planb="navy"] .planb__pendiente-boton-clasico {
+  display: none;
+}
+
+[data-estilo-planb="navy"] .planb__pendiente-accion {
+  color: var(--pb2-text-muted);
+  border: none;
+  background: transparent;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-estilo-planb="navy"] .planb__pendiente-accion:hover {
+  background: var(--pb2-border);
+  color: var(--pb2-accent);
+}
+
+[data-estilo-planb="navy"] .planb__pendiente-accion svg {
+  width: 18px;
+  height: 18px;
+}
+
+[data-estilo-planb="navy"] .btn--ghost {
+  border-radius: 10px;
+  border-color: var(--pb2-border);
+  color: var(--pb2-text);
+  background: var(--pb2-surface-alt);
+}
+
+[data-estilo-planb="navy"] .btn--ghost:hover {
+  background: var(--pb2-border);
+}
+
+[data-estilo-planb="navy"] .btn--primary {
+  background: var(--pb2-accent);
+  color: var(--pb2-accent-text);
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+[data-estilo-planb="navy"] .btn--primary:hover {
+  filter: brightness(1.15);
+}
+
+[data-estilo-planb="navy"] .modal-overlay {
+  background: rgba(6, 8, 14, 0.6);
+}
+
+[data-estilo-planb="navy"] .modal-card {
+  background: var(--pb2-surface);
+  border: 1px solid var(--pb2-border);
+  border-radius: 20px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="navy"] .modal-card h2 {
+  color: var(--pb2-text);
+  font-weight: 800;
+}
+
+[data-estilo-planb="navy"] .modal-card label > span:first-child {
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="navy"] .input,
+[data-estilo-planb="navy"] select.input,
+[data-estilo-planb="navy"] textarea.input {
+  background: var(--pb2-surface-alt);
+  border: 1px solid var(--pb2-border);
+  border-radius: 10px;
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="navy"] .input:focus,
+[data-estilo-planb="navy"] select.input:focus,
+[data-estilo-planb="navy"] textarea.input:focus {
+  outline: 2px solid var(--pb2-accent);
+  outline-offset: 1px;
+}
+
+[data-estilo-planb="navy"] input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 40px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--pb2-border);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  flex-shrink: 0;
+}
+
+[data-estilo-planb="navy"] input[type="checkbox"]::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+[data-estilo-planb="navy"] input[type="checkbox"]:checked {
+  background: var(--pb2-accent);
+}
+
+[data-estilo-planb="navy"] input[type="checkbox"]:checked::before {
+  transform: translateX(18px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-estilo-planb="navy"] input[type="checkbox"],
+  [data-estilo-planb="navy"] input[type="checkbox"]::before {
+    transition: none;
+  }
+}
+
+[data-estilo-planb="navy"] .modal-card:has(.planb__calendario) .modal-card__header {
+  background: var(--pb2-surface-alt);
+  color: var(--pb2-text);
+  margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-4)) var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: 20px 20px 0 0;
+}
+
+[data-estilo-planb="navy"] .modal-card:has(.planb__calendario) .modal-card__header h2 {
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="navy"] .planb__persona-fila {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  background: var(--pb2-surface-alt);
+  border: 1px solid var(--pb2-border);
+  border-radius: 12px;
+  padding: 10px 14px;
+}
+
+[data-estilo-planb="navy"] .planb__persona-fila:hover,
+[data-estilo-planb="navy"] .planb__persona-fila:focus-visible {
+  border-color: var(--pb2-accent);
+}
+
+[data-estilo-planb="navy"] .planb__persona-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  color: var(--pb2-accent-text);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+[data-estilo-planb="navy"] .planb__persona-datos {
+  flex: 1;
+  min-width: 0;
+}
+
+[data-estilo-planb="navy"] .planb__persona-nombre {
+  color: var(--pb2-text);
+  font-weight: 700;
+  display: block;
+}
+
+[data-estilo-planb="navy"] .planb__persona-puesto {
+  color: var(--pb2-text-muted);
+  font-size: 0.8rem;
+  display: block;
+}
+
+[data-estilo-planb="navy"] .planb__persona-elegir {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: var(--pb2-accent);
+  color: var(--pb2-accent-text);
+  font-weight: 700;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+[data-estilo-planb="navy"] .agenda-dia {
+  background: var(--pb2-surface);
+  border: 1px solid var(--pb2-border);
+  border-radius: 14px;
+  padding: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+[data-estilo-planb="navy"] .agenda-dia__fecha {
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="navy"] .agenda-dia__numero {
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="navy"] .agenda-dia__circulo-hoy {
+  background: var(--pb2-accent);
+  color: var(--pb2-accent-text);
+}
+
+[data-estilo-planb="navy"] .agenda-evento-pill {
+  border-radius: 10px;
+  padding: var(--space-2) var(--space-3);
+  font-weight: 600;
+}
+
+[data-estilo-planb="navy"] .agenda-sin-planes {
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="navy"] .mes-banner {
+  background: var(--pb2-surface-alt);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="navy"] .agenda-semana-vacia {
+  color: var(--pb2-text-muted);
+  border-bottom-color: var(--pb2-border);
+}
+
+[data-estilo-planb="navy"] .rbc-toolbar-label {
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="navy"] .rbc-toolbar button {
+  border-color: var(--pb2-border);
+  color: var(--pb2-text);
+  background: var(--pb2-surface-alt);
+}
+
+[data-estilo-planb="navy"] .rbc-toolbar button:hover {
+  background: var(--pb2-border);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="navy"] .rbc-toolbar button.rbc-active,
+[data-estilo-planb="navy"] .rbc-toolbar button.rbc-active:hover,
+[data-estilo-planb="navy"] .rbc-toolbar button.rbc-active:focus {
+  background: var(--pb2-accent);
+  color: var(--pb2-accent-text);
+  border-color: var(--pb2-accent);
+}
+
+[data-estilo-planb="navy"] .rbc-calendar,
+[data-estilo-planb="navy"] .rbc-month-view,
+[data-estilo-planb="navy"] .rbc-time-view,
+[data-estilo-planb="navy"] .rbc-agenda-view {
+  background: var(--pb2-surface);
+  border-color: var(--pb2-border);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="navy"] .rbc-header,
+[data-estilo-planb="navy"] .rbc-day-bg,
+[data-estilo-planb="navy"] .rbc-time-header,
+[data-estilo-planb="navy"] .rbc-time-content,
+[data-estilo-planb="navy"] .rbc-timeslot-group,
+[data-estilo-planb="navy"] .rbc-month-row,
+[data-estilo-planb="navy"] .rbc-date-cell {
+  border-color: var(--pb2-border) !important;
+}
+
+[data-estilo-planb="navy"] .rbc-header,
+[data-estilo-planb="navy"] .rbc-date-cell {
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="navy"] .rbc-off-range-bg {
+  background: var(--pb2-surface-alt);
+}
+
+[data-estilo-planb="navy"] .rbc-off-range {
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="navy"] .rbc-today {
+  background: color-mix(in srgb, var(--pb2-accent) 12%, transparent);
+}
+
+/* Overrides de marca "Navy" -- van DESPUÉS del bloque estructural de
+   arriba para que el cascade los gane sin usar !important: barra superior
+   azul marino sólida con acento dorado, franja dorada en la parte de
+   arriba de los modales, botón "Elegir" tipo contorno (así se ven en las
+   capturas de referencia). */
+[data-estilo-planb="navy"] .planb__topbar {
+  background: var(--pb2-navy-bar);
+  border-bottom: 3px solid var(--pb2-gold);
+  border-radius: 12px 12px 0 0;
+  padding: var(--space-4);
+  align-items: center;
+}
+
+[data-estilo-planb="navy"] .planb__topbar h1 {
+  color: #ffffff;
+}
+
+[data-estilo-planb="navy"] .planb__topbar p {
+  color: #b9c4d6 !important;
+}
+
+[data-estilo-planb="navy"] .planb__avatar {
+  background: var(--pb2-gold);
+  color: var(--pb2-navy-bar);
+}
+
+[data-estilo-planb="navy"] .modal-card {
+  border-top: 4px solid var(--pb2-gold);
+}
+
+[data-estilo-planb="navy"] .planb__persona-elegir {
+  background: transparent;
+  border: 1.5px solid var(--pb2-accent);
+  color: var(--pb2-accent);
+  border-radius: 8px;
 }
 
 /* "Mi semana" (MiSemana.jsx, 2026-08-22) -- 2 columnas dentro de la
