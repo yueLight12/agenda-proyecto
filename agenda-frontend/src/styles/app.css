@@ -3225,36 +3225,34 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
 }
 
 /* ======================================================================
-   Agenda Plan B — diseño "salinas" (2026-08-26, a petición de Yue: paleta
-   amarilla). Misma geometría/estructura que "grafito"/"navy" (mismas
-   --pb2-* variables) -- solo cambia la paleta a dorado/mostaza, tono más
-   "corporativo/serio". Se generó junto con "salinas2" (amarillo vivo, ver
-   más abajo) para que Yue compare y elija cuál se queda.
+   Agenda Plan B — diseño "salinas" (2026-08-26, paleta amarillo patito,
+   a petición de Yue). Se probaron dos variantes (dorado/mostaza y este
+   amarillo vivo) -- Yue se quedó con esta, la otra se eliminó del código
+   (no quedó ninguna referencia a "salinas2"). Misma geometría que
+   "grafito"/"navy" -- solo cambia la paleta. Fondo blanco con contorno
+   amarillo en tema claro; en tema oscuro usa la misma base que "navy".
    ========================================================================= */
 
 :root[data-estilo-planb="salinas"] {
   color-scheme: light;
-  --pb2-bg: #faf6ec;
-  --pb2-dot: #f0e6c8;
+  --pb2-bg: #fffbeb;
+  --pb2-dot: #fef3c7;
   --pb2-surface: #ffffff;
-  --pb2-surface-alt: #f7f1de;
-  --pb2-border: #e8dcb0;
-  --pb2-text: #3a2f10;
-  --pb2-text-muted: #7a6b3f;
+  --pb2-surface-alt: #fef9e6;
+  --pb2-border: #fde68a;
+  --pb2-text: #292100;
+  --pb2-text-muted: #78716c;
   --pb2-accent: #ffcb05;
   --pb2-accent-text: #2b2100;
   --pb2-danger-bg: #fdecea;
   --pb2-danger-text: #b42318;
   --pb2-avatar-bg: #ffcb05;
   --pb2-tareas: #ffcb05;
-  --pb2-agenda: #a0522d;
+  --pb2-agenda: #fb923c;
 }
 
-/* Tema oscuro (2026-08-26, a petición de Yue): fondo tipo "Navy" (mismos
-   --pb2-bg/surface/border que ese estilo) en vez del café oscuro original
-   -- el acento sigue siendo amarillo patito, pero la base ya no compite
-   con él. Los overrides "fondo blanco" de más abajo están acotados con
-   :not([data-theme="oscuro"]) precisamente para no chocar con esto. */
+/* Tema oscuro (2026-08-26, a petición de Yue): mismo criterio que
+   Salinas -- fondo tipo "Navy" en vez del amarillo-café oscuro original. */
 :root[data-estilo-planb="salinas"][data-theme="oscuro"] {
   color-scheme: dark;
   --pb2-bg: #0a1626;
@@ -3270,7 +3268,7 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
   --pb2-danger-text: #e08277;
   --pb2-avatar-bg: #ffd94d;
   --pb2-tareas: #ffd94d;
-  --pb2-agenda: #cc8a52;
+  --pb2-agenda: #ffb347;
 }
 
 [data-estilo-planb="salinas"] .planb {
@@ -3747,530 +3745,10 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
   background: color-mix(in srgb, var(--pb2-accent) 12%, transparent);
 }
 
-/* ======================================================================
-   Agenda Plan B — diseño "salinas2" (2026-08-26, misma petición -- variante
-   amarillo vivo/saturado en vez de dorado/mostaza, para comparar con
-   "salinas" y quedarse con la que le guste más a Yue). Misma geometría que
-   "grafito"/"navy"/"salinas" -- solo cambia la paleta.
-   ========================================================================= */
-
-:root[data-estilo-planb="salinas2"] {
-  color-scheme: light;
-  --pb2-bg: #fffbeb;
-  --pb2-dot: #fef3c7;
-  --pb2-surface: #ffffff;
-  --pb2-surface-alt: #fef9e6;
-  --pb2-border: #fde68a;
-  --pb2-text: #292100;
-  --pb2-text-muted: #78716c;
-  --pb2-accent: #ffcb05;
-  --pb2-accent-text: #2b2100;
-  --pb2-danger-bg: #fdecea;
-  --pb2-danger-text: #b42318;
-  --pb2-avatar-bg: #ffcb05;
-  --pb2-tareas: #ffcb05;
-  --pb2-agenda: #fb923c;
-}
-
-/* Tema oscuro (2026-08-26, a petición de Yue): mismo criterio que
-   Salinas -- fondo tipo "Navy" en vez del amarillo-café oscuro original. */
-:root[data-estilo-planb="salinas2"][data-theme="oscuro"] {
-  color-scheme: dark;
-  --pb2-bg: #0a1626;
-  --pb2-dot: #122036;
-  --pb2-surface: #16273f;
-  --pb2-surface-alt: #1c3049;
-  --pb2-border: #2a3f5c;
-  --pb2-text: #eef2f8;
-  --pb2-text-muted: #94a3bd;
-  --pb2-accent: #ffd94d;
-  --pb2-accent-text: #241c05;
-  --pb2-danger-bg: #3a1f1c;
-  --pb2-danger-text: #e08277;
-  --pb2-avatar-bg: #ffd94d;
-  --pb2-tareas: #ffd94d;
-  --pb2-agenda: #ffb347;
-}
-
-[data-estilo-planb="salinas2"] .planb {
-  background:
-    radial-gradient(var(--pb2-dot) 1px, transparent 1px) 0 0 / 22px 22px,
-    var(--pb2-bg);
-  color: var(--pb2-text);
-}
-
-[data-estilo-planb="salinas2"] .planb__topbar {
-  background: transparent;
-  border-bottom: none;
-  padding: var(--space-4) var(--space-4) 0;
-  align-items: center;
-}
-
-[data-estilo-planb="salinas2"] .planb__topbar h1 {
-  color: var(--pb2-text);
-  font-weight: 800;
-}
-
-[data-estilo-planb="salinas2"] .planb__topbar p {
-  color: var(--pb2-text-muted) !important;
-}
-
-[data-estilo-planb="salinas2"] .planb__avatar {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 999px;
-  background: var(--pb2-avatar-bg);
-  color: var(--pb2-accent-text);
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 0.85rem;
-  flex-shrink: 0;
-}
-
-[data-estilo-planb="salinas2"] .planb__contenido {
-  background: transparent;
-  border: none;
-  box-shadow: none;
-  padding: 0;
-  margin-top: var(--space-3);
-}
-
-[data-estilo-planb="salinas2"] .planb__semana {
-  background: var(--pb2-surface);
-  border: 1px solid var(--pb2-border);
-  border-radius: 18px;
-}
-
-[data-estilo-planb="salinas2"] .planb__semana-titulo {
-  color: var(--pb2-text);
-  font-weight: 700;
-}
-
-[data-estilo-planb="salinas2"] .planb__semana-tarjeta {
-  background: var(--pb2-surface-alt);
-  border: 1px solid transparent;
-  border-radius: 999px;
-  color: var(--pb2-text-muted);
-}
-
-[data-estilo-planb="salinas2"] .planb__semana-tarjeta:hover {
-  border-color: var(--pb2-accent);
-}
-
-[data-estilo-planb="salinas2"] .planb__semana-tarjeta--activa {
-  background: var(--pb2-accent);
-  color: var(--pb2-accent-text);
-  border-radius: 999px;
-  box-shadow: none;
-}
-
-[data-estilo-planb="salinas2"] h2 {
-  color: var(--pb2-text);
-  font-weight: 800;
-}
-
-[data-estilo-planb="salinas2"] .card {
-  background: var(--pb2-surface);
-  border: 1px solid var(--pb2-border);
-  border-radius: 18px;
-  box-shadow: none;
-}
-
-[data-estilo-planb="salinas2"] .planb__tarjeta {
-  border: 1px solid var(--pb2-border);
-  border-radius: 16px;
-  background: var(--pb2-surface-alt);
-  align-items: center;
-  text-align: center;
-  gap: 10px;
-  padding: var(--space-4) var(--space-3);
-  box-shadow: none;
-}
-
-[data-estilo-planb="salinas2"] .planb__tarjeta:hover,
-[data-estilo-planb="salinas2"] .planb__tarjeta:focus-visible {
-  border-color: var(--pb2-accent);
-  box-shadow: 0 0 0 1px var(--pb2-accent);
-}
-
-[data-estilo-planb="salinas2"] .planb__tarjeta-titulo {
-  color: var(--pb2-text);
-  font-weight: 700;
-}
-
-[data-estilo-planb="salinas2"] .planb__tarjeta-texto {
-  color: var(--pb2-text-muted);
-}
-
-[data-estilo-planb="salinas2"] .planb__tarjeta-icono {
-  display: flex !important;
-  align-items: center;
-  justify-content: center;
-  color: var(--pb2-accent);
-  width: 44px;
-  height: 44px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--pb2-accent) 16%, transparent);
-}
-
-[data-estilo-planb="salinas2"] .planb__tarjeta-icono svg {
-  width: 22px;
-  height: 22px;
-}
-
-[data-estilo-planb="salinas2"] .planb__pendiente-fila {
-  background: var(--pb2-surface-alt);
-  border: 1px solid var(--pb2-border);
-  border-left: 3px solid var(--pb2-accent);
-  border-radius: 10px;
-  padding: 12px 14px;
-  margin-bottom: 8px;
-  color: var(--pb2-text);
-}
-
-[data-estilo-planb="salinas2"] .planb__pendiente-fila:has(.badge--urgente) {
-  border-left-color: var(--color-danger);
-}
-
-[data-estilo-planb="salinas2"] .planb__pendiente-fila a {
-  color: var(--pb2-text);
-  text-decoration: none;
-}
-
-[data-estilo-planb="salinas2"] .planb__pendiente-fila a:hover {
-  color: var(--pb2-accent);
-}
-
-[data-estilo-planb="salinas2"] .badge--urgente {
-  background: var(--pb2-danger-bg);
-  color: var(--pb2-danger-text);
-  border-radius: 999px;
-  font-weight: 700;
-  font-size: 0.7rem;
-  letter-spacing: 0.03em;
-  padding: 2px 10px;
-}
-
-[data-estilo-planb="salinas2"] .planb__pendiente-progreso {
-  display: block;
-  margin-top: 8px;
-  height: 5px;
-  border-radius: 999px;
-  background: var(--pb2-border);
-  overflow: hidden;
-}
-
-[data-estilo-planb="salinas2"] .planb__pendiente-progreso-fill {
-  height: 100%;
-  background: var(--pb2-accent);
-  border-radius: 999px;
-}
-
-[data-estilo-planb="salinas2"] .planb__pendiente-boton-clasico {
-  display: none;
-}
-
-[data-estilo-planb="salinas2"] .planb__pendiente-accion {
-  color: var(--pb2-text-muted);
-  border: none;
-  background: transparent;
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-[data-estilo-planb="salinas2"] .planb__pendiente-accion:hover {
-  background: var(--pb2-border);
-  color: var(--pb2-accent);
-}
-
-[data-estilo-planb="salinas2"] .planb__pendiente-accion svg {
-  width: 18px;
-  height: 18px;
-}
-
-[data-estilo-planb="salinas2"] .btn--ghost {
-  border-radius: 10px;
-  border-color: var(--pb2-border);
-  color: var(--pb2-text);
-  background: var(--pb2-surface-alt);
-}
-
-[data-estilo-planb="salinas2"] .btn--ghost:hover {
-  background: var(--pb2-border);
-}
-
-[data-estilo-planb="salinas2"] .btn--primary {
-  background: var(--pb2-accent);
-  color: var(--pb2-accent-text);
-  border-radius: 999px;
-  font-weight: 700;
-}
-
-[data-estilo-planb="salinas2"] .btn--primary:hover {
-  filter: brightness(1.1);
-}
-
-[data-estilo-planb="salinas2"] .modal-overlay {
-  background: rgba(6, 8, 14, 0.6);
-}
-
-[data-estilo-planb="salinas2"] .modal-card {
-  background: var(--pb2-surface);
-  border: 1px solid var(--pb2-border);
-  border-radius: 20px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
-  color: var(--pb2-text);
-}
-
-[data-estilo-planb="salinas2"] .modal-card h2 {
-  color: var(--pb2-text);
-  font-weight: 800;
-}
-
-[data-estilo-planb="salinas2"] .modal-card label > span:first-child {
-  color: var(--pb2-text-muted);
-}
-
-[data-estilo-planb="salinas2"] .input,
-[data-estilo-planb="salinas2"] select.input,
-[data-estilo-planb="salinas2"] textarea.input {
-  background: var(--pb2-surface-alt);
-  border: 1px solid var(--pb2-border);
-  border-radius: 10px;
-  color: var(--pb2-text);
-}
-
-[data-estilo-planb="salinas2"] .input:focus,
-[data-estilo-planb="salinas2"] select.input:focus,
-[data-estilo-planb="salinas2"] textarea.input:focus {
-  outline: 2px solid var(--pb2-accent);
-  outline-offset: 1px;
-}
-
-[data-estilo-planb="salinas2"] input[type="checkbox"] {
-  appearance: none;
-  -webkit-appearance: none;
-  width: 40px;
-  height: 22px;
-  border-radius: 999px;
-  background: var(--pb2-border);
-  position: relative;
-  cursor: pointer;
-  transition: background 0.15s ease;
-  flex-shrink: 0;
-}
-
-[data-estilo-planb="salinas2"] input[type="checkbox"]::before {
-  content: "";
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #fff;
-  transition: transform 0.15s ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
-}
-
-[data-estilo-planb="salinas2"] input[type="checkbox"]:checked {
-  background: var(--pb2-accent);
-}
-
-[data-estilo-planb="salinas2"] input[type="checkbox"]:checked::before {
-  transform: translateX(18px);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  [data-estilo-planb="salinas2"] input[type="checkbox"],
-  [data-estilo-planb="salinas2"] input[type="checkbox"]::before {
-    transition: none;
-  }
-}
-
-[data-estilo-planb="salinas2"] .modal-card:has(.planb__calendario) .modal-card__header {
-  background: var(--pb2-surface-alt);
-  color: var(--pb2-text);
-  margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-4)) var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  border-radius: 20px 20px 0 0;
-}
-
-[data-estilo-planb="salinas2"] .modal-card:has(.planb__calendario) .modal-card__header h2 {
-  color: var(--pb2-text);
-}
-
-[data-estilo-planb="salinas2"] .planb__persona-fila {
-  flex-direction: row;
-  align-items: center;
-  gap: 12px;
-  background: var(--pb2-surface-alt);
-  border: 1px solid var(--pb2-border);
-  border-radius: 12px;
-  padding: 10px 14px;
-}
-
-[data-estilo-planb="salinas2"] .planb__persona-fila:hover,
-[data-estilo-planb="salinas2"] .planb__persona-fila:focus-visible {
-  border-color: var(--pb2-accent);
-}
-
-[data-estilo-planb="salinas2"] .planb__persona-avatar {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 999px;
-  color: var(--pb2-accent-text);
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 0.85rem;
-  flex-shrink: 0;
-}
-
-[data-estilo-planb="salinas2"] .planb__persona-datos {
-  flex: 1;
-  min-width: 0;
-}
-
-[data-estilo-planb="salinas2"] .planb__persona-nombre {
-  color: var(--pb2-text);
-  font-weight: 700;
-  display: block;
-}
-
-[data-estilo-planb="salinas2"] .planb__persona-puesto {
-  color: var(--pb2-text-muted);
-  font-size: 0.8rem;
-  display: block;
-}
-
-[data-estilo-planb="salinas2"] .planb__persona-elegir {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 6px 16px;
-  border-radius: 999px;
-  background: var(--pb2-accent);
-  color: var(--pb2-accent-text);
-  font-weight: 700;
-  font-size: 0.8rem;
-  flex-shrink: 0;
-}
-
-[data-estilo-planb="salinas2"] .agenda-dia {
-  background: var(--pb2-surface);
-  border: 1px solid var(--pb2-border);
-  border-radius: 14px;
-  padding: var(--space-3);
-  margin-bottom: var(--space-2);
-}
-
-[data-estilo-planb="salinas2"] .agenda-dia__fecha {
-  color: var(--pb2-text-muted);
-}
-
-[data-estilo-planb="salinas2"] .agenda-dia__numero {
-  color: var(--pb2-text);
-}
-
-[data-estilo-planb="salinas2"] .agenda-dia__circulo-hoy {
-  background: var(--pb2-accent);
-  color: var(--pb2-accent-text);
-}
-
-[data-estilo-planb="salinas2"] .agenda-evento-pill {
-  border-radius: 10px;
-  padding: var(--space-2) var(--space-3);
-  font-weight: 600;
-}
-
-[data-estilo-planb="salinas2"] .agenda-sin-planes {
-  color: var(--pb2-text-muted);
-}
-
-[data-estilo-planb="salinas2"] .mes-banner {
-  background: var(--pb2-surface-alt);
-  color: var(--pb2-text);
-}
-
-[data-estilo-planb="salinas2"] .agenda-semana-vacia {
-  color: var(--pb2-text-muted);
-  border-bottom-color: var(--pb2-border);
-}
-
-[data-estilo-planb="salinas2"] .rbc-toolbar-label {
-  color: var(--pb2-text);
-}
-
-[data-estilo-planb="salinas2"] .rbc-toolbar button {
-  border-color: var(--pb2-border);
-  color: var(--pb2-text);
-  background: var(--pb2-surface-alt);
-}
-
-[data-estilo-planb="salinas2"] .rbc-toolbar button:hover {
-  background: var(--pb2-border);
-  color: var(--pb2-text);
-}
-
-[data-estilo-planb="salinas2"] .rbc-toolbar button.rbc-active,
-[data-estilo-planb="salinas2"] .rbc-toolbar button.rbc-active:hover,
-[data-estilo-planb="salinas2"] .rbc-toolbar button.rbc-active:focus {
-  background: var(--pb2-accent);
-  color: var(--pb2-accent-text);
-  border-color: var(--pb2-accent);
-}
-
-[data-estilo-planb="salinas2"] .rbc-calendar,
-[data-estilo-planb="salinas2"] .rbc-month-view,
-[data-estilo-planb="salinas2"] .rbc-time-view,
-[data-estilo-planb="salinas2"] .rbc-agenda-view {
-  background: var(--pb2-surface);
-  border-color: var(--pb2-border);
-  color: var(--pb2-text);
-}
-
-[data-estilo-planb="salinas2"] .rbc-header,
-[data-estilo-planb="salinas2"] .rbc-day-bg,
-[data-estilo-planb="salinas2"] .rbc-time-header,
-[data-estilo-planb="salinas2"] .rbc-time-content,
-[data-estilo-planb="salinas2"] .rbc-timeslot-group,
-[data-estilo-planb="salinas2"] .rbc-month-row,
-[data-estilo-planb="salinas2"] .rbc-date-cell {
-  border-color: var(--pb2-border) !important;
-}
-
-[data-estilo-planb="salinas2"] .rbc-header,
-[data-estilo-planb="salinas2"] .rbc-date-cell {
-  color: var(--pb2-text);
-}
-
-[data-estilo-planb="salinas2"] .rbc-off-range-bg {
-  background: var(--pb2-surface-alt);
-}
-
-[data-estilo-planb="salinas2"] .rbc-off-range {
-  color: var(--pb2-text-muted);
-}
-
-[data-estilo-planb="salinas2"] .rbc-today {
-  background: color-mix(in srgb, var(--pb2-accent) 12%, transparent);
-}
-
 /* A petición de Yue (2026-08-26): el amarillo solo como CONTORNO de
    botones/tarjetas/avatares, no como relleno -- se ve más sutil, menos
-   "brillante". Van DESPUÉS del bloque estructural de cada estilo para que
-   el cascade los gane sin usar !important. Aplica a los dos (Salinas y
-   Salinas 2) -- misma regla, distinto --pb2-accent de fondo. */
+   "brillante". Van DESPUÉS del bloque estructural para que el cascade los
+   gane sin usar !important. */
 [data-estilo-planb="salinas"] .btn--primary,
 [data-estilo-planb="salinas"] .planb__persona-elegir,
 [data-estilo-planb="salinas"] .planb__semana-tarjeta--activa {
@@ -4304,39 +3782,6 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
   color: var(--pb2-text);
 }
 
-[data-estilo-planb="salinas2"] .btn--primary,
-[data-estilo-planb="salinas2"] .planb__persona-elegir,
-[data-estilo-planb="salinas2"] .planb__semana-tarjeta--activa {
-  background: var(--pb2-surface);
-  border: 1.5px solid var(--pb2-accent);
-  color: var(--pb2-text);
-}
-
-[data-estilo-planb="salinas2"] .btn--primary:hover {
-  background: var(--pb2-surface-alt);
-  filter: none;
-}
-
-[data-estilo-planb="salinas2"] .planb__tarjeta-icono {
-  background: transparent;
-  border: 1.5px solid var(--pb2-accent);
-}
-
-[data-estilo-planb="salinas2"] .planb__avatar,
-[data-estilo-planb="salinas2"] .planb__persona-avatar {
-  background: var(--pb2-surface);
-  border: 1.5px solid var(--pb2-accent);
-  color: var(--pb2-text);
-}
-
-[data-estilo-planb="salinas2"] .rbc-toolbar button.rbc-active,
-[data-estilo-planb="salinas2"] .rbc-toolbar button.rbc-active:hover,
-[data-estilo-planb="salinas2"] .rbc-toolbar button.rbc-active:focus {
-  background: var(--pb2-surface);
-  border: 1.5px solid var(--pb2-accent);
-  color: var(--pb2-text);
-}
-
 /* Topbar y franja de modal (2026-08-26, a petición de Yue). Primero se
    probó una barra sólida oscura estilo Navy -- Yue prefirió que TODO se
    quede en la misma línea blanco+contorno amarillo del resto de la
@@ -4362,26 +3807,6 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
   border-top: 4px solid var(--pb2-accent);
 }
 
-[data-estilo-planb="salinas2"]:not([data-theme="oscuro"]) .planb__topbar {
-  background: #ffffff;
-  border: 1.5px solid var(--pb2-accent);
-  border-radius: 12px;
-  padding: var(--space-4);
-  align-items: center;
-}
-
-[data-estilo-planb="salinas2"] .planb__topbar h1 {
-  color: var(--pb2-text);
-}
-
-[data-estilo-planb="salinas2"] .planb__topbar p {
-  color: var(--pb2-text-muted) !important;
-}
-
-[data-estilo-planb="salinas2"] .modal-card {
-  border-top: 4px solid var(--pb2-accent);
-}
-
 /* A petición de Yue (2026-08-26): fondo de la pantalla, botones de la
    topbar ("Activar avisos", estilo, tema, Salir) y las 4 tarjetas de
    "Quiero asignar" (Tarea/Proyecto/Persona/Agenda) en BLANCO con contorno
@@ -4400,28 +3825,13 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
   border: 1.5px solid var(--pb2-accent);
 }
 
-[data-estilo-planb="salinas"]:not([data-theme="oscuro"]) .planb__tarjeta {
-  background: #ffffff;
-  border: 1.5px solid var(--pb2-accent);
-}
-
-[data-estilo-planb="salinas2"]:not([data-theme="oscuro"]) .planb {
-  background: #ffffff;
-}
-
-[data-estilo-planb="salinas2"]:not([data-theme="oscuro"]) .btn--ghost {
-  background: #ffffff;
-  border: 1.5px solid var(--pb2-accent);
-}
-
-[data-estilo-planb="salinas"]:not([data-theme="oscuro"]) .planb__misemana-col,
-[data-estilo-planb="salinas2"]:not([data-theme="oscuro"]) .planb__misemana-col {
+[data-estilo-planb="salinas"]:not([data-theme="oscuro"]) .planb__misemana-col {
   background: #ffffff;
   border: 1.5px solid var(--pb2-accent);
   border-top-width: 1.5px;
 }
 
-[data-estilo-planb="salinas2"]:not([data-theme="oscuro"]) .planb__tarjeta {
+[data-estilo-planb="salinas"]:not([data-theme="oscuro"]) .planb__tarjeta {
   background: #ffffff;
   border: 1.5px solid var(--pb2-accent);
 }
@@ -4430,13 +3840,9 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
    tipo "Navy" de las variables --pb2-*, solo con el contorno amarillo
    (sin forzar blanco). */
 [data-estilo-planb="salinas"][data-theme="oscuro"] .btn--ghost,
-[data-estilo-planb="salinas2"][data-theme="oscuro"] .btn--ghost,
 [data-estilo-planb="salinas"][data-theme="oscuro"] .planb__tarjeta,
-[data-estilo-planb="salinas2"][data-theme="oscuro"] .planb__tarjeta,
 [data-estilo-planb="salinas"][data-theme="oscuro"] .planb__misemana-col,
-[data-estilo-planb="salinas2"][data-theme="oscuro"] .planb__misemana-col,
-[data-estilo-planb="salinas"][data-theme="oscuro"] .planb__topbar,
-[data-estilo-planb="salinas2"][data-theme="oscuro"] .planb__topbar {
+[data-estilo-planb="salinas"][data-theme="oscuro"] .planb__topbar {
   border: 1.5px solid var(--pb2-accent);
 }
 
