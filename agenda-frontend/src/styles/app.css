@@ -4259,6 +4259,77 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
   background: color-mix(in srgb, var(--pb2-accent) 12%, transparent);
 }
 
+/* A petición de Yue (2026-08-26): el amarillo solo como CONTORNO de
+   botones/tarjetas/avatares, no como relleno -- se ve más sutil, menos
+   "brillante". Van DESPUÉS del bloque estructural de cada estilo para que
+   el cascade los gane sin usar !important. Aplica a los dos (Salinas y
+   Salinas 2) -- misma regla, distinto --pb2-accent de fondo. */
+[data-estilo-planb="salinas"] .btn--primary,
+[data-estilo-planb="salinas"] .planb__persona-elegir,
+[data-estilo-planb="salinas"] .planb__semana-tarjeta--activa {
+  background: var(--pb2-surface);
+  border: 1.5px solid var(--pb2-accent);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="salinas"] .btn--primary:hover {
+  background: var(--pb2-surface-alt);
+  filter: none;
+}
+
+[data-estilo-planb="salinas"] .planb__tarjeta-icono {
+  background: transparent;
+  border: 1.5px solid var(--pb2-accent);
+}
+
+[data-estilo-planb="salinas"] .planb__avatar,
+[data-estilo-planb="salinas"] .planb__persona-avatar {
+  background: var(--pb2-surface);
+  border: 1.5px solid var(--pb2-accent);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="salinas"] .rbc-toolbar button.rbc-active,
+[data-estilo-planb="salinas"] .rbc-toolbar button.rbc-active:hover,
+[data-estilo-planb="salinas"] .rbc-toolbar button.rbc-active:focus {
+  background: var(--pb2-surface);
+  border: 1.5px solid var(--pb2-accent);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="salinas2"] .btn--primary,
+[data-estilo-planb="salinas2"] .planb__persona-elegir,
+[data-estilo-planb="salinas2"] .planb__semana-tarjeta--activa {
+  background: var(--pb2-surface);
+  border: 1.5px solid var(--pb2-accent);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="salinas2"] .btn--primary:hover {
+  background: var(--pb2-surface-alt);
+  filter: none;
+}
+
+[data-estilo-planb="salinas2"] .planb__tarjeta-icono {
+  background: transparent;
+  border: 1.5px solid var(--pb2-accent);
+}
+
+[data-estilo-planb="salinas2"] .planb__avatar,
+[data-estilo-planb="salinas2"] .planb__persona-avatar {
+  background: var(--pb2-surface);
+  border: 1.5px solid var(--pb2-accent);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="salinas2"] .rbc-toolbar button.rbc-active,
+[data-estilo-planb="salinas2"] .rbc-toolbar button.rbc-active:hover,
+[data-estilo-planb="salinas2"] .rbc-toolbar button.rbc-active:focus {
+  background: var(--pb2-surface);
+  border: 1.5px solid var(--pb2-accent);
+  color: var(--pb2-text);
+}
+
 /* "Mi semana" (MiSemana.jsx, 2026-08-22) -- 2 columnas dentro de la
    tarjeta de semana: tareas (azul, --pb2-tareas) a la izquierda, agenda
    (naranja, --pb2-agenda) a la derecha, a petición de Yue. Se apilan en
