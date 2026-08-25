@@ -13,6 +13,8 @@ class ReunionCrear(BaseModel):
     fecha_inicio: datetime
     duracion_minutos: int = 30
     participantes_ids: list[int] = []
+    # Minutos de antelación para el recordatorio -- None = sin recordatorio.
+    recordatorio_minutos_antes: Optional[int] = None
 
 
 class ReunionActualizar(BaseModel):
@@ -21,6 +23,7 @@ class ReunionActualizar(BaseModel):
     fecha_inicio: Optional[datetime] = None
     duracion_minutos: Optional[int] = None
     participantes_ids: Optional[list[int]] = None
+    recordatorio_minutos_antes: Optional[int] = None
 
 
 class ParticipanteOut(BaseModel):
@@ -38,6 +41,7 @@ class ReunionOut(BaseModel):
     notas: Optional[str] = None
     fecha_inicio: datetime
     duracion_minutos: int
+    recordatorio_minutos_antes: Optional[int] = None
     organizador_id: int
     organizador_nombre: str
     participantes: list[ParticipanteOut] = []

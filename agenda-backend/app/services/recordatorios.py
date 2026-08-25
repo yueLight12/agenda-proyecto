@@ -228,3 +228,79 @@ def generar_recordatorios_reuniones_hoy(db: Session) -> int:
 
     db.commit()
     return creadas
+
+
+def _ya_existe_notificacion_recordatorio_reunion(
+    db: Session, usuario_id: int, reunion_id: int
+) -> bool:
+    """A diferencia de reunion_hoy (una por día), el recordatorio con
+    antelación es de una sola vez por reunión -- no se acota por fecha."""
+    return (
+        db.query(Notificacion)
+        .filter(
+            Notificacion.usuario_id == usuario_id,
+            Notificacion.reunion_id == reunion_id,
+            Notificacion.tipo == TipoNotificacion.recordatorio_reunion,
+        )
+        .first()
+        is not None
+    )
+
+
+def generar_recordatorios_previos_reuniones(db: Session) -> int:
+    """
+    Recordatorio configurable por reunión (Reunion.recordatorio_minutos_antes,
+    2026-08-25, a petición de Yue) -- distinto de generar_recordatorios_reuniones_hoy
+    (esa es fija, "el mismo día", sin importar la hora). Notifica al
+    organizador y a cada invitado UNA sola vez, cuando `ahora` entra a la
+    ventana [fecha_inicio - recordatorio_minutos_antes, fecha_inicio).
+
+    OJO -- precisión limitada por el barrido del scheduler
+    (settings.horas_entre_barridos_recordatorios, hasta 6 horas hoy, ver
+    app/main.py): un recordatorio de "15 min antes" puede llegar tarde
+    (hasta ~6h después de la hora pedida) si la reunión ya pasó para
+    cuando corre el siguiente barrido. Antes de producción, acortar ese
+    intervalo (ej. cada 5-10 min) si se necesita precisión real para
+    opciones cortas -- decisión pendiente, confirmada con Yue el 2026-08-25
+    (por ahora se deja el barrido como está).
+    """
+    ahora = datetime.utcnow()
+
+    reuniones = (
+        db.query(Reunion)
+        .filter(
+            Reunion.recordatorio_minutos_antes.isnot(None),
+            Reunion.fecha_inicio > ahora,
+        )
+        .all()
+    )
+
+    creadas = 0
+    for reunion in reuniones:
+        momento_recordatorio = reunion.fecha_inicio - timedelta(
+            minutes=reunion.recordatorio_minutos_antes
+        )
+        if ahora < momento_recordatorio:
+            continue  # todavía no es momento de avisar
+
+        mensaje = (
+            f'Recordatorio: la reunión "{reunion.titulo}" es el '
+            f'{reunion.fecha_inicio.strftime("%d/%m/%Y a las %H:%M")}.'
+        )
+        destinatarios = {reunion.organizador_id} | {p.usuario_id for p in reunion.participantes}
+
+        for destinatario_id in destinatarios:
+            if _ya_existe_notificacion_recordatorio_reunion(db, destinatario_id, reunion.id):
+                continue
+            db.add(
+                Notificacion(
+                    usuario_id=destinatario_id,
+                    reunion_id=reunion.id,
+                    tipo=TipoNotificacion.recordatorio_reunion,
+                    mensaje=mensaje,
+                )
+            )
+            creadas += 1
+
+    db.commit()
+    return creadas

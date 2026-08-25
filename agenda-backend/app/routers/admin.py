@@ -11,6 +11,7 @@ from app.services.materializar_series import materializar_ocurrencias
 from app.services.recordatorios import (
     generar_recordatorios,
     generar_recordatorios_cumpleanos,
+    generar_recordatorios_previos_reuniones,
     generar_recordatorios_reuniones_hoy,
 )
 
@@ -31,11 +32,16 @@ def disparar_generacion_recordatorios(
     total_entregables = generar_recordatorios(db)
     total_cumpleanos = generar_recordatorios_cumpleanos(db)
     total_reuniones = generar_recordatorios_reuniones_hoy(db)
+    total_recordatorios_previos = generar_recordatorios_previos_reuniones(db)
     ocurrencias_creadas = materializar_ocurrencias(db)
     return {
-        "notificaciones_creadas": total_entregables + total_cumpleanos + total_reuniones,
+        "notificaciones_creadas": total_entregables
+        + total_cumpleanos
+        + total_reuniones
+        + total_recordatorios_previos,
         "notificaciones_entregables": total_entregables,
         "notificaciones_cumpleanos": total_cumpleanos,
         "notificaciones_reuniones": total_reuniones,
+        "notificaciones_recordatorios_previos": total_recordatorios_previos,
         "ocurrencias_series_creadas": ocurrencias_creadas,
     }

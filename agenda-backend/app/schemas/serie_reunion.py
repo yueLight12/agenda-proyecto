@@ -31,11 +31,13 @@ class SerieReunionCrear(BaseModel):
     participantes_ids: list[int] = []
     fecha_inicio: date
     fecha_fin: Optional[date] = None
+    recordatorio_minutos_antes: Optional[int] = None
 
 
 class SerieReunionActualizar(BaseModel):
     titulo: Optional[str] = None
     notas: Optional[str] = None
+    recordatorio_minutos_antes: Optional[int] = None
     # tipo_recurrencia NO es editable (no se puede cambiar de semanal a
     # mensual, ej. -- archivar y crear una serie nueva); dia_semana/dia_mes
     # sí, para poder mover "cada lunes" a "cada martes" sin recrear todo.
@@ -61,6 +63,7 @@ class SerieReunionOut(BaseModel):
     dia_mes: Optional[int] = None
     hora: time
     duracion_minutos: int
+    recordatorio_minutos_antes: Optional[int] = None
     fecha_inicio: date
     fecha_fin: Optional[date] = None
     activa: bool

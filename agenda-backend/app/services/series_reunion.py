@@ -82,6 +82,7 @@ def serie_a_out(db: Session, usuario: Usuario, serie: SerieReunion) -> SerieReun
         dia_mes=serie.dia_mes,
         hora=serie.hora,
         duracion_minutos=serie.duracion_minutos,
+        recordatorio_minutos_antes=serie.recordatorio_minutos_antes,
         fecha_inicio=serie.fecha_inicio,
         fecha_fin=serie.fecha_fin,
         activa=serie.activa,
@@ -133,6 +134,7 @@ def crear_serie(
     dia_semana: int | None = None,
     dia_mes: int | None = None,
     notas: str | None = None,
+    recordatorio_minutos_antes: int | None = None,
 ) -> SerieReunion:
     """Cualquier participante del tema puede proponer una serie -- mismo
     criterio que crear_reunion, no requiere N1/N2. `dia_semana` obligatorio
@@ -157,6 +159,7 @@ def crear_serie(
         dia_mes=dia_mes if tipo_recurrencia == TipoRecurrencia.mensual else None,
         hora=hora,
         duracion_minutos=duracion_minutos,
+        recordatorio_minutos_antes=recordatorio_minutos_antes,
         fecha_inicio=fecha_inicio,
         fecha_fin=fecha_fin,
     )
@@ -198,7 +201,8 @@ def actualizar_serie(db: Session, usuario: Usuario, serie_id: int, campos: dict)
     # invasivo y fuera de lo pedido. Las ocurrencias que YA PASARON no se
     # tocan -- son historial, no plantilla.
     if (
-        {"titulo", "hora", "duracion_minutos", "notas"} & campos_aplicados.keys()
+        {"titulo", "hora", "duracion_minutos", "notas", "recordatorio_minutos_antes"}
+        & campos_aplicados.keys()
         or participantes_ids is not None
     ):
         ocurrencias_futuras = (
@@ -215,6 +219,8 @@ def actualizar_serie(db: Session, usuario: Usuario, serie_id: int, campos: dict)
                 ocurrencia.duracion_minutos = serie.duracion_minutos
             if "notas" in campos_aplicados:
                 ocurrencia.notas = serie.notas
+            if "recordatorio_minutos_antes" in campos_aplicados:
+                ocurrencia.recordatorio_minutos_antes = serie.recordatorio_minutos_antes
             if participantes_ids is not None:
                 db.query(ReunionParticipante).filter(
                     ReunionParticipante.reunion_id == ocurrencia.id

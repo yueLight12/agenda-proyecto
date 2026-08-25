@@ -100,6 +100,7 @@ def materializar_ocurrencias(db: Session, horizonte_dias: int = 14) -> int:
                 notas=serie.notas,
                 fecha_inicio=fecha_inicio,
                 duracion_minutos=serie.duracion_minutos,
+                recordatorio_minutos_antes=serie.recordatorio_minutos_antes,
                 organizador_id=serie.organizador_id,
                 serie_id=serie.id,
             )

@@ -73,6 +73,7 @@ def crear_serie(
         dia_semana=datos.dia_semana,
         dia_mes=datos.dia_mes,
         notas=datos.notas,
+        recordatorio_minutos_antes=datos.recordatorio_minutos_antes,
     )
     db.commit()
     db.refresh(nueva)

@@ -15,6 +15,9 @@ class TipoNotificacion(str, enum.Enum):
     entregable_asignado = "entregable_asignado"
     avance_actualizado = "avance_actualizado"
     reunion_hoy = "reunion_hoy"
+    # Recordatorio con antelación configurable (2026-08-25), distinto de
+    # reunion_hoy (ese es fijo, "el mismo día") -- ver Reunion.recordatorio_minutos_antes.
+    recordatorio_reunion = "recordatorio_reunion"
     otro = "otro"
 
 

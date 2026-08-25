@@ -70,6 +70,7 @@ def crear_reunion(
         fecha_inicio=datos.fecha_inicio,
         duracion_minutos=datos.duracion_minutos,
         participantes_ids=datos.participantes_ids,
+        recordatorio_minutos_antes=datos.recordatorio_minutos_antes,
     )
     db.commit()
     db.refresh(nueva)
@@ -103,6 +104,7 @@ def crear_reunion_general(
         fecha_inicio=datos.fecha_inicio,
         duracion_minutos=datos.duracion_minutos,
         participantes_ids=datos.participantes_ids,
+        recordatorio_minutos_antes=datos.recordatorio_minutos_antes,
     )
     db.commit()
     db.refresh(nueva)

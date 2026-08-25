@@ -39,6 +39,7 @@ from app.services.materializar_series import materializar_ocurrencias
 from app.services.recordatorios import (
     generar_recordatorios,
     generar_recordatorios_cumpleanos,
+    generar_recordatorios_previos_reuniones,
     generar_recordatorios_reuniones_hoy,
 )
 
@@ -103,6 +104,7 @@ def _ejecutar_barrido_recordatorios():
         generar_recordatorios(db)
         generar_recordatorios_cumpleanos(db)
         generar_recordatorios_reuniones_hoy(db)
+        generar_recordatorios_previos_reuniones(db)
         materializar_ocurrencias(db)
     finally:
         db.close()

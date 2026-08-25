@@ -26,6 +26,7 @@ def reunion_a_out(db: Session, usuario: Usuario, reunion: Reunion) -> ReunionOut
         notas=reunion.notas,
         fecha_inicio=reunion.fecha_inicio,
         duracion_minutos=reunion.duracion_minutos,
+        recordatorio_minutos_antes=reunion.recordatorio_minutos_antes,
         organizador_id=reunion.organizador_id,
         organizador_nombre=reunion.organizador.nombre,
         participantes=[
@@ -215,6 +216,7 @@ def crear_reunion(
     fecha_inicio,
     duracion_minutos: int,
     participantes_ids: list[int],
+    recordatorio_minutos_antes: int | None = None,
 ) -> Reunion:
     """
     Cualquier participante del proyecto puede agendar una reunión (no requiere
@@ -237,6 +239,7 @@ def crear_reunion(
         notas=notas,
         fecha_inicio=fecha_inicio,
         duracion_minutos=duracion_minutos,
+        recordatorio_minutos_antes=recordatorio_minutos_antes,
         organizador_id=usuario.id,
     )
     db.add(nueva)

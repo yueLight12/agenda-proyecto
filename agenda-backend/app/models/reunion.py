@@ -29,6 +29,16 @@ class Reunion(Base):
     notas = Column(Text, nullable=True)
     fecha_inicio = Column(DateTime, nullable=False)
     duracion_minutos = Column(Integer, default=30, nullable=False)
+    # Recordatorio opcional antes de la hora de inicio (2026-08-25, a
+    # petición de Yue) -- None = sin recordatorio. Minutos en vez de horas
+    # para poder ofrecer opciones como "15 min antes" en el selector del
+    # frontend (ver ModalReunion.jsx); lo procesa
+    # app/services/recordatorios.py::generar_recordatorios_previos_reuniones,
+    # corrido por el mismo scheduler que ya existe (ver app/main.py) --
+    # ese scheduler barre cada varias horas (settings.horas_entre_barridos_recordatorios),
+    # así que un recordatorio de 15-30 min no es preciso hoy; habrá que
+    # acortar ese intervalo antes de producción si se necesita precisión real.
+    recordatorio_minutos_antes = Column(Integer, nullable=True)
     organizador_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
     fecha_creacion = Column(DateTime, default=datetime.utcnow, nullable=False)
     # Ocurrencia materializada de una serie recurrente (2026-08-17, ver

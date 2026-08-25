@@ -53,6 +53,9 @@ class SerieReunion(Base):
     dia_mes = Column(Integer, nullable=True)
     hora = Column(Time, nullable=False)
     duracion_minutos = Column(Integer, default=30, nullable=False)
+    # Mismo campo/mismo criterio que Reunion.recordatorio_minutos_antes (ver
+    # ese modelo) -- se copia a cada ocurrencia materializada.
+    recordatorio_minutos_antes = Column(Integer, nullable=True)
     fecha_inicio = Column(Date, nullable=False)
     fecha_fin = Column(Date, nullable=True)  # None = indefinida
     activa = Column(Boolean, default=True, nullable=False)

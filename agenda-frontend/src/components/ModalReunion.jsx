@@ -7,6 +7,22 @@ import SeccionAgendaChecklist from "./SeccionAgendaChecklist";
 import SeccionNotas from "./SeccionNotas";
 import SelectorTemasChecklist from "./SelectorTemasChecklist";
 
+// Recordatorio in-app opcional antes de la reunión (2026-08-25, a petición
+// de Yue) -- lista preestablecida en vez de un número libre. El scheduler
+// que manda el recordatorio barre cada varias horas (ver
+// app/main.py::horas_entre_barridos_recordatorios en el backend), así que
+// "15/30 min antes" puede llegar tarde -- aceptado por Yue por ahora,
+// pendiente acortar ese barrido antes de producción si se necesita
+// precisión real.
+const RECORDATORIO_OPCIONES = [
+  { valor: "", etiqueta: "Sin recordatorio" },
+  { valor: 15, etiqueta: "15 minutos antes" },
+  { valor: 30, etiqueta: "30 minutos antes" },
+  { valor: 60, etiqueta: "1 hora antes" },
+  { valor: 120, etiqueta: "2 horas antes" },
+  { valor: 1440, etiqueta: "1 día antes" },
+];
+
 const DIAS_ES = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
 const DIAS_ES_CAP = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
 
@@ -71,6 +87,11 @@ export default function ModalReunion({
 
   const [titulo, setTitulo] = useState(reunion?.titulo || serie?.titulo || "");
   const [notas, setNotas] = useState(reunion?.notas || serie?.notas || "");
+  // "" en el <select> = sin recordatorio (Number("") es NaN, se normaliza a
+  // null al guardar) -- ver RECORDATORIO_OPCIONES abajo.
+  const [recordatorioMinutosAntes, setRecordatorioMinutosAntes] = useState(
+    reunion?.recordatorio_minutos_antes ?? serie?.recordatorio_minutos_antes ?? ""
+  );
   const [fecha, setFecha] = useState(
     fechaInicial || fechaHoraSugerida?.fecha || new Date().toISOString().slice(0, 10)
   );
@@ -135,6 +156,8 @@ export default function ModalReunion({
     e.preventDefault();
     setError("");
     setGuardando(true);
+    const recordatorioAEnviar =
+      recordatorioMinutosAntes === "" ? null : Number(recordatorioMinutosAntes);
     try {
       if (esEdicionSerie) {
         const datos = {
@@ -143,6 +166,7 @@ export default function ModalReunion({
           hora: `${hora}:00`,
           duracion_minutos: Number(duracionMinutos),
           participantes_ids: participantesIds,
+          recordatorio_minutos_antes: recordatorioAEnviar,
           activa,
         };
         if (serieActual.tipo_recurrencia === "semanal") datos.dia_semana = Number(diaSemanaEdit);
@@ -156,6 +180,7 @@ export default function ModalReunion({
           fecha_inicio: `${fecha}T${hora}:00`,
           duracion_minutos: Number(duracionMinutos),
           participantes_ids: participantesIds,
+          recordatorio_minutos_antes: recordatorioAEnviar,
         });
         setReunionActual(actualizada);
       } else if (repetir === "no") {
@@ -165,6 +190,7 @@ export default function ModalReunion({
           fecha_inicio: `${fecha}T${hora}:00`,
           duracion_minutos: Number(duracionMinutos),
           participantes_ids: participantesIds,
+          recordatorio_minutos_antes: recordatorioAEnviar,
         });
         setReunionActual(nueva);
       } else {
@@ -179,6 +205,7 @@ export default function ModalReunion({
           duracion_minutos: Number(duracionMinutos),
           participantes_ids: participantesIds,
           fecha_inicio: fecha,
+          recordatorio_minutos_antes: recordatorioAEnviar,
         });
         setSerieActual(nueva);
       }
@@ -345,6 +372,21 @@ export default function ModalReunion({
             <label className="stack" style={{ gap: 4 }}>
               <span style={{ fontSize: "0.85rem" }}>Notas (opcional)</span>
               <input className="input" value={notas} onChange={(e) => setNotas(e.target.value)} />
+            </label>
+
+            <label className="stack" style={{ gap: 4 }}>
+              <span style={{ fontSize: "0.85rem" }}>Recordatorio</span>
+              <select
+                className="input"
+                value={recordatorioMinutosAntes}
+                onChange={(e) => setRecordatorioMinutosAntes(e.target.value)}
+              >
+                {RECORDATORIO_OPCIONES.map((op) => (
+                  <option key={op.valor} value={op.valor}>
+                    {op.etiqueta}
+                  </option>
+                ))}
+              </select>
             </label>
 
             {esEdicionSerie && (
