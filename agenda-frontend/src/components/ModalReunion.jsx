@@ -485,26 +485,28 @@ export default function ModalReunion({
             de arriba vía el atributo form= (HTML5 permite asociar un botón a
             un <form> aunque esté fuera de su árbol). */}
         {mostrarFormulario && (
-          <div style={{ display: "flex", gap: 8, justifyContent: "space-between" }}>
-            {puedeEliminar ? (
-              <button
-                type="button"
-                className="btn btn--ghost"
-                onClick={() => setConfirmandoEliminar(true)}
-                disabled={eliminando}
-                style={{ color: "var(--color-danger)" }}
-              >
-                {eliminando ? "Eliminando..." : "Eliminar"}
-              </button>
-            ) : (
-              <span />
-            )}
-            <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", alignItems: "center", gap: 8 }}>
+            <div>
+              {puedeEliminar && (
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={() => setConfirmandoEliminar(true)}
+                  disabled={eliminando}
+                  style={{ color: "var(--color-danger)" }}
+                >
+                  {eliminando ? "Eliminando..." : "Eliminar"}
+                </button>
+              )}
+            </div>
+            <div style={{ justifySelf: "center" }}>
               {esEdicionReunion && (
                 <button type="button" className="btn btn--ghost" onClick={handleReagendar}>
                   Reagendar
                 </button>
               )}
+            </div>
+            <div style={{ justifySelf: "end" }}>
               <button className="btn btn--primary" type="submit" form="form-reunion" disabled={guardando}>
                 {guardando ? "Guardando..." : esEdicion ? "Guardar cambios" : "Agendar reunión"}
               </button>
