@@ -3250,21 +3250,26 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
   --pb2-agenda: #a0522d;
 }
 
+/* Tema oscuro (2026-08-26, a petición de Yue): fondo tipo "Navy" (mismos
+   --pb2-bg/surface/border que ese estilo) en vez del café oscuro original
+   -- el acento sigue siendo amarillo patito, pero la base ya no compite
+   con él. Los overrides "fondo blanco" de más abajo están acotados con
+   :not([data-theme="oscuro"]) precisamente para no chocar con esto. */
 :root[data-estilo-planb="salinas"][data-theme="oscuro"] {
   color-scheme: dark;
-  --pb2-bg: #1c1608;
-  --pb2-dot: #26200f;
-  --pb2-surface: #2a2210;
-  --pb2-surface-alt: #332a15;
-  --pb2-border: #46391b;
-  --pb2-text: #f5efd9;
-  --pb2-text-muted: #c9b97e;
+  --pb2-bg: #0a1626;
+  --pb2-dot: #122036;
+  --pb2-surface: #16273f;
+  --pb2-surface-alt: #1c3049;
+  --pb2-border: #2a3f5c;
+  --pb2-text: #eef2f8;
+  --pb2-text-muted: #94a3bd;
   --pb2-accent: #ffd94d;
   --pb2-accent-text: #241c05;
   --pb2-danger-bg: #3a1f1c;
   --pb2-danger-text: #e08277;
-  --pb2-avatar-bg: #e0b23c;
-  --pb2-tareas: #e0b23c;
+  --pb2-avatar-bg: #ffd94d;
+  --pb2-tareas: #ffd94d;
   --pb2-agenda: #cc8a52;
 }
 
@@ -3767,15 +3772,17 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
   --pb2-agenda: #fb923c;
 }
 
+/* Tema oscuro (2026-08-26, a petición de Yue): mismo criterio que
+   Salinas -- fondo tipo "Navy" en vez del amarillo-café oscuro original. */
 :root[data-estilo-planb="salinas2"][data-theme="oscuro"] {
   color-scheme: dark;
-  --pb2-bg: #1a1600;
-  --pb2-dot: #241f00;
-  --pb2-surface: #2b2400;
-  --pb2-surface-alt: #332b00;
-  --pb2-border: #4d4200;
-  --pb2-text: #fff9db;
-  --pb2-text-muted: #d4c876;
+  --pb2-bg: #0a1626;
+  --pb2-dot: #122036;
+  --pb2-surface: #16273f;
+  --pb2-surface-alt: #1c3049;
+  --pb2-border: #2a3f5c;
+  --pb2-text: #eef2f8;
+  --pb2-text-muted: #94a3bd;
   --pb2-accent: #ffd94d;
   --pb2-accent-text: #241c05;
   --pb2-danger-bg: #3a1f1c;
@@ -4333,8 +4340,9 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
 /* Topbar y franja de modal (2026-08-26, a petición de Yue). Primero se
    probó una barra sólida oscura estilo Navy -- Yue prefirió que TODO se
    quede en la misma línea blanco+contorno amarillo del resto de la
-   pantalla, incluida la topbar (sin fondo oscuro). */
-[data-estilo-planb="salinas"] .planb__topbar {
+   pantalla, incluida la topbar (SOLO en tema claro -- ver más abajo el
+   porqué de :not([data-theme="oscuro"])). */
+[data-estilo-planb="salinas"]:not([data-theme="oscuro"]) .planb__topbar {
   background: #ffffff;
   border: 1.5px solid var(--pb2-accent);
   border-radius: 12px;
@@ -4354,7 +4362,7 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
   border-top: 4px solid var(--pb2-accent);
 }
 
-[data-estilo-planb="salinas2"] .planb__topbar {
+[data-estilo-planb="salinas2"]:not([data-theme="oscuro"]) .planb__topbar {
   background: #ffffff;
   border: 1.5px solid var(--pb2-accent);
   border-radius: 12px;
@@ -4377,41 +4385,58 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
 /* A petición de Yue (2026-08-26): fondo de la pantalla, botones de la
    topbar ("Activar avisos", estilo, tema, Salir) y las 4 tarjetas de
    "Quiero asignar" (Tarea/Proyecto/Persona/Agenda) en BLANCO con contorno
-   amarillo, en vez del tono crema que traían por default. Overrides
-   puntuales (no se toca --pb2-surface-alt en general, para no afectar
-   otros elementos que la usan, ej. inputs/filas de pendientes). */
-[data-estilo-planb="salinas"] .planb {
+   amarillo, en vez del tono crema que traían por default -- SOLO en tema
+   claro (2026-08-26, a petición de Yue): en tema oscuro se deja el fondo
+   oscuro tipo "Navy" ya definido en las variables --pb2-* de arriba, sin
+   forzar blanco encima. Overrides puntuales (no se toca --pb2-surface-alt
+   en general, para no afectar otros elementos que la usan, ej. inputs/
+   filas de pendientes). */
+[data-estilo-planb="salinas"]:not([data-theme="oscuro"]) .planb {
   background: #ffffff;
 }
 
-[data-estilo-planb="salinas"] .btn--ghost {
-  background: #ffffff;
-  border: 1.5px solid var(--pb2-accent);
-}
-
-[data-estilo-planb="salinas"] .planb__tarjeta {
+[data-estilo-planb="salinas"]:not([data-theme="oscuro"]) .btn--ghost {
   background: #ffffff;
   border: 1.5px solid var(--pb2-accent);
 }
 
-[data-estilo-planb="salinas2"] .planb {
-  background: #ffffff;
-}
-
-[data-estilo-planb="salinas2"] .btn--ghost {
+[data-estilo-planb="salinas"]:not([data-theme="oscuro"]) .planb__tarjeta {
   background: #ffffff;
   border: 1.5px solid var(--pb2-accent);
 }
 
-[data-estilo-planb="salinas"] .planb__misemana-col,
-[data-estilo-planb="salinas2"] .planb__misemana-col {
+[data-estilo-planb="salinas2"]:not([data-theme="oscuro"]) .planb {
+  background: #ffffff;
+}
+
+[data-estilo-planb="salinas2"]:not([data-theme="oscuro"]) .btn--ghost {
+  background: #ffffff;
+  border: 1.5px solid var(--pb2-accent);
+}
+
+[data-estilo-planb="salinas"]:not([data-theme="oscuro"]) .planb__misemana-col,
+[data-estilo-planb="salinas2"]:not([data-theme="oscuro"]) .planb__misemana-col {
   background: #ffffff;
   border: 1.5px solid var(--pb2-accent);
   border-top-width: 1.5px;
 }
 
-[data-estilo-planb="salinas2"] .planb__tarjeta {
+[data-estilo-planb="salinas2"]:not([data-theme="oscuro"]) .planb__tarjeta {
   background: #ffffff;
+  border: 1.5px solid var(--pb2-accent);
+}
+
+/* En tema oscuro, estos mismos elementos se quedan con el fondo oscuro
+   tipo "Navy" de las variables --pb2-*, solo con el contorno amarillo
+   (sin forzar blanco). */
+[data-estilo-planb="salinas"][data-theme="oscuro"] .btn--ghost,
+[data-estilo-planb="salinas2"][data-theme="oscuro"] .btn--ghost,
+[data-estilo-planb="salinas"][data-theme="oscuro"] .planb__tarjeta,
+[data-estilo-planb="salinas2"][data-theme="oscuro"] .planb__tarjeta,
+[data-estilo-planb="salinas"][data-theme="oscuro"] .planb__misemana-col,
+[data-estilo-planb="salinas2"][data-theme="oscuro"] .planb__misemana-col,
+[data-estilo-planb="salinas"][data-theme="oscuro"] .planb__topbar,
+[data-estilo-planb="salinas2"][data-theme="oscuro"] .planb__topbar {
   border: 1.5px solid var(--pb2-accent);
 }
 
