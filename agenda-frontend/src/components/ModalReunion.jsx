@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { reunionesApi, seriesReunionApi } from "../api/endpoints";
 import BuscadorInvitados from "./BuscadorInvitados";
 import ConfirmDialog from "./ConfirmDialog";
@@ -137,6 +137,15 @@ export default function ModalReunion({
 
   const puedeEliminar = esEdicion; // ambos, N1/N2/organizador, validado por el backend
 
+  // Botón "Reagendar" (2026-08-25, a petición de Yue): solo mueve la
+  // fecha/hora de ESTA reunión -- no aplica a la edición de una serie
+  // completa (ahí "hora"/"día" son el patrón recurrente, no una ocurrencia).
+  const fechaInputRef = useRef(null);
+  const handleReagendar = () => {
+    fechaInputRef.current?.focus();
+    fechaInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+
   // El checklist (temas/agenda) SIEMPRE vive en la serie cuando la junta
   // es una ocurrencia materializada -- bug real encontrado 2026-08-18: al
   // hacer clic en una ocurrencia desde el calendario, este modal solo
@@ -272,6 +281,7 @@ export default function ModalReunion({
                 <label className="stack" style={{ gap: 4, flex: 1 }}>
                   <span style={{ fontSize: "0.85rem" }}>Fecha</span>
                   <input
+                    ref={fechaInputRef}
                     className="input"
                     type="date"
                     value={fecha}
@@ -489,9 +499,16 @@ export default function ModalReunion({
             ) : (
               <span />
             )}
-            <button className="btn btn--primary" type="submit" form="form-reunion" disabled={guardando}>
-              {guardando ? "Guardando..." : esEdicion ? "Guardar cambios" : "Agendar reunión"}
-            </button>
+            <div style={{ display: "flex", gap: 8 }}>
+              {esEdicionReunion && (
+                <button type="button" className="btn btn--ghost" onClick={handleReagendar}>
+                  Reagendar
+                </button>
+              )}
+              <button className="btn btn--primary" type="submit" form="form-reunion" disabled={guardando}>
+                {guardando ? "Guardando..." : esEdicion ? "Guardar cambios" : "Agendar reunión"}
+              </button>
+            </div>
           </div>
         )}
       </div>
