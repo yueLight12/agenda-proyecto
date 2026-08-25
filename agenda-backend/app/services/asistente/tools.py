@@ -69,6 +69,7 @@ from app.services.entregables import (
 from app.services.equipos import (
     agregar_a_mi_equipo,
     aplicar_mi_equipo,
+    crear_persona_y_agregar_a_mi_equipo,
     quitar_de_mi_equipo,
     rol_default_para_nuevo_proyecto,
 )
@@ -95,7 +96,13 @@ from app.services.proyectos import (
 )
 from app.services.reuniones import actualizar_reunion, crear_reunion, eliminar_reunion
 from app.services.rol_labels import etiqueta_rol as _etiqueta_rol
-from app.services.series_reunion import actualizar_serie, agenda_actual_de_serie, crear_serie, revertir_revision_tema
+from app.services.series_reunion import (
+    actualizar_serie,
+    agenda_actual_de_serie,
+    crear_serie,
+    mover_item_agenda,
+    revertir_revision_tema,
+)
 from app.models.serie_reunion import SerieReunion
 
 
@@ -1679,6 +1686,83 @@ def _ejecutar_convertir_acuerdo(db: Session, usuario: Usuario, parametros: dict)
 
 # --- agregar_a_mi_equipo (plantilla personal) -----------------------------------
 
+# --- dar_de_alta_persona (cuenta nueva) -----------------------------------
+
+def _resolver_dar_de_alta_persona(
+    db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
+) -> ResultadoInterpretacion:
+    nombre = (
+        aclaraciones.get("nombre") if isinstance(aclaraciones.get("nombre"), str) else parametros_llm.get("nombre")
+    )
+    nombre = (nombre or "").strip()
+    if not nombre:
+        return ResultadoInterpretacion(
+            listo=False, campo="nombre", pregunta="¿Cómo se llama la persona?", tipo_entrada="texto"
+        )
+
+    email = (
+        aclaraciones.get("email") if isinstance(aclaraciones.get("email"), str) else parametros_llm.get("email")
+    )
+    email = (email or "").strip()
+    if not email or "@" not in email:
+        return ResultadoInterpretacion(
+            listo=False, campo="email",
+            pregunta="¿Cuál es su correo? Dímelo completo, con arroba.", tipo_entrada="texto",
+        )
+
+    rol_res = resolver_campo("rol", aclaraciones, parametros_llm.get("rol"), resolver_rol)
+    if not rol_res.resuelto:
+        return _pendiente("rol", rol_res)
+    if rol_res.valor not in (RolEnum.N3, RolEnum.N4):
+        return ResultadoInterpretacion(
+            listo=False, campo="rol",
+            pregunta="Al dar de alta a alguien nuevo solo puede quedar como colaborador interno o externo "
+            "(para dirección o líder, pide a dirección que la dé de alta desde el directorio). "
+            "¿Cuál de los dos es?",
+            tipo_entrada="texto",
+        )
+
+    puesto = (parametros_llm.get("puesto") or "").strip() or None
+
+    if db.query(Usuario).filter(Usuario.email == email).first():
+        return ResultadoInterpretacion(
+            listo=False, campo="email",
+            pregunta=f'Ya hay una cuenta registrada con el correo "{email}". ¿Me das otro correo?',
+            tipo_entrada="texto",
+        )
+
+    parametros = {"nombre": nombre, "puesto": puesto, "email": email, "rol": rol_res.valor.value}
+    resumen = (
+        f'Voy a dar de alta a {nombre} ({email}) como {_etiqueta_rol(rol_res.valor)} y guardarla en tu equipo, '
+        f'con la contraseña temporal de siempre. ¿Confirmas?'
+    )
+    preview = {
+        "tipo": "miembro",
+        "usuario_id": None,
+        "nombre": nombre,
+        "puesto": puesto,
+        "rol": rol_res.valor.value,
+        "proyecto_nombre": "Mi equipo (plantilla personal) — cuenta nueva",
+    }
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen, preview=preview)
+
+
+def _ejecutar_dar_de_alta_persona(db: Session, usuario: Usuario, parametros: dict) -> dict:
+    registro = crear_persona_y_agregar_a_mi_equipo(
+        db, usuario, parametros["nombre"], parametros.get("puesto"), parametros["email"],
+        RolEnum(parametros["rol"]),
+    )
+    db.commit()
+    db.refresh(registro)
+    return {
+        "mensaje": f"{registro.usuario.nombre} quedó dado de alta como {_etiqueta_rol(registro.rol)} "
+        "y guardado en tu equipo, con la contraseña temporal de siempre.",
+        "resultado": {"usuario_id": registro.usuario_id, "rol": registro.rol.value},
+    }
+
+
+# --- agregar_a_mi_equipo (plantilla personal) -----------------------------------
+
 def _resolver_agregar_a_mi_equipo(
     db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
 ) -> ResultadoInterpretacion:
@@ -2177,6 +2261,69 @@ def _ejecutar_marcar_revision_agenda(db: Session, usuario: Usuario, parametros: 
     return {"mensaje": "Quedó registrado en la agenda.", "resultado": {"id": resultado.id}}
 
 
+# --- mover_item_agenda (reordenar checklist de una junta recurrente) -----
+
+def _resolver_direccion_orden(texto: Optional[str]) -> Optional[str]:
+    if not texto:
+        return None
+    normalizado = texto.strip().lower()
+    if any(p in normalizado for p in ("arriba", "sube", "subir", "adelante", "antes")):
+        return "arriba"
+    if any(p in normalizado for p in ("abajo", "baja", "bajar", "atras", "atrás", "despues", "después")):
+        return "abajo"
+    return None
+
+
+def _resolver_mover_item_agenda(
+    db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
+) -> ResultadoInterpretacion:
+    proyecto_res = resolver_campo(
+        "proyecto_id", aclaraciones, parametros_llm.get("proyecto"),
+        lambda t: resolver_proyecto(db, usuario, t, proyecto_id_contexto),
+    )
+    if not proyecto_res.resuelto:
+        return _pendiente("proyecto_id", proyecto_res)
+    proyecto_id = proyecto_res.valor
+
+    serie_res = resolver_campo(
+        "serie_id", aclaraciones, parametros_llm.get("serie"),
+        lambda t: resolver_serie_reunion(db, usuario, proyecto_id, t),
+    )
+    if not serie_res.resuelto:
+        return _pendiente("serie_id", serie_res)
+    serie_id = serie_res.valor
+
+    item_res = resolver_campo(
+        "agenda_item_id", aclaraciones, parametros_llm.get("item"),
+        lambda t: resolver_item_agenda(db, usuario, serie_id, t),
+    )
+    if not item_res.resuelto:
+        return _pendiente("agenda_item_id", item_res)
+
+    direccion_texto = (
+        aclaraciones.get("direccion")
+        if isinstance(aclaraciones.get("direccion"), str)
+        else parametros_llm.get("direccion")
+    )
+    direccion = _resolver_direccion_orden(direccion_texto)
+    if direccion is None:
+        return ResultadoInterpretacion(
+            listo=False, campo="direccion",
+            pregunta="¿Lo subo o lo bajo en la lista?", tipo_entrada="texto",
+        )
+
+    parametros = {"agenda_item_id": item_res.valor, "direccion": direccion}
+    verbo = "subir" if direccion == "arriba" else "bajar"
+    resumen = f"Voy a {verbo} ese ítem un lugar en la agenda. ¿Confirmas?"
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen)
+
+
+def _ejecutar_mover_item_agenda(db: Session, usuario: Usuario, parametros: dict) -> dict:
+    mover_item_agenda(db, usuario, parametros["agenda_item_id"], parametros["direccion"])
+    db.commit()
+    return {"mensaje": "Se reordenó el ítem en la agenda.", "resultado": None}
+
+
 TOOLS: dict[str, ToolSpec] = {
     "crear_entregable": ToolSpec(
         nombre="crear_entregable",
@@ -2673,6 +2820,31 @@ TOOLS: dict[str, ToolSpec] = {
         resolver=_resolver_convertir_acuerdo,
         ejecutar=_ejecutar_convertir_acuerdo,
     ),
+    "dar_de_alta_persona": ToolSpec(
+        nombre="dar_de_alta_persona",
+        descripcion=(
+            "Crear una cuenta NUEVA en el sistema para alguien que todavía no tiene una, y guardarla de "
+            "una vez en la plantilla personal 'Mi equipo' del usuario -- con una contraseña temporal que "
+            "la persona puede cambiar después. Solo puede quedar como colaborador interno o externo (para "
+            "dar de alta a alguien como dirección o líder hace falta el directorio completo, fuera del "
+            "alcance del asistente). Si la persona YA tiene cuenta, usa agregar_miembro o asignar_rol en "
+            "vez de esta."
+        ),
+        parametros_llm={
+            "nombre": "nombre completo de la persona a dar de alta",
+            "puesto": "puesto o cargo, si se dijo; vacío si no",
+            "email": "correo electrónico completo tal como se dijo (con arroba)",
+            "rol": "colaborador interno o colaborador externo (nunca dirección/líder aquí)",
+        },
+        ejemplos=[
+            (
+                "da de alta a Karen Medina, karen.medina en gen24 punto mx, como colaboradora interna",
+                {"nombre": "Karen Medina", "puesto": "", "email": "karen.medina@gen24.mx", "rol": "colaboradora interna"},
+            ),
+        ],
+        resolver=_resolver_dar_de_alta_persona,
+        ejecutar=_ejecutar_dar_de_alta_persona,
+    ),
     "agregar_a_mi_equipo": ToolSpec(
         nombre="agregar_a_mi_equipo",
         descripcion=(
@@ -2858,5 +3030,28 @@ TOOLS: dict[str, ToolSpec] = {
         ],
         resolver=_resolver_marcar_revision_agenda,
         ejecutar=_ejecutar_marcar_revision_agenda,
+    ),
+    "mover_item_agenda": ToolSpec(
+        nombre="mover_item_agenda",
+        descripcion=(
+            "Subir o bajar un lugar a un ítem (tema, entregable, acuerdo o pendiente) dentro de la "
+            "lista de 'Agenda de esta reunión' de una junta recurrente -- reordenarlo, no cambiar su "
+            "estado de revisión (para eso usa marcar_revision_agenda)."
+        ),
+        parametros_llm={
+            "proyecto": "nombre del proyecto/tema si se mencionó, si no dejar vacío",
+            "serie": "título de la junta recurrente si se mencionó, si no dejar vacío",
+            "item": "nombre del tema/entregable/pendiente que se está moviendo, tal como se mencionó",
+            "direccion": "'arriba' si se pidió subirlo/adelantarlo, 'abajo' si se pidió bajarlo/atrasarlo",
+        },
+        ejemplos=[
+            ("sube el tema Arte en la agenda", {"proyecto": "", "serie": "", "item": "Arte", "direccion": "arriba"}),
+            (
+                "baja un lugar el pendiente de presupuesto",
+                {"proyecto": "", "serie": "", "item": "presupuesto", "direccion": "abajo"},
+            ),
+        ],
+        resolver=_resolver_mover_item_agenda,
+        ejecutar=_ejecutar_mover_item_agenda,
     ),
 }
