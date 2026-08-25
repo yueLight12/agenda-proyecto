@@ -2633,6 +2633,541 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
   border-radius: 8px;
 }
 
+/* ======================================================================
+   Agenda Plan B — diseño "indigo" (2026-08-25, a petición de Yue --
+   reactivado junto con "navy", ver comentario al inicio de esta sección).
+   Yue no tenía una captura propia del sistema para "índigo": se construyó
+   a partir de mockups de referencia de calendario/agenda (tarjetas con
+   icono circular relleno de acento morado, franja de fecha destacada,
+   colores pastel por categoría) que Yue pasó como inspiración general,
+   no como diseño exacto de este sistema. Misma estructura de selectores
+   que "grafito"/"navy" (mismas --pb2-* variables), solo cambia la paleta.
+   ========================================================================= */
+
+:root[data-estilo-planb="indigo"] {
+  color-scheme: light;
+  --pb2-bg: #f5f4fb;
+  --pb2-dot: #e7e4f7;
+  --pb2-surface: #ffffff;
+  --pb2-surface-alt: #f0eefb;
+  --pb2-border: #e1ddf5;
+  --pb2-text: #241f47;
+  --pb2-text-muted: #6b6489;
+  --pb2-accent: #6d5ce8;
+  --pb2-accent-text: #ffffff;
+  --pb2-danger-bg: #fdecea;
+  --pb2-danger-text: #b42318;
+  --pb2-avatar-bg: #6d5ce8;
+  --pb2-tareas: #6d5ce8;
+  --pb2-agenda: #ec4899;
+}
+
+:root[data-estilo-planb="indigo"][data-theme="oscuro"] {
+  color-scheme: dark;
+  --pb2-bg: #14102b;
+  --pb2-dot: #1e1840;
+  --pb2-surface: #211a44;
+  --pb2-surface-alt: #2a2254;
+  --pb2-border: #362d63;
+  --pb2-text: #f2f0fb;
+  --pb2-text-muted: #a79fcf;
+  --pb2-accent: #a48cff;
+  --pb2-accent-text: #1a1338;
+  --pb2-danger-bg: #3a1f1c;
+  --pb2-danger-text: #e08277;
+  --pb2-avatar-bg: #a48cff;
+  --pb2-tareas: #a48cff;
+  --pb2-agenda: #f472b6;
+}
+
+[data-estilo-planb="indigo"] .planb {
+  background:
+    radial-gradient(var(--pb2-dot) 1px, transparent 1px) 0 0 / 22px 22px,
+    var(--pb2-bg);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="indigo"] .planb__topbar {
+  background: transparent;
+  border-bottom: none;
+  padding: var(--space-4) var(--space-4) 0;
+  align-items: center;
+}
+
+[data-estilo-planb="indigo"] .planb__topbar h1 {
+  color: var(--pb2-text);
+  font-weight: 800;
+}
+
+[data-estilo-planb="indigo"] .planb__topbar p {
+  color: var(--pb2-text-muted) !important;
+}
+
+[data-estilo-planb="indigo"] .planb__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: var(--pb2-avatar-bg);
+  color: var(--pb2-accent-text);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+[data-estilo-planb="indigo"] .planb__contenido {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  margin-top: var(--space-3);
+}
+
+[data-estilo-planb="indigo"] .planb__semana {
+  background: var(--pb2-surface);
+  border: 1px solid var(--pb2-border);
+  border-radius: 18px;
+}
+
+[data-estilo-planb="indigo"] .planb__semana-titulo {
+  color: var(--pb2-text);
+  font-weight: 700;
+}
+
+[data-estilo-planb="indigo"] .planb__semana-tarjeta {
+  background: var(--pb2-surface-alt);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="indigo"] .planb__semana-tarjeta:hover {
+  border-color: var(--pb2-accent);
+}
+
+[data-estilo-planb="indigo"] .planb__semana-tarjeta--activa {
+  background: var(--pb2-accent);
+  color: var(--pb2-accent-text);
+  border-radius: 999px;
+  box-shadow: none;
+}
+
+[data-estilo-planb="indigo"] h2 {
+  color: var(--pb2-text);
+  font-weight: 800;
+}
+
+[data-estilo-planb="indigo"] .card {
+  background: var(--pb2-surface);
+  border: 1px solid var(--pb2-border);
+  border-radius: 18px;
+  box-shadow: none;
+}
+
+[data-estilo-planb="indigo"] .planb__tarjeta {
+  border: 1px solid var(--pb2-border);
+  border-radius: 16px;
+  background: var(--pb2-surface-alt);
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: var(--space-4) var(--space-3);
+  box-shadow: none;
+}
+
+[data-estilo-planb="indigo"] .planb__tarjeta:hover,
+[data-estilo-planb="indigo"] .planb__tarjeta:focus-visible {
+  border-color: var(--pb2-accent);
+  box-shadow: 0 0 0 1px var(--pb2-accent);
+}
+
+[data-estilo-planb="indigo"] .planb__tarjeta-titulo {
+  color: var(--pb2-text);
+  font-weight: 700;
+}
+
+[data-estilo-planb="indigo"] .planb__tarjeta-texto {
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="indigo"] .planb__tarjeta-icono {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  color: var(--pb2-accent);
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pb2-accent) 16%, transparent);
+}
+
+[data-estilo-planb="indigo"] .planb__tarjeta-icono svg {
+  width: 22px;
+  height: 22px;
+}
+
+[data-estilo-planb="indigo"] .planb__pendiente-fila {
+  background: var(--pb2-surface-alt);
+  border: 1px solid var(--pb2-border);
+  border-left: 3px solid var(--pb2-accent);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="indigo"] .planb__pendiente-fila:has(.badge--urgente) {
+  border-left-color: var(--color-danger);
+}
+
+[data-estilo-planb="indigo"] .planb__pendiente-fila a {
+  color: var(--pb2-text);
+  text-decoration: none;
+}
+
+[data-estilo-planb="indigo"] .planb__pendiente-fila a:hover {
+  color: var(--pb2-accent);
+}
+
+[data-estilo-planb="indigo"] .badge--urgente {
+  background: var(--pb2-danger-bg);
+  color: var(--pb2-danger-text);
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.7rem;
+  letter-spacing: 0.03em;
+  padding: 2px 10px;
+}
+
+[data-estilo-planb="indigo"] .planb__pendiente-progreso {
+  display: block;
+  margin-top: 8px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--pb2-border);
+  overflow: hidden;
+}
+
+[data-estilo-planb="indigo"] .planb__pendiente-progreso-fill {
+  height: 100%;
+  background: var(--pb2-accent);
+  border-radius: 999px;
+}
+
+[data-estilo-planb="indigo"] .planb__pendiente-boton-clasico {
+  display: none;
+}
+
+[data-estilo-planb="indigo"] .planb__pendiente-accion {
+  color: var(--pb2-text-muted);
+  border: none;
+  background: transparent;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-estilo-planb="indigo"] .planb__pendiente-accion:hover {
+  background: var(--pb2-border);
+  color: var(--pb2-accent);
+}
+
+[data-estilo-planb="indigo"] .planb__pendiente-accion svg {
+  width: 18px;
+  height: 18px;
+}
+
+[data-estilo-planb="indigo"] .btn--ghost {
+  border-radius: 10px;
+  border-color: var(--pb2-border);
+  color: var(--pb2-text);
+  background: var(--pb2-surface-alt);
+}
+
+[data-estilo-planb="indigo"] .btn--ghost:hover {
+  background: var(--pb2-border);
+}
+
+[data-estilo-planb="indigo"] .btn--primary {
+  background: var(--pb2-accent);
+  color: var(--pb2-accent-text);
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+[data-estilo-planb="indigo"] .btn--primary:hover {
+  filter: brightness(1.1);
+}
+
+[data-estilo-planb="indigo"] .modal-overlay {
+  background: rgba(6, 8, 14, 0.6);
+}
+
+[data-estilo-planb="indigo"] .modal-card {
+  background: var(--pb2-surface);
+  border: 1px solid var(--pb2-border);
+  border-radius: 20px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="indigo"] .modal-card h2 {
+  color: var(--pb2-text);
+  font-weight: 800;
+}
+
+[data-estilo-planb="indigo"] .modal-card label > span:first-child {
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="indigo"] .input,
+[data-estilo-planb="indigo"] select.input,
+[data-estilo-planb="indigo"] textarea.input {
+  background: var(--pb2-surface-alt);
+  border: 1px solid var(--pb2-border);
+  border-radius: 10px;
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="indigo"] .input:focus,
+[data-estilo-planb="indigo"] select.input:focus,
+[data-estilo-planb="indigo"] textarea.input:focus {
+  outline: 2px solid var(--pb2-accent);
+  outline-offset: 1px;
+}
+
+[data-estilo-planb="indigo"] input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 40px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--pb2-border);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  flex-shrink: 0;
+}
+
+[data-estilo-planb="indigo"] input[type="checkbox"]::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+[data-estilo-planb="indigo"] input[type="checkbox"]:checked {
+  background: var(--pb2-accent);
+}
+
+[data-estilo-planb="indigo"] input[type="checkbox"]:checked::before {
+  transform: translateX(18px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-estilo-planb="indigo"] input[type="checkbox"],
+  [data-estilo-planb="indigo"] input[type="checkbox"]::before {
+    transition: none;
+  }
+}
+
+[data-estilo-planb="indigo"] .modal-card:has(.planb__calendario) .modal-card__header {
+  background: var(--pb2-surface-alt);
+  color: var(--pb2-text);
+  margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-4)) var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: 20px 20px 0 0;
+}
+
+[data-estilo-planb="indigo"] .modal-card:has(.planb__calendario) .modal-card__header h2 {
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="indigo"] .planb__persona-fila {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  background: var(--pb2-surface-alt);
+  border: 1px solid var(--pb2-border);
+  border-radius: 12px;
+  padding: 10px 14px;
+}
+
+[data-estilo-planb="indigo"] .planb__persona-fila:hover,
+[data-estilo-planb="indigo"] .planb__persona-fila:focus-visible {
+  border-color: var(--pb2-accent);
+}
+
+[data-estilo-planb="indigo"] .planb__persona-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  color: var(--pb2-accent-text);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+[data-estilo-planb="indigo"] .planb__persona-datos {
+  flex: 1;
+  min-width: 0;
+}
+
+[data-estilo-planb="indigo"] .planb__persona-nombre {
+  color: var(--pb2-text);
+  font-weight: 700;
+  display: block;
+}
+
+[data-estilo-planb="indigo"] .planb__persona-puesto {
+  color: var(--pb2-text-muted);
+  font-size: 0.8rem;
+  display: block;
+}
+
+[data-estilo-planb="indigo"] .planb__persona-elegir {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: var(--pb2-accent);
+  color: var(--pb2-accent-text);
+  font-weight: 700;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+[data-estilo-planb="indigo"] .agenda-dia {
+  background: var(--pb2-surface);
+  border: 1px solid var(--pb2-border);
+  border-radius: 14px;
+  padding: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+[data-estilo-planb="indigo"] .agenda-dia__fecha {
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="indigo"] .agenda-dia__numero {
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="indigo"] .agenda-dia__circulo-hoy {
+  background: var(--pb2-accent);
+  color: var(--pb2-accent-text);
+}
+
+[data-estilo-planb="indigo"] .agenda-evento-pill {
+  border-radius: 10px;
+  padding: var(--space-2) var(--space-3);
+  font-weight: 600;
+}
+
+[data-estilo-planb="indigo"] .agenda-sin-planes {
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="indigo"] .mes-banner {
+  background: var(--pb2-surface-alt);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="indigo"] .agenda-semana-vacia {
+  color: var(--pb2-text-muted);
+  border-bottom-color: var(--pb2-border);
+}
+
+[data-estilo-planb="indigo"] .rbc-toolbar-label {
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="indigo"] .rbc-toolbar button {
+  border-color: var(--pb2-border);
+  color: var(--pb2-text);
+  background: var(--pb2-surface-alt);
+}
+
+[data-estilo-planb="indigo"] .rbc-toolbar button:hover {
+  background: var(--pb2-border);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="indigo"] .rbc-toolbar button.rbc-active,
+[data-estilo-planb="indigo"] .rbc-toolbar button.rbc-active:hover,
+[data-estilo-planb="indigo"] .rbc-toolbar button.rbc-active:focus {
+  background: var(--pb2-accent);
+  color: var(--pb2-accent-text);
+  border-color: var(--pb2-accent);
+}
+
+[data-estilo-planb="indigo"] .rbc-calendar,
+[data-estilo-planb="indigo"] .rbc-month-view,
+[data-estilo-planb="indigo"] .rbc-time-view,
+[data-estilo-planb="indigo"] .rbc-agenda-view {
+  background: var(--pb2-surface);
+  border-color: var(--pb2-border);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="indigo"] .rbc-header,
+[data-estilo-planb="indigo"] .rbc-day-bg,
+[data-estilo-planb="indigo"] .rbc-time-header,
+[data-estilo-planb="indigo"] .rbc-time-content,
+[data-estilo-planb="indigo"] .rbc-timeslot-group,
+[data-estilo-planb="indigo"] .rbc-month-row,
+[data-estilo-planb="indigo"] .rbc-date-cell {
+  border-color: var(--pb2-border) !important;
+}
+
+[data-estilo-planb="indigo"] .rbc-header,
+[data-estilo-planb="indigo"] .rbc-date-cell {
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="indigo"] .rbc-off-range-bg {
+  background: var(--pb2-surface-alt);
+}
+
+[data-estilo-planb="indigo"] .rbc-off-range {
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="indigo"] .rbc-today {
+  background: color-mix(in srgb, var(--pb2-accent) 12%, transparent);
+}
+
+/* Toques de marca "Indigo" (2026-08-25, a partir de la referencia de Yue:
+   tarjetas con icono circular RELLENO de acento en vez de solo tinte, y
+   filas un poco más redondeadas) -- van DESPUÉS del bloque estructural de
+   arriba para que el cascade los gane sin usar !important. */
+[data-estilo-planb="indigo"] .planb__tarjeta-icono {
+  background: var(--pb2-accent);
+  color: var(--pb2-accent-text);
+}
+
+[data-estilo-planb="indigo"] .planb__pendiente-fila {
+  border-radius: 14px;
+  border-left-width: 4px;
+}
+
 /* "Mi semana" (MiSemana.jsx, 2026-08-22) -- 2 columnas dentro de la
    tarjeta de semana: tareas (azul, --pb2-tareas) a la izquierda, agenda
    (naranja, --pb2-agenda) a la derecha, a petición de Yue. Se apilan en
