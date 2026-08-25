@@ -4376,6 +4376,40 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
   border-top: 4px solid var(--pb2-accent);
 }
 
+/* A petición de Yue (2026-08-26): fondo de la pantalla, botones de la
+   topbar ("Activar avisos", estilo, tema, Salir) y las 4 tarjetas de
+   "Quiero asignar" (Tarea/Proyecto/Persona/Agenda) en BLANCO con contorno
+   amarillo, en vez del tono crema que traían por default. Overrides
+   puntuales (no se toca --pb2-surface-alt en general, para no afectar
+   otros elementos que la usan, ej. inputs/filas de pendientes). */
+[data-estilo-planb="salinas"] .planb {
+  background: #ffffff;
+}
+
+[data-estilo-planb="salinas"] .btn--ghost {
+  background: #ffffff;
+  border: 1.5px solid var(--pb2-accent);
+}
+
+[data-estilo-planb="salinas"] .planb__tarjeta {
+  background: #ffffff;
+  border: 1.5px solid var(--pb2-accent);
+}
+
+[data-estilo-planb="salinas2"] .planb {
+  background: #ffffff;
+}
+
+[data-estilo-planb="salinas2"] .btn--ghost {
+  background: #ffffff;
+  border: 1.5px solid var(--pb2-accent);
+}
+
+[data-estilo-planb="salinas2"] .planb__tarjeta {
+  background: #ffffff;
+  border: 1.5px solid var(--pb2-accent);
+}
+
 /* "Mi semana" (MiSemana.jsx, 2026-08-22) -- 2 columnas dentro de la
    tarjeta de semana: tareas (azul, --pb2-tareas) a la izquierda, agenda
    (naranja, --pb2-agenda) a la derecha, a petición de Yue. Se apilan en
