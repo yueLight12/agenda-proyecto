@@ -4403,6 +4403,13 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
   border: 1.5px solid var(--pb2-accent);
 }
 
+[data-estilo-planb="salinas"] .planb__misemana-col,
+[data-estilo-planb="salinas2"] .planb__misemana-col {
+  background: #ffffff;
+  border: 1.5px solid var(--pb2-accent);
+  border-top-width: 1.5px;
+}
+
 [data-estilo-planb="salinas2"] .planb__tarjeta {
   background: #ffffff;
   border: 1.5px solid var(--pb2-accent);
