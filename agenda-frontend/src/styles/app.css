@@ -4330,6 +4330,52 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
   color: var(--pb2-text);
 }
 
+/* Topbar y franja de modal estilo "Navy" (2026-08-26, a petición de Yue --
+   le gustó el look del dorado en Navy: barra sólida oscura + línea de
+   acento abajo, franja de acento arriba del modal). Se queda en la
+   familia del amarillo (sin agregar un color de marca nuevo): la barra usa
+   un tono café-dorado bien oscuro y saturado, con el acento amarillo como
+   línea/franja. */
+[data-estilo-planb="salinas"] .planb__topbar {
+  background: #4a3405;
+  border-bottom: 3px solid var(--pb2-accent);
+  border-radius: 12px 12px 0 0;
+  padding: var(--space-4);
+  align-items: center;
+}
+
+[data-estilo-planb="salinas"] .planb__topbar h1 {
+  color: #f5efd9;
+}
+
+[data-estilo-planb="salinas"] .planb__topbar p {
+  color: #d9c98a !important;
+}
+
+[data-estilo-planb="salinas"] .modal-card {
+  border-top: 4px solid var(--pb2-accent);
+}
+
+[data-estilo-planb="salinas2"] .planb__topbar {
+  background: #5c4600;
+  border-bottom: 3px solid var(--pb2-accent);
+  border-radius: 12px 12px 0 0;
+  padding: var(--space-4);
+  align-items: center;
+}
+
+[data-estilo-planb="salinas2"] .planb__topbar h1 {
+  color: #fffbeb;
+}
+
+[data-estilo-planb="salinas2"] .planb__topbar p {
+  color: #e6d27a !important;
+}
+
+[data-estilo-planb="salinas2"] .modal-card {
+  border-top: 4px solid var(--pb2-accent);
+}
+
 /* "Mi semana" (MiSemana.jsx, 2026-08-22) -- 2 columnas dentro de la
    tarjeta de semana: tareas (azul, --pb2-tareas) a la izquierda, agenda
    (naranja, --pb2-agenda) a la derecha, a petición de Yue. Se apilan en
