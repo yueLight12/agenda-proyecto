@@ -3224,6 +3224,1041 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
   border-radius: 4px;
 }
 
+/* ======================================================================
+   Agenda Plan B — diseño "salinas" (2026-08-26, a petición de Yue: paleta
+   amarilla). Misma geometría/estructura que "grafito"/"navy" (mismas
+   --pb2-* variables) -- solo cambia la paleta a dorado/mostaza, tono más
+   "corporativo/serio". Se generó junto con "salinas2" (amarillo vivo, ver
+   más abajo) para que Yue compare y elija cuál se queda.
+   ========================================================================= */
+
+:root[data-estilo-planb="salinas"] {
+  color-scheme: light;
+  --pb2-bg: #faf6ec;
+  --pb2-dot: #f0e6c8;
+  --pb2-surface: #ffffff;
+  --pb2-surface-alt: #f7f1de;
+  --pb2-border: #e8dcb0;
+  --pb2-text: #3a2f10;
+  --pb2-text-muted: #7a6b3f;
+  --pb2-accent: #b8860b;
+  --pb2-accent-text: #ffffff;
+  --pb2-danger-bg: #fdecea;
+  --pb2-danger-text: #b42318;
+  --pb2-avatar-bg: #b8860b;
+  --pb2-tareas: #b8860b;
+  --pb2-agenda: #a0522d;
+}
+
+:root[data-estilo-planb="salinas"][data-theme="oscuro"] {
+  color-scheme: dark;
+  --pb2-bg: #1c1608;
+  --pb2-dot: #26200f;
+  --pb2-surface: #2a2210;
+  --pb2-surface-alt: #332a15;
+  --pb2-border: #46391b;
+  --pb2-text: #f5efd9;
+  --pb2-text-muted: #c9b97e;
+  --pb2-accent: #e0b23c;
+  --pb2-accent-text: #241c05;
+  --pb2-danger-bg: #3a1f1c;
+  --pb2-danger-text: #e08277;
+  --pb2-avatar-bg: #e0b23c;
+  --pb2-tareas: #e0b23c;
+  --pb2-agenda: #cc8a52;
+}
+
+[data-estilo-planb="salinas"] .planb {
+  background:
+    radial-gradient(var(--pb2-dot) 1px, transparent 1px) 0 0 / 22px 22px,
+    var(--pb2-bg);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="salinas"] .planb__topbar {
+  background: transparent;
+  border-bottom: none;
+  padding: var(--space-4) var(--space-4) 0;
+  align-items: center;
+}
+
+[data-estilo-planb="salinas"] .planb__topbar h1 {
+  color: var(--pb2-text);
+  font-weight: 800;
+}
+
+[data-estilo-planb="salinas"] .planb__topbar p {
+  color: var(--pb2-text-muted) !important;
+}
+
+[data-estilo-planb="salinas"] .planb__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: var(--pb2-avatar-bg);
+  color: var(--pb2-accent-text);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+[data-estilo-planb="salinas"] .planb__contenido {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  margin-top: var(--space-3);
+}
+
+[data-estilo-planb="salinas"] .planb__semana {
+  background: var(--pb2-surface);
+  border: 1px solid var(--pb2-border);
+  border-radius: 18px;
+}
+
+[data-estilo-planb="salinas"] .planb__semana-titulo {
+  color: var(--pb2-text);
+  font-weight: 700;
+}
+
+[data-estilo-planb="salinas"] .planb__semana-tarjeta {
+  background: var(--pb2-surface-alt);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="salinas"] .planb__semana-tarjeta:hover {
+  border-color: var(--pb2-accent);
+}
+
+[data-estilo-planb="salinas"] .planb__semana-tarjeta--activa {
+  background: var(--pb2-accent);
+  color: var(--pb2-accent-text);
+  border-radius: 999px;
+  box-shadow: none;
+}
+
+[data-estilo-planb="salinas"] h2 {
+  color: var(--pb2-text);
+  font-weight: 800;
+}
+
+[data-estilo-planb="salinas"] .card {
+  background: var(--pb2-surface);
+  border: 1px solid var(--pb2-border);
+  border-radius: 18px;
+  box-shadow: none;
+}
+
+[data-estilo-planb="salinas"] .planb__tarjeta {
+  border: 1px solid var(--pb2-border);
+  border-radius: 16px;
+  background: var(--pb2-surface-alt);
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: var(--space-4) var(--space-3);
+  box-shadow: none;
+}
+
+[data-estilo-planb="salinas"] .planb__tarjeta:hover,
+[data-estilo-planb="salinas"] .planb__tarjeta:focus-visible {
+  border-color: var(--pb2-accent);
+  box-shadow: 0 0 0 1px var(--pb2-accent);
+}
+
+[data-estilo-planb="salinas"] .planb__tarjeta-titulo {
+  color: var(--pb2-text);
+  font-weight: 700;
+}
+
+[data-estilo-planb="salinas"] .planb__tarjeta-texto {
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="salinas"] .planb__tarjeta-icono {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  color: var(--pb2-accent);
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pb2-accent) 16%, transparent);
+}
+
+[data-estilo-planb="salinas"] .planb__tarjeta-icono svg {
+  width: 22px;
+  height: 22px;
+}
+
+[data-estilo-planb="salinas"] .planb__pendiente-fila {
+  background: var(--pb2-surface-alt);
+  border: 1px solid var(--pb2-border);
+  border-left: 3px solid var(--pb2-accent);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="salinas"] .planb__pendiente-fila:has(.badge--urgente) {
+  border-left-color: var(--color-danger);
+}
+
+[data-estilo-planb="salinas"] .planb__pendiente-fila a {
+  color: var(--pb2-text);
+  text-decoration: none;
+}
+
+[data-estilo-planb="salinas"] .planb__pendiente-fila a:hover {
+  color: var(--pb2-accent);
+}
+
+[data-estilo-planb="salinas"] .badge--urgente {
+  background: var(--pb2-danger-bg);
+  color: var(--pb2-danger-text);
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.7rem;
+  letter-spacing: 0.03em;
+  padding: 2px 10px;
+}
+
+[data-estilo-planb="salinas"] .planb__pendiente-progreso {
+  display: block;
+  margin-top: 8px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--pb2-border);
+  overflow: hidden;
+}
+
+[data-estilo-planb="salinas"] .planb__pendiente-progreso-fill {
+  height: 100%;
+  background: var(--pb2-accent);
+  border-radius: 999px;
+}
+
+[data-estilo-planb="salinas"] .planb__pendiente-boton-clasico {
+  display: none;
+}
+
+[data-estilo-planb="salinas"] .planb__pendiente-accion {
+  color: var(--pb2-text-muted);
+  border: none;
+  background: transparent;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-estilo-planb="salinas"] .planb__pendiente-accion:hover {
+  background: var(--pb2-border);
+  color: var(--pb2-accent);
+}
+
+[data-estilo-planb="salinas"] .planb__pendiente-accion svg {
+  width: 18px;
+  height: 18px;
+}
+
+[data-estilo-planb="salinas"] .btn--ghost {
+  border-radius: 10px;
+  border-color: var(--pb2-border);
+  color: var(--pb2-text);
+  background: var(--pb2-surface-alt);
+}
+
+[data-estilo-planb="salinas"] .btn--ghost:hover {
+  background: var(--pb2-border);
+}
+
+[data-estilo-planb="salinas"] .btn--primary {
+  background: var(--pb2-accent);
+  color: var(--pb2-accent-text);
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+[data-estilo-planb="salinas"] .btn--primary:hover {
+  filter: brightness(1.1);
+}
+
+[data-estilo-planb="salinas"] .modal-overlay {
+  background: rgba(6, 8, 14, 0.6);
+}
+
+[data-estilo-planb="salinas"] .modal-card {
+  background: var(--pb2-surface);
+  border: 1px solid var(--pb2-border);
+  border-radius: 20px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="salinas"] .modal-card h2 {
+  color: var(--pb2-text);
+  font-weight: 800;
+}
+
+[data-estilo-planb="salinas"] .modal-card label > span:first-child {
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="salinas"] .input,
+[data-estilo-planb="salinas"] select.input,
+[data-estilo-planb="salinas"] textarea.input {
+  background: var(--pb2-surface-alt);
+  border: 1px solid var(--pb2-border);
+  border-radius: 10px;
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="salinas"] .input:focus,
+[data-estilo-planb="salinas"] select.input:focus,
+[data-estilo-planb="salinas"] textarea.input:focus {
+  outline: 2px solid var(--pb2-accent);
+  outline-offset: 1px;
+}
+
+[data-estilo-planb="salinas"] input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 40px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--pb2-border);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  flex-shrink: 0;
+}
+
+[data-estilo-planb="salinas"] input[type="checkbox"]::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+[data-estilo-planb="salinas"] input[type="checkbox"]:checked {
+  background: var(--pb2-accent);
+}
+
+[data-estilo-planb="salinas"] input[type="checkbox"]:checked::before {
+  transform: translateX(18px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-estilo-planb="salinas"] input[type="checkbox"],
+  [data-estilo-planb="salinas"] input[type="checkbox"]::before {
+    transition: none;
+  }
+}
+
+[data-estilo-planb="salinas"] .modal-card:has(.planb__calendario) .modal-card__header {
+  background: var(--pb2-surface-alt);
+  color: var(--pb2-text);
+  margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-4)) var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: 20px 20px 0 0;
+}
+
+[data-estilo-planb="salinas"] .modal-card:has(.planb__calendario) .modal-card__header h2 {
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="salinas"] .planb__persona-fila {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  background: var(--pb2-surface-alt);
+  border: 1px solid var(--pb2-border);
+  border-radius: 12px;
+  padding: 10px 14px;
+}
+
+[data-estilo-planb="salinas"] .planb__persona-fila:hover,
+[data-estilo-planb="salinas"] .planb__persona-fila:focus-visible {
+  border-color: var(--pb2-accent);
+}
+
+[data-estilo-planb="salinas"] .planb__persona-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  color: var(--pb2-accent-text);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+[data-estilo-planb="salinas"] .planb__persona-datos {
+  flex: 1;
+  min-width: 0;
+}
+
+[data-estilo-planb="salinas"] .planb__persona-nombre {
+  color: var(--pb2-text);
+  font-weight: 700;
+  display: block;
+}
+
+[data-estilo-planb="salinas"] .planb__persona-puesto {
+  color: var(--pb2-text-muted);
+  font-size: 0.8rem;
+  display: block;
+}
+
+[data-estilo-planb="salinas"] .planb__persona-elegir {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: var(--pb2-accent);
+  color: var(--pb2-accent-text);
+  font-weight: 700;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+[data-estilo-planb="salinas"] .agenda-dia {
+  background: var(--pb2-surface);
+  border: 1px solid var(--pb2-border);
+  border-radius: 14px;
+  padding: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+[data-estilo-planb="salinas"] .agenda-dia__fecha {
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="salinas"] .agenda-dia__numero {
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="salinas"] .agenda-dia__circulo-hoy {
+  background: var(--pb2-accent);
+  color: var(--pb2-accent-text);
+}
+
+[data-estilo-planb="salinas"] .agenda-evento-pill {
+  border-radius: 10px;
+  padding: var(--space-2) var(--space-3);
+  font-weight: 600;
+}
+
+[data-estilo-planb="salinas"] .agenda-sin-planes {
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="salinas"] .mes-banner {
+  background: var(--pb2-surface-alt);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="salinas"] .agenda-semana-vacia {
+  color: var(--pb2-text-muted);
+  border-bottom-color: var(--pb2-border);
+}
+
+[data-estilo-planb="salinas"] .rbc-toolbar-label {
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="salinas"] .rbc-toolbar button {
+  border-color: var(--pb2-border);
+  color: var(--pb2-text);
+  background: var(--pb2-surface-alt);
+}
+
+[data-estilo-planb="salinas"] .rbc-toolbar button:hover {
+  background: var(--pb2-border);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="salinas"] .rbc-toolbar button.rbc-active,
+[data-estilo-planb="salinas"] .rbc-toolbar button.rbc-active:hover,
+[data-estilo-planb="salinas"] .rbc-toolbar button.rbc-active:focus {
+  background: var(--pb2-accent);
+  color: var(--pb2-accent-text);
+  border-color: var(--pb2-accent);
+}
+
+[data-estilo-planb="salinas"] .rbc-calendar,
+[data-estilo-planb="salinas"] .rbc-month-view,
+[data-estilo-planb="salinas"] .rbc-time-view,
+[data-estilo-planb="salinas"] .rbc-agenda-view {
+  background: var(--pb2-surface);
+  border-color: var(--pb2-border);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="salinas"] .rbc-header,
+[data-estilo-planb="salinas"] .rbc-day-bg,
+[data-estilo-planb="salinas"] .rbc-time-header,
+[data-estilo-planb="salinas"] .rbc-time-content,
+[data-estilo-planb="salinas"] .rbc-timeslot-group,
+[data-estilo-planb="salinas"] .rbc-month-row,
+[data-estilo-planb="salinas"] .rbc-date-cell {
+  border-color: var(--pb2-border) !important;
+}
+
+[data-estilo-planb="salinas"] .rbc-header,
+[data-estilo-planb="salinas"] .rbc-date-cell {
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="salinas"] .rbc-off-range-bg {
+  background: var(--pb2-surface-alt);
+}
+
+[data-estilo-planb="salinas"] .rbc-off-range {
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="salinas"] .rbc-today {
+  background: color-mix(in srgb, var(--pb2-accent) 12%, transparent);
+}
+
+/* ======================================================================
+   Agenda Plan B — diseño "salinas2" (2026-08-26, misma petición -- variante
+   amarillo vivo/saturado en vez de dorado/mostaza, para comparar con
+   "salinas" y quedarse con la que le guste más a Yue). Misma geometría que
+   "grafito"/"navy"/"salinas" -- solo cambia la paleta.
+   ========================================================================= */
+
+:root[data-estilo-planb="salinas2"] {
+  color-scheme: light;
+  --pb2-bg: #fffbeb;
+  --pb2-dot: #fef3c7;
+  --pb2-surface: #ffffff;
+  --pb2-surface-alt: #fef9e6;
+  --pb2-border: #fde68a;
+  --pb2-text: #292100;
+  --pb2-text-muted: #78716c;
+  --pb2-accent: #f5c400;
+  --pb2-accent-text: #1a1500;
+  --pb2-danger-bg: #fdecea;
+  --pb2-danger-text: #b42318;
+  --pb2-avatar-bg: #f5c400;
+  --pb2-tareas: #f5c400;
+  --pb2-agenda: #fb923c;
+}
+
+:root[data-estilo-planb="salinas2"][data-theme="oscuro"] {
+  color-scheme: dark;
+  --pb2-bg: #1a1600;
+  --pb2-dot: #241f00;
+  --pb2-surface: #2b2400;
+  --pb2-surface-alt: #332b00;
+  --pb2-border: #4d4200;
+  --pb2-text: #fff9db;
+  --pb2-text-muted: #d4c876;
+  --pb2-accent: #ffe066;
+  --pb2-accent-text: #1a1600;
+  --pb2-danger-bg: #3a1f1c;
+  --pb2-danger-text: #e08277;
+  --pb2-avatar-bg: #ffe066;
+  --pb2-tareas: #ffe066;
+  --pb2-agenda: #ffb347;
+}
+
+[data-estilo-planb="salinas2"] .planb {
+  background:
+    radial-gradient(var(--pb2-dot) 1px, transparent 1px) 0 0 / 22px 22px,
+    var(--pb2-bg);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="salinas2"] .planb__topbar {
+  background: transparent;
+  border-bottom: none;
+  padding: var(--space-4) var(--space-4) 0;
+  align-items: center;
+}
+
+[data-estilo-planb="salinas2"] .planb__topbar h1 {
+  color: var(--pb2-text);
+  font-weight: 800;
+}
+
+[data-estilo-planb="salinas2"] .planb__topbar p {
+  color: var(--pb2-text-muted) !important;
+}
+
+[data-estilo-planb="salinas2"] .planb__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: var(--pb2-avatar-bg);
+  color: var(--pb2-accent-text);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+[data-estilo-planb="salinas2"] .planb__contenido {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  margin-top: var(--space-3);
+}
+
+[data-estilo-planb="salinas2"] .planb__semana {
+  background: var(--pb2-surface);
+  border: 1px solid var(--pb2-border);
+  border-radius: 18px;
+}
+
+[data-estilo-planb="salinas2"] .planb__semana-titulo {
+  color: var(--pb2-text);
+  font-weight: 700;
+}
+
+[data-estilo-planb="salinas2"] .planb__semana-tarjeta {
+  background: var(--pb2-surface-alt);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="salinas2"] .planb__semana-tarjeta:hover {
+  border-color: var(--pb2-accent);
+}
+
+[data-estilo-planb="salinas2"] .planb__semana-tarjeta--activa {
+  background: var(--pb2-accent);
+  color: var(--pb2-accent-text);
+  border-radius: 999px;
+  box-shadow: none;
+}
+
+[data-estilo-planb="salinas2"] h2 {
+  color: var(--pb2-text);
+  font-weight: 800;
+}
+
+[data-estilo-planb="salinas2"] .card {
+  background: var(--pb2-surface);
+  border: 1px solid var(--pb2-border);
+  border-radius: 18px;
+  box-shadow: none;
+}
+
+[data-estilo-planb="salinas2"] .planb__tarjeta {
+  border: 1px solid var(--pb2-border);
+  border-radius: 16px;
+  background: var(--pb2-surface-alt);
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: var(--space-4) var(--space-3);
+  box-shadow: none;
+}
+
+[data-estilo-planb="salinas2"] .planb__tarjeta:hover,
+[data-estilo-planb="salinas2"] .planb__tarjeta:focus-visible {
+  border-color: var(--pb2-accent);
+  box-shadow: 0 0 0 1px var(--pb2-accent);
+}
+
+[data-estilo-planb="salinas2"] .planb__tarjeta-titulo {
+  color: var(--pb2-text);
+  font-weight: 700;
+}
+
+[data-estilo-planb="salinas2"] .planb__tarjeta-texto {
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="salinas2"] .planb__tarjeta-icono {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  color: var(--pb2-accent);
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pb2-accent) 16%, transparent);
+}
+
+[data-estilo-planb="salinas2"] .planb__tarjeta-icono svg {
+  width: 22px;
+  height: 22px;
+}
+
+[data-estilo-planb="salinas2"] .planb__pendiente-fila {
+  background: var(--pb2-surface-alt);
+  border: 1px solid var(--pb2-border);
+  border-left: 3px solid var(--pb2-accent);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="salinas2"] .planb__pendiente-fila:has(.badge--urgente) {
+  border-left-color: var(--color-danger);
+}
+
+[data-estilo-planb="salinas2"] .planb__pendiente-fila a {
+  color: var(--pb2-text);
+  text-decoration: none;
+}
+
+[data-estilo-planb="salinas2"] .planb__pendiente-fila a:hover {
+  color: var(--pb2-accent);
+}
+
+[data-estilo-planb="salinas2"] .badge--urgente {
+  background: var(--pb2-danger-bg);
+  color: var(--pb2-danger-text);
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.7rem;
+  letter-spacing: 0.03em;
+  padding: 2px 10px;
+}
+
+[data-estilo-planb="salinas2"] .planb__pendiente-progreso {
+  display: block;
+  margin-top: 8px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--pb2-border);
+  overflow: hidden;
+}
+
+[data-estilo-planb="salinas2"] .planb__pendiente-progreso-fill {
+  height: 100%;
+  background: var(--pb2-accent);
+  border-radius: 999px;
+}
+
+[data-estilo-planb="salinas2"] .planb__pendiente-boton-clasico {
+  display: none;
+}
+
+[data-estilo-planb="salinas2"] .planb__pendiente-accion {
+  color: var(--pb2-text-muted);
+  border: none;
+  background: transparent;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-estilo-planb="salinas2"] .planb__pendiente-accion:hover {
+  background: var(--pb2-border);
+  color: var(--pb2-accent);
+}
+
+[data-estilo-planb="salinas2"] .planb__pendiente-accion svg {
+  width: 18px;
+  height: 18px;
+}
+
+[data-estilo-planb="salinas2"] .btn--ghost {
+  border-radius: 10px;
+  border-color: var(--pb2-border);
+  color: var(--pb2-text);
+  background: var(--pb2-surface-alt);
+}
+
+[data-estilo-planb="salinas2"] .btn--ghost:hover {
+  background: var(--pb2-border);
+}
+
+[data-estilo-planb="salinas2"] .btn--primary {
+  background: var(--pb2-accent);
+  color: var(--pb2-accent-text);
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+[data-estilo-planb="salinas2"] .btn--primary:hover {
+  filter: brightness(1.1);
+}
+
+[data-estilo-planb="salinas2"] .modal-overlay {
+  background: rgba(6, 8, 14, 0.6);
+}
+
+[data-estilo-planb="salinas2"] .modal-card {
+  background: var(--pb2-surface);
+  border: 1px solid var(--pb2-border);
+  border-radius: 20px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="salinas2"] .modal-card h2 {
+  color: var(--pb2-text);
+  font-weight: 800;
+}
+
+[data-estilo-planb="salinas2"] .modal-card label > span:first-child {
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="salinas2"] .input,
+[data-estilo-planb="salinas2"] select.input,
+[data-estilo-planb="salinas2"] textarea.input {
+  background: var(--pb2-surface-alt);
+  border: 1px solid var(--pb2-border);
+  border-radius: 10px;
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="salinas2"] .input:focus,
+[data-estilo-planb="salinas2"] select.input:focus,
+[data-estilo-planb="salinas2"] textarea.input:focus {
+  outline: 2px solid var(--pb2-accent);
+  outline-offset: 1px;
+}
+
+[data-estilo-planb="salinas2"] input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 40px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--pb2-border);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  flex-shrink: 0;
+}
+
+[data-estilo-planb="salinas2"] input[type="checkbox"]::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+[data-estilo-planb="salinas2"] input[type="checkbox"]:checked {
+  background: var(--pb2-accent);
+}
+
+[data-estilo-planb="salinas2"] input[type="checkbox"]:checked::before {
+  transform: translateX(18px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-estilo-planb="salinas2"] input[type="checkbox"],
+  [data-estilo-planb="salinas2"] input[type="checkbox"]::before {
+    transition: none;
+  }
+}
+
+[data-estilo-planb="salinas2"] .modal-card:has(.planb__calendario) .modal-card__header {
+  background: var(--pb2-surface-alt);
+  color: var(--pb2-text);
+  margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-4)) var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: 20px 20px 0 0;
+}
+
+[data-estilo-planb="salinas2"] .modal-card:has(.planb__calendario) .modal-card__header h2 {
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="salinas2"] .planb__persona-fila {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  background: var(--pb2-surface-alt);
+  border: 1px solid var(--pb2-border);
+  border-radius: 12px;
+  padding: 10px 14px;
+}
+
+[data-estilo-planb="salinas2"] .planb__persona-fila:hover,
+[data-estilo-planb="salinas2"] .planb__persona-fila:focus-visible {
+  border-color: var(--pb2-accent);
+}
+
+[data-estilo-planb="salinas2"] .planb__persona-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  color: var(--pb2-accent-text);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+[data-estilo-planb="salinas2"] .planb__persona-datos {
+  flex: 1;
+  min-width: 0;
+}
+
+[data-estilo-planb="salinas2"] .planb__persona-nombre {
+  color: var(--pb2-text);
+  font-weight: 700;
+  display: block;
+}
+
+[data-estilo-planb="salinas2"] .planb__persona-puesto {
+  color: var(--pb2-text-muted);
+  font-size: 0.8rem;
+  display: block;
+}
+
+[data-estilo-planb="salinas2"] .planb__persona-elegir {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: var(--pb2-accent);
+  color: var(--pb2-accent-text);
+  font-weight: 700;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+[data-estilo-planb="salinas2"] .agenda-dia {
+  background: var(--pb2-surface);
+  border: 1px solid var(--pb2-border);
+  border-radius: 14px;
+  padding: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+[data-estilo-planb="salinas2"] .agenda-dia__fecha {
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="salinas2"] .agenda-dia__numero {
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="salinas2"] .agenda-dia__circulo-hoy {
+  background: var(--pb2-accent);
+  color: var(--pb2-accent-text);
+}
+
+[data-estilo-planb="salinas2"] .agenda-evento-pill {
+  border-radius: 10px;
+  padding: var(--space-2) var(--space-3);
+  font-weight: 600;
+}
+
+[data-estilo-planb="salinas2"] .agenda-sin-planes {
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="salinas2"] .mes-banner {
+  background: var(--pb2-surface-alt);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="salinas2"] .agenda-semana-vacia {
+  color: var(--pb2-text-muted);
+  border-bottom-color: var(--pb2-border);
+}
+
+[data-estilo-planb="salinas2"] .rbc-toolbar-label {
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="salinas2"] .rbc-toolbar button {
+  border-color: var(--pb2-border);
+  color: var(--pb2-text);
+  background: var(--pb2-surface-alt);
+}
+
+[data-estilo-planb="salinas2"] .rbc-toolbar button:hover {
+  background: var(--pb2-border);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="salinas2"] .rbc-toolbar button.rbc-active,
+[data-estilo-planb="salinas2"] .rbc-toolbar button.rbc-active:hover,
+[data-estilo-planb="salinas2"] .rbc-toolbar button.rbc-active:focus {
+  background: var(--pb2-accent);
+  color: var(--pb2-accent-text);
+  border-color: var(--pb2-accent);
+}
+
+[data-estilo-planb="salinas2"] .rbc-calendar,
+[data-estilo-planb="salinas2"] .rbc-month-view,
+[data-estilo-planb="salinas2"] .rbc-time-view,
+[data-estilo-planb="salinas2"] .rbc-agenda-view {
+  background: var(--pb2-surface);
+  border-color: var(--pb2-border);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="salinas2"] .rbc-header,
+[data-estilo-planb="salinas2"] .rbc-day-bg,
+[data-estilo-planb="salinas2"] .rbc-time-header,
+[data-estilo-planb="salinas2"] .rbc-time-content,
+[data-estilo-planb="salinas2"] .rbc-timeslot-group,
+[data-estilo-planb="salinas2"] .rbc-month-row,
+[data-estilo-planb="salinas2"] .rbc-date-cell {
+  border-color: var(--pb2-border) !important;
+}
+
+[data-estilo-planb="salinas2"] .rbc-header,
+[data-estilo-planb="salinas2"] .rbc-date-cell {
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="salinas2"] .rbc-off-range-bg {
+  background: var(--pb2-surface-alt);
+}
+
+[data-estilo-planb="salinas2"] .rbc-off-range {
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="salinas2"] .rbc-today {
+  background: color-mix(in srgb, var(--pb2-accent) 12%, transparent);
+}
+
 /* "Mi semana" (MiSemana.jsx, 2026-08-22) -- 2 columnas dentro de la
    tarjeta de semana: tareas (azul, --pb2-tareas) a la izquierda, agenda
    (naranja, --pb2-agenda) a la derecha, a petición de Yue. Se apilan en

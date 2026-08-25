@@ -11,6 +11,8 @@ export const ESTILOS_PLANB = [
   { valor: "grafito", etiqueta: "Grafito" },
   { valor: "navy", etiqueta: "Navy" },
   { valor: "indigo", etiqueta: "Índigo" },
+  { valor: "salinas", etiqueta: "Salinas" },
+  { valor: "salinas2", etiqueta: "Salinas 2" },
 ];
 
 // Reactivado 2026-08-25 a petición de Yue -- el 2026-08-21 se había fijado
