@@ -234,9 +234,7 @@ export default function SeccionAgendaChecklist({ serieId = null, reunionId = nul
     <div className="stack" style={{ borderTop: "1px solid var(--color-border)", paddingTop: 12 }}>
       <h3 style={{ fontSize: "0.9rem", margin: 0 }}>Agenda de esta {serieId ? "junta" : "reunión"}</h3>
       <p style={{ color: "var(--color-text-muted)", fontSize: "0.78rem", margin: 0 }}>
-        Se llena sola con los proyectos de esta junta — entregables próximos, notas y pendientes.
-        Usa "Quitar" en un proyecto si no aplica a esta reunión. Lo que no se revise sigue
-        pendiente la próxima vez.
+        Asuntos a revisar en esta reunión.
       </p>
 
       {cargandoAgenda && <p style={{ fontSize: "0.85rem" }}>Cargando...</p>}
