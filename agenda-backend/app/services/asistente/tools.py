@@ -95,7 +95,8 @@ from app.services.proyectos import (
 )
 from app.services.reuniones import actualizar_reunion, crear_reunion, eliminar_reunion
 from app.services.rol_labels import etiqueta_rol as _etiqueta_rol
-from app.services.series_reunion import agenda_actual_de_serie, crear_serie, revertir_revision_tema
+from app.services.series_reunion import actualizar_serie, agenda_actual_de_serie, crear_serie, revertir_revision_tema
+from app.models.serie_reunion import SerieReunion
 
 
 @dataclass
@@ -432,6 +433,32 @@ def _ejecutar_crear_proyecto(db: Session, usuario: Usuario, parametros: dict) ->
 
 _PALABRAS_REUNION_GENERAL = ("general", "sin proyecto", "sin tema", "ninguno", "ninguna")
 
+# Recordatorio in-app opcional al agendar/editar una reunión o serie
+# (2026-08-25, mismo <select> preestablecido que ModalReunion.jsx en el
+# frontend -- ver RECORDATORIO_OPCIONES ahí). Se resuelve en minutos, nunca
+# bloquea la conversación si no se entiende: si el texto no menciona nada de
+# recordatorio, se devuelve None (no se manda ese campo, se deja como estaba
+# o sin recordatorio por default).
+def _parsear_recordatorio_minutos(texto: Optional[str]) -> Optional[int]:
+    import unicodedata
+
+    if not texto:
+        return None
+    normalizado = "".join(
+        c for c in unicodedata.normalize("NFD", texto.strip().lower()) if unicodedata.category(c) != "Mn"
+    )
+    if "dia antes" in normalizado or "24 horas" in normalizado:
+        return 1440
+    if "2 horas" in normalizado or "dos horas" in normalizado:
+        return 120
+    if "1 hora" in normalizado or "una hora" in normalizado:
+        return 60
+    if "media hora" in normalizado or "30 min" in normalizado or "treinta min" in normalizado:
+        return 30
+    if "15 min" in normalizado or "quince min" in normalizado:
+        return 15
+    return None
+
 
 def _es_reunion_general(texto: Optional[str]) -> bool:
     """"agenda una reunión general/sin proyecto/sin tema..." -- reunión no
@@ -488,12 +515,17 @@ def _resolver_agendar_reunion(
     except (TypeError, ValueError):
         duracion = 30
 
+    notas = (parametros_llm.get("notas") or "").strip() or None
+    recordatorio_minutos = _parsear_recordatorio_minutos(parametros_llm.get("recordatorio"))
+
     parametros = {
         "proyecto_id": proyecto_id,
         "titulo": titulo,
         "fecha_inicio": fecha_res.valor.isoformat(),
         "duracion_minutos": duracion,
         "participantes_ids": participantes_res.valor,
+        "notas": notas,
+        "recordatorio_minutos_antes": recordatorio_minutos,
     }
     resumen = f'Voy a agendar "{titulo}" para el {fecha_res.valor.strftime("%d/%m/%Y a las %H:%M")}. ¿Confirmas?'
     participantes_nombres = (
@@ -519,10 +551,11 @@ def _ejecutar_agendar_reunion(db: Session, usuario: Usuario, parametros: dict) -
         usuario,
         parametros["proyecto_id"],
         parametros["titulo"],
-        None,
+        parametros.get("notas"),
         datetime.fromisoformat(parametros["fecha_inicio"]),
         parametros["duracion_minutos"],
         parametros["participantes_ids"],
+        parametros.get("recordatorio_minutos_antes"),
     )
     db.commit()
     db.refresh(nueva)
@@ -973,10 +1006,20 @@ def _resolver_editar_reunion(
                 tipo_entrada="texto",
             )
 
+    notas_nuevas = (parametros_llm.get("notas_nuevas") or "").strip()
+    if notas_nuevas:
+        campos["notas"] = notas_nuevas
+        resumen_partes.append("las notas")
+
+    recordatorio_minutos = _parsear_recordatorio_minutos(parametros_llm.get("recordatorio"))
+    if recordatorio_minutos is not None:
+        campos["recordatorio_minutos_antes"] = recordatorio_minutos
+        resumen_partes.append(f"el recordatorio a {recordatorio_minutos} minutos antes")
+
     if not campos:
         return ResultadoInterpretacion(
             listo=False, campo="titulo_nuevo",
-            pregunta="¿Qué quieres cambiar de la reunión? (fecha/hora, título, participantes)",
+            pregunta="¿Qué quieres cambiar de la reunión? (fecha/hora, título, participantes, notas, recordatorio)",
             tipo_entrada="texto",
         )
 
@@ -1833,6 +1876,9 @@ def _resolver_crear_serie_reunion(
     except (TypeError, ValueError):
         duracion = 30
 
+    notas = (parametros_llm.get("notas") or "").strip() or None
+    recordatorio_minutos = _parsear_recordatorio_minutos(parametros_llm.get("recordatorio"))
+
     from datetime import date as _date
 
     parametros = {
@@ -1843,6 +1889,8 @@ def _resolver_crear_serie_reunion(
         "duracion_minutos": duracion,
         "participantes_ids": participantes_res.valor,
         "fecha_inicio": _date.today().isoformat(),
+        "notas": notas,
+        "recordatorio_minutos_antes": recordatorio_minutos,
     }
     resumen = (
         f'Voy a crear la junta recurrente "{titulo}", todos los {_DIAS_ES[dia_semana]} a las '
@@ -1861,6 +1909,8 @@ def _ejecutar_crear_serie_reunion(db: Session, usuario: Usuario, parametros: dic
         parametros["duracion_minutos"], parametros["participantes_ids"],
         _date.fromisoformat(parametros["fecha_inicio"]), None,
         dia_semana=parametros["dia_semana"],
+        notas=parametros.get("notas"),
+        recordatorio_minutos_antes=parametros.get("recordatorio_minutos_antes"),
     )
     db.commit()
     db.refresh(nueva)
@@ -1868,6 +1918,124 @@ def _ejecutar_crear_serie_reunion(db: Session, usuario: Usuario, parametros: dic
         "mensaje": f'Junta recurrente "{nueva.titulo}" creada correctamente. '
         "Sus próximas ocurrencias se agendarán solas.",
         "resultado": {"id": nueva.id, "titulo": nueva.titulo},
+    }
+
+
+# --- editar_serie_reunion (2026-08-25, cierra el hueco: antes solo se podía
+# crear una junta recurrente por voz, no editarla -- había que borrarla y
+# crearla de nuevo) -------------------------------------------------------
+
+def _resolver_editar_serie_reunion(
+    db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
+) -> ResultadoInterpretacion:
+    proyecto_res = resolver_campo(
+        "proyecto_id", aclaraciones, parametros_llm.get("proyecto"),
+        lambda t: resolver_proyecto(db, usuario, t, proyecto_id_contexto),
+    )
+    if not proyecto_res.resuelto:
+        return _pendiente("proyecto_id", proyecto_res)
+    proyecto_id = proyecto_res.valor
+
+    serie_res = resolver_campo(
+        "serie_id", aclaraciones, parametros_llm.get("serie"),
+        lambda t: resolver_serie_reunion(db, usuario, proyecto_id, t),
+    )
+    if not serie_res.resuelto:
+        return _pendiente("serie_id", serie_res)
+    serie_id = serie_res.valor
+    serie_actual = db.query(SerieReunion).filter(SerieReunion.id == serie_id).first()
+
+    campos: dict = {}
+    resumen_partes: list[str] = []
+
+    titulo_nuevo = (parametros_llm.get("titulo_nuevo") or "").strip()
+    if titulo_nuevo:
+        campos["titulo"] = titulo_nuevo
+        resumen_partes.append(f'título a "{titulo_nuevo}"')
+
+    if parametros_llm.get("recurrencia") or "recurrencia" in aclaraciones:
+        recurrencia_res = resolver_campo(
+            "recurrencia", aclaraciones, parametros_llm.get("recurrencia"), resolver_recurrencia_semanal,
+        )
+        if not recurrencia_res.resuelto:
+            return _pendiente("recurrencia", recurrencia_res)
+        dia_semana, hora = recurrencia_res.valor
+        campos["dia_semana"] = dia_semana
+        campos["hora"] = hora
+        resumen_partes.append(f'día/hora a {_DIAS_ES[dia_semana]} a las {hora.strftime("%H:%M")}')
+
+    duracion_bruta = parametros_llm.get("duracion_minutos")
+    if duracion_bruta:
+        try:
+            campos["duracion_minutos"] = int(duracion_bruta)
+            resumen_partes.append(f"duración a {campos['duracion_minutos']} minutos")
+        except (TypeError, ValueError):
+            pass
+
+    if parametros_llm.get("participantes") or "participantes_ids" in aclaraciones:
+        participantes_res = resolver_campo(
+            "participantes_ids", aclaraciones, parametros_llm.get("participantes"),
+            lambda t: resolver_personas_organizacion(db, usuario, t),
+        )
+        if not participantes_res.resuelto:
+            return _pendiente("participantes_ids", participantes_res)
+        # Mismo criterio que editar_reunion: se AGREGAN, nunca se reemplaza
+        # la lista completa a ciegas.
+        ids_actuales = {p.usuario_id for p in serie_actual.participantes} if serie_actual else set()
+        ids_nuevos = set(participantes_res.valor) - ids_actuales
+        if ids_nuevos:
+            campos["participantes_ids"] = list(ids_actuales | ids_nuevos)
+            nombres_nuevos = [u.nombre for u in db.query(Usuario).filter(Usuario.id.in_(ids_nuevos)).all()]
+            resumen_partes.append(f"agregar a {', '.join(nombres_nuevos)} como participante(s)")
+        else:
+            return ResultadoInterpretacion(
+                listo=False, campo="participantes_ids",
+                pregunta=f'No encontré a nadie nuevo que agregar a partir de "{parametros_llm.get("participantes")}" '
+                "(puede que ya esté invitado, o que no lo haya identificado bien). ¿Puedes decir el nombre completo?",
+                tipo_entrada="texto",
+            )
+
+    notas_nuevas = (parametros_llm.get("notas_nuevas") or "").strip()
+    if notas_nuevas:
+        campos["notas"] = notas_nuevas
+        resumen_partes.append("las notas")
+
+    recordatorio_minutos = _parsear_recordatorio_minutos(parametros_llm.get("recordatorio"))
+    if recordatorio_minutos is not None:
+        campos["recordatorio_minutos_antes"] = recordatorio_minutos
+        resumen_partes.append(f"el recordatorio a {recordatorio_minutos} minutos antes")
+
+    if not campos:
+        return ResultadoInterpretacion(
+            listo=False, campo="titulo_nuevo",
+            pregunta="¿Qué quieres cambiar de la junta recurrente? (día/hora, título, participantes, notas, recordatorio)",
+            tipo_entrada="texto",
+        )
+
+    # `campos["hora"]` se manda como time -- serializar antes de meterlo en
+    # `parametros` (que viaja como dict/JSON entre resolver y ejecutar).
+    campos_serializables = dict(campos)
+    if "hora" in campos_serializables:
+        campos_serializables["hora"] = campos_serializables["hora"].isoformat()
+
+    parametros = {"serie_id": serie_id, "campos": campos_serializables}
+    resumen = f"Voy a actualizar {', '.join(resumen_partes)} de la junta recurrente. ¿Confirmas?"
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen)
+
+
+def _ejecutar_editar_serie_reunion(db: Session, usuario: Usuario, parametros: dict) -> dict:
+    from datetime import time as _time
+
+    campos = dict(parametros["campos"])
+    if "hora" in campos:
+        campos["hora"] = _time.fromisoformat(campos["hora"])
+
+    serie = actualizar_serie(db, usuario, parametros["serie_id"], campos)
+    db.commit()
+    db.refresh(serie)
+    return {
+        "mensaje": f'Junta recurrente "{serie.titulo}" actualizada correctamente.',
+        "resultado": {"id": serie.id},
     }
 
 
@@ -2136,6 +2304,9 @@ TOOLS: dict[str, ToolSpec] = {
             "participantes": "nombres de los invitados tal como se mencionaron, separados por 'y'; vacío si no se dijo",
             "proyecto": "nombre del proyecto/tema si se mencionó; 'general' si se dijo explícitamente que es "
             "una reunión general/sin proyecto; vacío si no se dijo nada",
+            "notas": "notas o comentario para la reunión, tal como se dijo; vacío si no se dijo nada",
+            "recordatorio": "cuánto antes avisar (ej. '15 minutos antes', 'media hora antes', '1 hora antes', "
+            "'2 horas antes', 'un día antes'); vacío si no se dijo nada (sin recordatorio por default)",
         },
         ejemplos=[
             (
@@ -2146,26 +2317,32 @@ TOOLS: dict[str, ToolSpec] = {
                     "duracion_minutos": None,
                     "participantes": "Carlos",
                     "proyecto": "",
+                    "notas": "",
+                    "recordatorio": "",
                 },
             ),
             (
-                "cita al equipo mañana a las 10 de la mañana para revisar avances, media hora",
+                "cita al equipo mañana a las 10 de la mañana para revisar avances, media hora, avísame 15 minutos antes",
                 {
                     "titulo": "revisar avances",
                     "fecha_inicio": "mañana a las 10 de la mañana",
                     "duracion_minutos": 30,
                     "participantes": "",
                     "proyecto": "",
+                    "notas": "",
+                    "recordatorio": "15 minutos antes",
                 },
             ),
             (
-                "agenda una reunión general con Sofía el viernes a las 9am para ver temas varios",
+                "agenda una reunión general con Sofía el viernes a las 9am para ver temas varios, nota: llevar el reporte",
                 {
                     "titulo": "temas varios",
                     "fecha_inicio": "el viernes a las 9am",
                     "duracion_minutos": None,
                     "participantes": "Sofía",
                     "proyecto": "general",
+                    "notas": "llevar el reporte",
+                    "recordatorio": "",
                 },
             ),
         ],
@@ -2270,23 +2447,32 @@ TOOLS: dict[str, ToolSpec] = {
     ),
     "editar_reunion": ToolSpec(
         nombre="editar_reunion",
-        descripcion="Cambiar la fecha/hora, título o participantes de una reunión que ya existe (reprogramar).",
+        descripcion="Cambiar la fecha/hora (reagendar), título, participantes, notas o recordatorio de una "
+        "reunión de una sola vez que ya existe. Si es una junta RECURRENTE (serie), usa "
+        "editar_serie_reunion en vez de esta.",
         parametros_llm={
             "reunion": "título de la reunión a editar, tal como se mencionó",
             "titulo_nuevo": "nuevo título, si se pidió cambiarlo; vacío si no",
-            "fecha_inicio": "nueva fecha y hora tal como se dijo, si se pidió reprogramar (ej. 'el viernes a las 4pm'); vacío si no",
+            "fecha_inicio": "nueva fecha y hora tal como se dijo, si se pidió reprogramar/reagendar (ej. 'el viernes a las 4pm'); vacío si no",
             "duracion_minutos": "nueva duración en minutos, si se dijo; null si no",
             "participantes": "nombres de invitados a AGREGAR, separados por 'y', si se pidió; vacío si no",
             "proyecto": "nombre del proyecto si se mencionó, si no dejar vacío",
+            "notas_nuevas": "nuevo texto de las notas/comentario, si se pidió cambiarlo; vacío si no",
+            "recordatorio": "cuánto antes avisar, si se pidió cambiarlo (ej. '15 minutos antes', 'media hora "
+            "antes', '1 hora antes', '2 horas antes', 'un día antes'); vacío si no se dijo nada",
         },
         ejemplos=[
             (
                 "cambia la reunión de revisión de avances al jueves a las 5pm",
-                {"reunion": "revisión de avances", "titulo_nuevo": "", "fecha_inicio": "el jueves a las 5pm", "duracion_minutos": None, "participantes": "", "proyecto": ""},
+                {"reunion": "revisión de avances", "titulo_nuevo": "", "fecha_inicio": "el jueves a las 5pm", "duracion_minutos": None, "participantes": "", "proyecto": "", "notas_nuevas": "", "recordatorio": ""},
             ),
             (
                 "agrega a Lucía a la reunión con Carlos",
-                {"reunion": "con Carlos", "titulo_nuevo": "", "fecha_inicio": "", "duracion_minutos": None, "participantes": "Lucía", "proyecto": ""},
+                {"reunion": "con Carlos", "titulo_nuevo": "", "fecha_inicio": "", "duracion_minutos": None, "participantes": "Lucía", "proyecto": "", "notas_nuevas": "", "recordatorio": ""},
+            ),
+            (
+                "avísame 1 hora antes de la reunión de revisión de presupuesto",
+                {"reunion": "revisión de presupuesto", "titulo_nuevo": "", "fecha_inicio": "", "duracion_minutos": None, "participantes": "", "proyecto": "", "notas_nuevas": "", "recordatorio": "1 hora antes"},
             ),
         ],
         resolver=_resolver_editar_reunion,
@@ -2556,21 +2742,63 @@ TOOLS: dict[str, ToolSpec] = {
             "duracion_minutos": "número de minutos que dura, o null si no se dijo (por defecto 30)",
             "participantes": "nombres de los invitados tal como se mencionaron, separados por 'y'; vacío si no se dijo",
             "proyecto": "nombre del proyecto/tema si se mencionó, si no dejar vacío",
+            "notas": "notas o comentario para la junta, tal como se dijo; vacío si no se dijo nada",
+            "recordatorio": "cuánto antes avisar de cada ocurrencia (ej. '15 minutos antes', 'media hora antes', "
+            "'1 hora antes', '2 horas antes', 'un día antes'); vacío si no se dijo nada (sin recordatorio por default)",
         },
         ejemplos=[
             (
-                "agenda una junta semanal con Sofía los lunes a las 10am para revisar Cubo",
+                "agenda una junta semanal con Sofía los lunes a las 10am para revisar Cubo, avísame media hora antes",
                 {
                     "titulo": "revisar Cubo",
                     "recurrencia": "los lunes a las 10am",
                     "duracion_minutos": None,
                     "participantes": "Sofía",
                     "proyecto": "Cubo",
+                    "notas": "",
+                    "recordatorio": "media hora antes",
                 },
             ),
         ],
         resolver=_resolver_crear_serie_reunion,
         ejecutar=_ejecutar_crear_serie_reunion,
+    ),
+    "editar_serie_reunion": ToolSpec(
+        nombre="editar_serie_reunion",
+        descripcion="Cambiar el día/hora, título, duración, participantes, notas o recordatorio de una junta "
+        "RECURRENTE (serie) que ya existe. Los cambios se aplican también a las ocurrencias futuras "
+        "ya generadas (no a las que ya pasaron). Si es una reunión de una sola vez, usa editar_reunion "
+        "en vez de esta.",
+        parametros_llm={
+            "serie": "título de la junta recurrente a editar, tal como se mencionó",
+            "titulo_nuevo": "nuevo título, si se pidió cambiarlo; vacío si no",
+            "recurrencia": "nuevo día de la semana y hora, si se pidió cambiarlo (ej. 'los martes a las 11am'); vacío si no",
+            "duracion_minutos": "nueva duración en minutos, si se dijo; null si no",
+            "participantes": "nombres de invitados a AGREGAR, separados por 'y', si se pidió; vacío si no",
+            "proyecto": "nombre del proyecto si se mencionó, si no dejar vacío",
+            "notas_nuevas": "nuevo texto de las notas/comentario, si se pidió cambiarlo; vacío si no",
+            "recordatorio": "cuánto antes avisar, si se pidió cambiarlo (ej. '15 minutos antes', 'media hora "
+            "antes', '1 hora antes', '2 horas antes', 'un día antes'); vacío si no se dijo nada",
+        },
+        ejemplos=[
+            (
+                "cambia la junta semanal de Cubo a los martes a las 11am",
+                {
+                    "serie": "Cubo", "titulo_nuevo": "", "recurrencia": "los martes a las 11am",
+                    "duracion_minutos": None, "participantes": "", "proyecto": "", "notas_nuevas": "", "recordatorio": "",
+                },
+            ),
+            (
+                "avísame 15 minutos antes de la junta semanal de seguimiento",
+                {
+                    "serie": "seguimiento", "titulo_nuevo": "", "recurrencia": "",
+                    "duracion_minutos": None, "participantes": "", "proyecto": "", "notas_nuevas": "",
+                    "recordatorio": "15 minutos antes",
+                },
+            ),
+        ],
+        resolver=_resolver_editar_serie_reunion,
+        ejecutar=_ejecutar_editar_serie_reunion,
     ),
     "listar_agenda_serie": ToolSpec(
         nombre="listar_agenda_serie",
