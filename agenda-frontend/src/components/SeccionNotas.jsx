@@ -93,6 +93,10 @@ export default function SeccionNotas({
   // siempre para los demás usos (reuniones, proyectos, minutas).
   textoBoton = null,
   placeholderTexto = null,
+  // Texto cuando todavía no hay ninguna nota (2026-08-25, a petición de Yue
+  // para simplificar "Editar reunión": ahí queda solo "Notas" sin el texto
+  // largo de aviso/pendiente) -- default conserva el texto de siempre.
+  textoVacio = "Aún no hay notas — escribe la primera abajo.",
 }) {
   const { usuario } = useAuth();
   const [notas, setNotas] = useState([]);
@@ -215,7 +219,7 @@ export default function SeccionNotas({
         <>
           {notas.length === 0 && (
             <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
-              Aún no hay notas — escribe la primera abajo.
+              {textoVacio}
             </p>
           )}
           {notas.map((n) => (
