@@ -3562,7 +3562,7 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
 }
 
 [data-estilo-planb="salinas"] input[type="checkbox"]:checked {
-  background: var(--pb2-accent);
+  background: var(--pb2-accent-dark);
 }
 
 [data-estilo-planb="salinas"] input[type="checkbox"]:checked::before {
@@ -3751,16 +3751,24 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
    botones/tarjetas/avatares, no como relleno -- se ve más sutil, menos
    "brillante". Van DESPUÉS del bloque estructural para que el cascade los
    gane sin usar !important. */
-[data-estilo-planb="salinas"] .btn--primary,
 [data-estilo-planb="salinas"] .planb__persona-elegir {
   background: var(--pb2-surface);
   border: 1.5px solid var(--pb2-accent);
   color: var(--pb2-text);
 }
 
+/* Botón primario (Guardar/Agendar/etc.) tratado como "seleccionado": mismo
+   criterio que la semana/vista activa -- relleno oscuro en vez de solo
+   contorno, para que destaque como LA acción principal frente a los
+   botones secundarios (.btn--ghost), que se quedan tenues. */
+[data-estilo-planb="salinas"] .btn--primary {
+  background: var(--pb2-accent-dark);
+  border: 1.5px solid var(--pb2-accent-dark);
+  color: #ffffff;
+}
+
 [data-estilo-planb="salinas"] .btn--primary:hover {
-  background: var(--pb2-surface-alt);
-  filter: none;
+  filter: brightness(1.1);
 }
 
 [data-estilo-planb="salinas"] .planb__tarjeta-icono {
