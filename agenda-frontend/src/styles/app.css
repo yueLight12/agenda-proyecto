@@ -3243,6 +3243,7 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
   --pb2-text: #292100;
   --pb2-text-muted: #78716c;
   --pb2-accent: #ffcb05;
+  --pb2-accent-dark: #cc9900;
   --pb2-accent-text: #2b2100;
   --pb2-danger-bg: #fdecea;
   --pb2-danger-text: #b42318;
@@ -3263,6 +3264,7 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
   --pb2-text: #eef2f8;
   --pb2-text-muted: #94a3bd;
   --pb2-accent: #ffd94d;
+  --pb2-accent-dark: #e0b23c;
   --pb2-accent-text: #241c05;
   --pb2-danger-bg: #3a1f1c;
   --pb2-danger-text: #e08277;
@@ -3750,8 +3752,7 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
    "brillante". Van DESPUÉS del bloque estructural para que el cascade los
    gane sin usar !important. */
 [data-estilo-planb="salinas"] .btn--primary,
-[data-estilo-planb="salinas"] .planb__persona-elegir,
-[data-estilo-planb="salinas"] .planb__semana-tarjeta--activa {
+[data-estilo-planb="salinas"] .planb__persona-elegir {
   background: var(--pb2-surface);
   border: 1.5px solid var(--pb2-accent);
   color: var(--pb2-text);
@@ -3774,12 +3775,36 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
   color: var(--pb2-text);
 }
 
+/* Seleccionado vs. no seleccionado (2026-08-26, a petición de Yue: antes
+   costaba distinguir cuál semana/vista de calendario estaba activa, ya
+   que activo e inactivo se veían casi igual de "marcados"). Ahora lo NO
+   seleccionado queda tenue (borde suave, sin relleno) y lo SELECCIONADO
+   se rellena con --pb2-accent-dark (más oscuro que el acento normal),
+   para que salte a la vista de inmediato cuál está activo. */
+[data-estilo-planb="salinas"] .planb__semana-tarjeta {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--pb2-accent) 35%, transparent);
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="salinas"] .planb__semana-tarjeta--activa {
+  background: var(--pb2-accent-dark);
+  border-color: var(--pb2-accent-dark);
+  color: #ffffff;
+}
+
+[data-estilo-planb="salinas"] .rbc-toolbar button {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--pb2-accent) 35%, transparent);
+  color: var(--pb2-text);
+}
+
 [data-estilo-planb="salinas"] .rbc-toolbar button.rbc-active,
 [data-estilo-planb="salinas"] .rbc-toolbar button.rbc-active:hover,
 [data-estilo-planb="salinas"] .rbc-toolbar button.rbc-active:focus {
-  background: var(--pb2-surface);
-  border: 1.5px solid var(--pb2-accent);
-  color: var(--pb2-text);
+  background: var(--pb2-accent-dark);
+  border-color: var(--pb2-accent-dark);
+  color: #ffffff;
 }
 
 /* Topbar y franja de modal (2026-08-26, a petición de Yue). Primero se
