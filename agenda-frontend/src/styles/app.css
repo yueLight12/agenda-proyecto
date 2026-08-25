@@ -3168,6 +3168,62 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
   border-left-width: 4px;
 }
 
+/* Geometría propia de "Indigo" (2026-08-26, a petición de Yue: "no solo
+   cambie el color, también formas" -- confirmado que esto aplica SOLO a
+   Indigo, Grafito/Navy se quedan con su geometría de siempre). Identidad
+   "cuadrada": esquinas mucho menos redondeadas que el resto (que usan
+   pills/círculos por default), iconos y avatares en squircle en vez de
+   círculo, botones/badges rectangulares en vez de píldora. */
+[data-estilo-planb="indigo"] .planb__tarjeta-icono {
+  border-radius: 12px;
+}
+
+[data-estilo-planb="indigo"] .planb__avatar,
+[data-estilo-planb="indigo"] .planb__persona-avatar {
+  border-radius: 10px;
+}
+
+[data-estilo-planb="indigo"] .planb__tarjeta {
+  border-radius: 10px;
+}
+
+[data-estilo-planb="indigo"] .card,
+[data-estilo-planb="indigo"] .planb__semana,
+[data-estilo-planb="indigo"] .modal-card {
+  border-radius: 12px;
+}
+
+[data-estilo-planb="indigo"] .planb__semana-tarjeta,
+[data-estilo-planb="indigo"] .planb__semana-tarjeta--activa {
+  border-radius: 8px;
+}
+
+[data-estilo-planb="indigo"] .btn--primary,
+[data-estilo-planb="indigo"] .planb__persona-elegir {
+  border-radius: 8px;
+}
+
+[data-estilo-planb="indigo"] .badge--urgente {
+  border-radius: 6px;
+}
+
+[data-estilo-planb="indigo"] .planb__pendiente-progreso,
+[data-estilo-planb="indigo"] .planb__pendiente-progreso-fill {
+  border-radius: 3px;
+}
+
+[data-estilo-planb="indigo"] .agenda-dia__circulo-hoy {
+  border-radius: 8px;
+}
+
+[data-estilo-planb="indigo"] input[type="checkbox"] {
+  border-radius: 6px;
+}
+
+[data-estilo-planb="indigo"] input[type="checkbox"]::before {
+  border-radius: 4px;
+}
+
 /* "Mi semana" (MiSemana.jsx, 2026-08-22) -- 2 columnas dentro de la
    tarjeta de semana: tareas (azul, --pb2-tareas) a la izquierda, agenda
    (naranja, --pb2-agenda) a la derecha, a petición de Yue. Se apilan en
