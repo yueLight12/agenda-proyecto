@@ -32,7 +32,7 @@ import { iniciales } from "../utils/avatarPersona";
 // ModalEditarProyecto, CalendarioGlobal), sin duplicar lógica.
 export default function AgendaPlanB() {
   const { usuario, logout } = useAuth();
-  const { estilo, seleccionarEstilo } = useEstiloPlanB();
+  const { estilo, siguienteEstilo } = useEstiloPlanB();
   const { tema, alternarTema } = useTema();
   const [fechaRef, setFechaRef] = useState(new Date());
   const [equipo, setEquipo] = useState([]);
@@ -168,22 +168,17 @@ export default function AgendaPlanB() {
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <BotonNotificacionesPush />
           {/* Selector de estilo visual (reactivado 2026-08-25, a petición
-              de Yue -- ver useEstiloPlanB.js). Un <select> en vez del
-              botón de alternancia binaria de antes, porque ahora hay más
-              de 2 opciones. */}
-          <select
-            className="input"
-            style={{ width: "auto", padding: "6px 10px", fontSize: "0.85rem" }}
-            value={estilo}
-            onChange={(e) => seleccionarEstilo(e.target.value)}
-            aria-label="Estilo visual de Agenda Plan B"
+              de Yue -- ver useEstiloPlanB.js). Botón que rota al siguiente
+              estilo al dar clic (un <select> abría un menú de pantalla
+              completa en móvil, Yue pidió que cambiara directo). */}
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={siguienteEstilo}
+            aria-label="Cambiar estilo visual de Agenda Plan B"
           >
-            {ESTILOS_PLANB.map((op) => (
-              <option key={op.valor} value={op.valor}>
-                {op.etiqueta}
-              </option>
-            ))}
-          </select>
+            {ESTILOS_PLANB.find((op) => op.valor === estilo)?.etiqueta || estilo}
+          </button>
           {/* Tema claro/oscuro (2026-08-21, a petición de Yue) -- ya
               existía en AppLayout.jsx pero Agenda Plan B es una pantalla
               independiente (sin AppLayout), así que no lo heredaba. Mismo

@@ -38,5 +38,14 @@ export function useEstiloPlanB() {
     setEstiloState(nuevo);
   };
 
-  return { estilo, seleccionarEstilo };
+  // Rota al siguiente estilo de ESTILOS_PLANB (2026-08-25, a petición de
+  // Yue: un botón que cambia directo al dar clic, en vez de un <select>
+  // que abre un menú -- mismo patrón que alternarTema en useTema.js).
+  const siguienteEstilo = () => {
+    const indiceActual = ESTILOS_PLANB.findIndex((op) => op.valor === estilo);
+    const siguiente = ESTILOS_PLANB[(indiceActual + 1) % ESTILOS_PLANB.length];
+    seleccionarEstilo(siguiente.valor);
+  };
+
+  return { estilo, seleccionarEstilo, siguienteEstilo };
 }
