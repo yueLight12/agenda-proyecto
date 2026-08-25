@@ -2206,6 +2206,9 @@ button.planb__misemana-fila {
 }
 
 .planb__misemana-fila-titulo {
+  display: block;
+  width: 100%;
+  min-width: 0;
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
