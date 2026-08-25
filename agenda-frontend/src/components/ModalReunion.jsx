@@ -234,7 +234,7 @@ export default function ModalReunion({
     <Modal titulo={tituloModal} onCerrar={onCerrar}>
       <div className="stack">
         {mostrarFormulario && (
-          <form className="stack" onSubmit={handleGuardar}>
+          <form id="form-reunion" className="stack" onSubmit={handleGuardar}>
             <label className="stack" style={{ gap: 4 }}>
               <span style={{ fontSize: "0.85rem" }}>Título</span>
               <input className="input" value={titulo} onChange={(e) => setTitulo(e.target.value)} required />
@@ -376,25 +376,6 @@ export default function ModalReunion({
             </div>
 
             {error && <p className="error-text">{error}</p>}
-
-            <div style={{ display: "flex", gap: 8, justifyContent: "space-between" }}>
-              {puedeEliminar ? (
-                <button
-                  type="button"
-                  className="btn btn--ghost"
-                  onClick={() => setConfirmandoEliminar(true)}
-                  disabled={eliminando}
-                  style={{ color: "var(--color-danger)" }}
-                >
-                  {eliminando ? "Eliminando..." : "Eliminar"}
-                </button>
-              ) : (
-                <span />
-              )}
-              <button className="btn btn--primary" type="submit" disabled={guardando}>
-                {guardando ? "Guardando..." : esEdicion ? "Guardar cambios" : "Agendar reunión"}
-              </button>
-            </div>
           </form>
         )}
 
@@ -438,6 +419,31 @@ export default function ModalReunion({
         {serieIdAgenda && <SeccionAgendaChecklist key={versionChecklist} serieId={serieIdAgenda} />}
         {!serieIdAgenda && reunionIdAgenda && (
           <SeccionAgendaChecklist key={versionChecklist} reunionId={reunionIdAgenda} />
+        )}
+
+        {/* Botones al final del modal, después de notas/checklist (2026-09-01,
+            a petición de Yue) -- "Guardar cambios" sigue enviando el <form>
+            de arriba vía el atributo form= (HTML5 permite asociar un botón a
+            un <form> aunque esté fuera de su árbol). */}
+        {mostrarFormulario && (
+          <div style={{ display: "flex", gap: 8, justifyContent: "space-between" }}>
+            {puedeEliminar ? (
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => setConfirmandoEliminar(true)}
+                disabled={eliminando}
+                style={{ color: "var(--color-danger)" }}
+              >
+                {eliminando ? "Eliminando..." : "Eliminar"}
+              </button>
+            ) : (
+              <span />
+            )}
+            <button className="btn btn--primary" type="submit" form="form-reunion" disabled={guardando}>
+              {guardando ? "Guardando..." : esEdicion ? "Guardar cambios" : "Agendar reunión"}
+            </button>
+          </div>
         )}
       </div>
 
