@@ -19,6 +19,7 @@ from app.services.equipos import (
     agregar_a_mi_equipo as agregar_a_mi_equipo_servicio,
     aplicar_mi_equipo as aplicar_mi_equipo_servicio,
     crear_persona_y_agregar_a_mi_equipo as crear_persona_y_agregar_a_mi_equipo_servicio,
+    listar_equipo_de_subordinado,
     listar_mi_equipo_efectivo,
     quitar_de_mi_equipo as quitar_de_mi_equipo_servicio,
 )
@@ -43,6 +44,18 @@ def listar_mi_equipo(
     """Plantilla guardada + tus reportes reales (supervisor_id en algún
     tema), ver listar_mi_equipo_efectivo."""
     return listar_mi_equipo_efectivo(db, usuario)
+
+
+@router.get("/mi-equipo/{usuario_id}/equipo", response_model=list[EquipoMiembroOut])
+def listar_equipo_de(
+    usuario_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Equipo efectivo de `usuario_id` -- solo si es un reporte directo tuyo
+    (ver listar_equipo_de_subordinado). Para desplegar/anidar en el
+    selector "¿A quién le quieres asignar?" (2026-08-25)."""
+    return listar_equipo_de_subordinado(db, usuario, usuario_id)
 
 
 @router.post("/mi-equipo", response_model=EquipoMiembroOut, status_code=status.HTTP_201_CREATED)

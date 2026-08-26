@@ -1422,6 +1422,49 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
   min-width: 0;
 }
 
+/* Despliegue anidado del equipo de un líder (2026-08-25, a petición de
+   Yue) -- genérico, NO se duplica por estilo: el botón "▸" y el
+   contenedor anidado usan los tokens base del proyecto (no --pb2-*)
+   porque "Clásico" no define esas variables, y los demás estilos ya
+   colorean .planb__persona-fila por su cuenta -- un expandir neutro no
+   choca con ninguno. */
+.planb__persona-fila-wrap {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.planb__persona-fila-wrap .planb__persona-fila {
+  flex: 1;
+  width: auto;
+}
+
+.planb__persona-expandir {
+  flex-shrink: 0;
+  width: 36px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.planb__persona-expandir:hover,
+.planb__persona-expandir:focus-visible {
+  border-color: var(--color-teal-500);
+  color: var(--color-text);
+}
+
+.planb__persona-subequipo {
+  margin: 2px 0 4px 18px;
+  padding-left: 12px;
+  border-left: 2px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .planb__persona-puesto {
   font-size: 0.78rem;
   color: var(--color-text-muted);

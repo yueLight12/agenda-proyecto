@@ -139,6 +139,28 @@ def listar_mi_equipo_efectivo(db: Session, usuario: Usuario) -> list[EquipoMiemb
     return resultado
 
 
+def listar_equipo_de_subordinado(
+    db: Session, viewer: Usuario, usuario_id: int
+) -> list[EquipoMiembroOut]:
+    """Equipo efectivo de `usuario_id`, visible solo si es un reporte
+    DIRECTO de `viewer` (2026-08-25, a petición de Yue: en el selector
+    "¿A quién le quieres asignar?" quiere poder desplegar el equipo de un
+    líder -- ej. Bernardo despliega el de Diana y ve a Lucy/Grecia debajo --
+    sin exponer niveles más abajo de los que el propio viewer administra).
+    Un solo nivel: no es recursivo -- si Diana desplegara el equipo de Lucy,
+    eso sería una llamada aparte que requeriría que Diana sea viewer, no
+    Bernardo. 404 en vez de 403 para no revelar si el usuario_id existe."""
+    equipo_viewer = listar_mi_equipo_efectivo(db, viewer)
+    if not any(m.usuario_id == usuario_id for m in equipo_viewer):
+        raise HTTPException(
+            status_code=404, detail="Esa persona no está en tu equipo directo"
+        )
+    objetivo = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    if not objetivo:
+        raise HTTPException(status_code=404, detail="Persona no encontrada")
+    return listar_mi_equipo_efectivo(db, objetivo)
+
+
 def agregar_a_mi_equipo(db: Session, usuario: Usuario, usuario_id: int, rol: RolEnum) -> EquipoMiembro:
     """Agrega (o reasigna el rol de) una persona en la plantilla personal de
     `usuario` — extraído del router para que el asistente de voz pueda

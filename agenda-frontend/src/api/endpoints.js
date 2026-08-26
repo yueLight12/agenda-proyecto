@@ -147,6 +147,7 @@ export const usuariosApi = {
 
 export const miEquipoApi = {
   listar: async () => (await api.get("/mi-equipo")).data,
+  listarDe: async (usuarioId) => (await api.get(`/mi-equipo/${usuarioId}/equipo`)).data,
   agregar: async (datos) => (await api.post("/mi-equipo", datos)).data,
   agregarPersonaNueva: async (datos) => (await api.post("/mi-equipo/nueva-persona", datos)).data,
   quitar: async (usuarioId) => api.delete(`/mi-equipo/${usuarioId}`),

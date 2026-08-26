@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Modal from "../Modal";
+import { miEquipoApi } from "../../api/endpoints";
 import { colorAvatar, iniciales } from "../../utils/avatarPersona";
 
 // Primer paso de la tarjeta "Persona" en Agenda Plan B (2026-08-20, a
@@ -14,10 +15,93 @@ import { colorAvatar, iniciales } from "../../utils/avatarPersona";
 // visual); los avatares son iniciales con color por persona porque el
 // sistema no tiene fotos de perfil, sin inventar un "punto de estado en
 // línea" que no existe como dato real.
+//
+// Despliegue anidado (2026-08-25, a petición de Yue: caso real de Bernardo
+// con Diana/David -- gente como Lucy/Grecia reporta a Diana, no directo a
+// Bernardo, pero Bernardo quiere poder verla y asignarle sin tenerla
+// duplicada suelta en su propia lista) -- cada fila tiene un botón "▸" que
+// pide GET /mi-equipo/{id}/equipo (ver listar_equipo_de_subordinado en el
+// backend, solo permite un nivel: el equipo de alguien que sea TU reporte
+// directo). Se cachea por usuario_id para no repetir la llamada si se
+// colapsa y se vuelve a abrir. Cualquier persona, anidada o no, se elige
+// igual con el botón "Elegir" -- el despliegue es solo para encontrarla,
+// no cambia el flujo de selección.
 export default function SelectorPersona({ equipo, error, onElegir, onCerrar }) {
   const [busqueda, setBusqueda] = useState("");
+  const [expandidos, setExpandidos] = useState({});
+  const [subequipos, setSubequipos] = useState({});
+  const [cargandoSub, setCargandoSub] = useState({});
+
   const equipoFiltrado = equipo.filter((m) =>
     m.nombre.toLowerCase().includes(busqueda.trim().toLowerCase())
+  );
+
+  const alternarExpandir = async (usuarioId) => {
+    setExpandidos((prev) => ({ ...prev, [usuarioId]: !prev[usuarioId] }));
+    if (subequipos[usuarioId] || cargandoSub[usuarioId]) return;
+    setCargandoSub((prev) => ({ ...prev, [usuarioId]: true }));
+    try {
+      const data = await miEquipoApi.listarDe(usuarioId);
+      setSubequipos((prev) => ({ ...prev, [usuarioId]: data }));
+    } catch {
+      setSubequipos((prev) => ({ ...prev, [usuarioId]: [] }));
+    } finally {
+      setCargandoSub((prev) => ({ ...prev, [usuarioId]: false }));
+    }
+  };
+
+  const filaPersona = (m, { anidado = false } = {}) => (
+    <div key={m.usuario_id} className={anidado ? "planb__persona-fila-anidada" : undefined}>
+      <div className="planb__persona-fila-wrap">
+        <button
+          type="button"
+          className="planb__persona-fila"
+          onClick={() => onElegir(String(m.usuario_id))}
+        >
+          <span
+            className="planb__persona-avatar"
+            style={{ background: colorAvatar(m.nombre) }}
+            aria-hidden="true"
+          >
+            {iniciales(m.nombre)}
+          </span>
+          <span className="planb__persona-datos">
+            <span className="planb__persona-nombre">{m.nombre}</span>
+            {m.puesto && <span className="planb__persona-puesto">{m.puesto}</span>}
+          </span>
+          <span className="planb__persona-elegir" aria-hidden="true">
+            Elegir
+          </span>
+        </button>
+        {!anidado && (
+          <button
+            type="button"
+            className="planb__persona-expandir"
+            onClick={() => alternarExpandir(m.usuario_id)}
+            aria-label={
+              expandidos[m.usuario_id] ? `Ocultar equipo de ${m.nombre}` : `Ver equipo de ${m.nombre}`
+            }
+            aria-expanded={Boolean(expandidos[m.usuario_id])}
+          >
+            {expandidos[m.usuario_id] ? "▾" : "▸"}
+          </button>
+        )}
+      </div>
+      {!anidado && expandidos[m.usuario_id] && (
+        <div className="planb__persona-subequipo">
+          {cargandoSub[m.usuario_id] && (
+            <p style={{ color: "var(--color-text-muted)", fontSize: "0.8rem" }}>Cargando...</p>
+          )}
+          {!cargandoSub[m.usuario_id] && (subequipos[m.usuario_id] || []).length === 0 && (
+            <p style={{ color: "var(--color-text-muted)", fontSize: "0.8rem" }}>
+              {m.nombre.split(" ")[0]} no tiene equipo propio todavía.
+            </p>
+          )}
+          {!cargandoSub[m.usuario_id] &&
+            (subequipos[m.usuario_id] || []).map((sub) => filaPersona(sub, { anidado: true }))}
+        </div>
+      )}
+    </div>
   );
 
   return (
@@ -44,29 +128,7 @@ export default function SelectorPersona({ equipo, error, onElegir, onCerrar }) {
             Nadie coincide con "{busqueda}".
           </p>
         )}
-        {equipoFiltrado.map((m) => (
-          <button
-            key={m.usuario_id}
-            type="button"
-            className="planb__persona-fila"
-            onClick={() => onElegir(String(m.usuario_id))}
-          >
-            <span
-              className="planb__persona-avatar"
-              style={{ background: colorAvatar(m.nombre) }}
-              aria-hidden="true"
-            >
-              {iniciales(m.nombre)}
-            </span>
-            <span className="planb__persona-datos">
-              <span className="planb__persona-nombre">{m.nombre}</span>
-              {m.puesto && <span className="planb__persona-puesto">{m.puesto}</span>}
-            </span>
-            <span className="planb__persona-elegir" aria-hidden="true">
-              Elegir
-            </span>
-          </button>
-        ))}
+        {equipoFiltrado.map((m) => filaPersona(m))}
       </div>
     </Modal>
   );
