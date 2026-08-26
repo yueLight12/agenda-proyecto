@@ -2786,43 +2786,53 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
    ========================================================================= */
 
 :root[data-estilo-planb="dorado"] {
+  /* Paleta clara (2026-08-26, spec de tokens dorados de Yue -- mismo mapeo
+     estructural que el set oscuro de abajo: bg-app/bg-panel/bg-elevated ->
+     --pb2-bg/--pb2-surface/--pb2-surface-alt). Acentos con gradiente en vez
+     de plano, ver --pb2-accent-gradient. */
   color-scheme: light;
-  --pb2-bg: #f7f5ef;
-  --pb2-dot: #ece6d5;
-  --pb2-surface: #ffffff;
-  --pb2-surface-alt: #f4efe0;
-  --pb2-border: #e6ddc3;
-  --pb2-text: #1a1712;
-  --pb2-text-muted: #75705f;
-  --pb2-accent: #d4a017;
-  --pb2-accent-text: #1a1200;
+  --pb2-bg: #ffffff;
+  --pb2-dot: #ededed;
+  --pb2-surface: #f4f4f5;
+  --pb2-surface-alt: #ededed;
+  --pb2-border: rgba(174, 120, 32, 0.25);
+  --pb2-text: #1a1a1a;
+  --pb2-text-muted: #6b7280;
+  --pb2-accent: #b4822b;
+  --pb2-accent-text: #1a1a1a;
   --pb2-danger-bg: #fdecea;
   --pb2-danger-text: #b42318;
-  --pb2-avatar-bg: #d4a017;
-  --pb2-tareas: #1c1c26;
-  --pb2-agenda: #b8862f;
-  --pb2-gold: #e6b91e;
-  --pb2-navy-bar: #0b0b0f;
+  --pb2-avatar-bg: #b4822b;
+  --pb2-tareas: #1a1a1a;
+  --pb2-agenda: #ae7820;
+  --pb2-gold: #c18b04;
+  --pb2-gold-highlight: #f4db7f;
+  --pb2-gold-mid: #b4822b;
+  --pb2-accent-gradient: linear-gradient(135deg, var(--pb2-gold-highlight), var(--pb2-gold-mid));
+  --pb2-navy-bar: #1a1a1a;
 }
 
 :root[data-estilo-planb="dorado"][data-theme="oscuro"] {
   color-scheme: dark;
-  --pb2-bg: #08080a;
-  --pb2-dot: #16161a;
-  --pb2-surface: #1c1c22;
-  --pb2-surface-alt: #242430;
-  --pb2-border: #33333e;
-  --pb2-text: #f5f0e6;
-  --pb2-text-muted: #a8a196;
-  --pb2-accent: #e6b91e;
-  --pb2-accent-text: #14100a;
+  --pb2-bg: #121212;
+  --pb2-dot: #1a1a1a;
+  --pb2-surface: #161616;
+  --pb2-surface-alt: #1a1a1a;
+  --pb2-border: rgba(232, 185, 35, 0.25);
+  --pb2-text: #f5f5f5;
+  --pb2-text-muted: #9a9a9a;
+  --pb2-accent: #c89b36;
+  --pb2-accent-text: #121212;
   --pb2-danger-bg: #3a1f1c;
   --pb2-danger-text: #e08277;
-  --pb2-avatar-bg: #e6b91e;
-  --pb2-tareas: #7c8cff;
-  --pb2-agenda: #e6b91e;
-  --pb2-gold: #e6b91e;
-  --pb2-navy-bar: #050506;
+  --pb2-avatar-bg: #c89b36;
+  --pb2-tareas: #f5f5f5;
+  --pb2-agenda: #c37c20;
+  --pb2-gold: #c89b36;
+  --pb2-gold-highlight: #f5e171;
+  --pb2-gold-mid: #c89b36;
+  --pb2-accent-gradient: linear-gradient(135deg, var(--pb2-gold-highlight), var(--pb2-gold-mid));
+  --pb2-navy-bar: #0d0d0d;
 }
 
 [data-estilo-planb="dorado"] .planb {
@@ -2894,7 +2904,7 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
 }
 
 [data-estilo-planb="dorado"] .planb__semana-tarjeta--activa {
-  background: var(--pb2-accent);
+  background: var(--pb2-accent-gradient);
   color: var(--pb2-accent-text);
   border-radius: 999px;
   box-shadow: none;
@@ -2946,7 +2956,7 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
   width: 44px;
   height: 44px;
   border-radius: 999px;
-  background: var(--pb2-accent);
+  background: var(--pb2-accent-gradient);
 }
 
 [data-estilo-planb="dorado"] .planb__tarjeta-icono svg {
@@ -2998,7 +3008,7 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
 
 [data-estilo-planb="dorado"] .planb__pendiente-progreso-fill {
   height: 100%;
-  background: var(--pb2-accent);
+  background: var(--pb2-accent-gradient);
   border-radius: 999px;
 }
 
@@ -3040,7 +3050,7 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
 }
 
 [data-estilo-planb="dorado"] .btn--primary {
-  background: var(--pb2-accent);
+  background: var(--pb2-accent-gradient);
   color: var(--pb2-accent-text);
   border-radius: 999px;
   font-weight: 700;
@@ -3114,7 +3124,7 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
 }
 
 [data-estilo-planb="dorado"] input[type="checkbox"]:checked {
-  background: var(--pb2-accent);
+  background: var(--pb2-accent-gradient);
 }
 
 [data-estilo-planb="dorado"] input[type="checkbox"]:checked::before {
@@ -3192,7 +3202,7 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
   justify-content: center;
   padding: 6px 16px;
   border-radius: 999px;
-  background: var(--pb2-accent);
+  background: var(--pb2-accent-gradient);
   color: var(--pb2-accent-text);
   font-weight: 700;
   font-size: 0.8rem;
@@ -3216,7 +3226,7 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
 }
 
 [data-estilo-planb="dorado"] .agenda-dia__circulo-hoy {
-  background: var(--pb2-accent);
+  background: var(--pb2-accent-gradient);
   color: var(--pb2-accent-text);
 }
 
@@ -3258,7 +3268,7 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
 [data-estilo-planb="dorado"] .rbc-toolbar button.rbc-active,
 [data-estilo-planb="dorado"] .rbc-toolbar button.rbc-active:hover,
 [data-estilo-planb="dorado"] .rbc-toolbar button.rbc-active:focus {
-  background: var(--pb2-accent);
+  background: var(--pb2-accent-gradient);
   color: var(--pb2-accent-text);
   border-color: var(--pb2-accent);
 }
@@ -3307,7 +3317,7 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
    ("Premium Team Member Selection Modal", "Task manager"). */
 [data-estilo-planb="dorado"] .planb__topbar {
   background: var(--pb2-navy-bar);
-  border-bottom: 3px solid var(--pb2-gold);
+  border-bottom: 3px solid var(--pb2-gold-mid);
   border-radius: 12px 12px 0 0;
   padding: var(--space-4);
   align-items: center;
@@ -3318,16 +3328,16 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
 }
 
 [data-estilo-planb="dorado"] .planb__topbar p {
-  color: #c9c2b0 !important;
+  color: #9a9a9a !important;
 }
 
 [data-estilo-planb="dorado"] .planb__avatar {
-  background: var(--pb2-gold);
+  background: var(--pb2-accent-gradient);
   color: var(--pb2-navy-bar);
 }
 
 [data-estilo-planb="dorado"] .modal-card {
-  border-top: 4px solid var(--pb2-gold);
+  border-top: 4px solid var(--pb2-gold-mid);
 }
 
 /* ======================================================================
