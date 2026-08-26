@@ -144,7 +144,7 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
   return (
     <div className="planb__misemana">
       <div className="planb__misemana-col planb__misemana-col--tareas">
-        <h3>Mis tareas</h3>
+        <h3>Mis tareas a realizar</h3>
         {tareas.length === 0 ? (
           <p className="planb__misemana-vacio">Sin tareas con fecha esta semana.</p>
         ) : (
@@ -176,7 +176,7 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
         {/* Tareas que asigné a alguien más, separadas abajo con acento
             amarillo (2026-08-24, a petición de Yue) -- ver filtro
             `asignadas` arriba. */}
-        <h3 className="planb__misemana-subtitulo">Mis tareas asignadas</h3>
+        <h3 className="planb__misemana-subtitulo">Mis tareas que asigné</h3>
         {asignadas.length === 0 ? (
           <p className="planb__misemana-vacio">Sin tareas asignadas por ti esta semana.</p>
         ) : (
