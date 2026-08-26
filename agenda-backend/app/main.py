@@ -29,6 +29,7 @@ from app.routers import (
     pendientes,
     proyectos,
     push,
+    rendimiento,
     resumen,
     reuniones,
     series_reunion,
@@ -81,6 +82,7 @@ app.include_router(entregables.router)
 app.include_router(notificaciones.router)
 app.include_router(resumen.router)
 app.include_router(dashboard.router)
+app.include_router(rendimiento.router)
 app.include_router(reuniones.router)
 app.include_router(equipos.router)
 app.include_router(equipo_resumen.router)

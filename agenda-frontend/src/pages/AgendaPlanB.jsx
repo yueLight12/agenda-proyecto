@@ -14,6 +14,7 @@ import SelectorSemanaDestacado from "../components/planB/SelectorSemanaDestacado
 import TarjetasAsignar from "../components/planB/TarjetasAsignar";
 import SelectorPersona from "../components/planB/SelectorPersona";
 import PendientesUrgentes from "../components/planB/PendientesUrgentes";
+import RendimientoEquipo from "../components/planB/RendimientoEquipo";
 import { ESTILOS_PLANB, useEstiloPlanB } from "../hooks/useEstiloPlanB";
 import { useTema } from "../hooks/useTema";
 import { iniciales } from "../utils/avatarPersona";
@@ -310,6 +311,12 @@ export default function AgendaPlanB() {
           <div className="planb__calendario">
             <CalendarioGlobal altoCalendario={700} />
           </div>
+        </Modal>
+      )}
+
+      {modalActivo === "rendimiento" && (
+        <Modal titulo="Rendimiento del equipo" onCerrar={cerrarModal}>
+          <RendimientoEquipo />
         </Modal>
       )}
 

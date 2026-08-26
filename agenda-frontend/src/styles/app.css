@@ -1456,6 +1456,55 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
   color: var(--color-text);
 }
 
+/* Rendimiento del equipo (2026-08-26, a petición de Yue) -- genérico, sin
+   duplicar por estilo (mismo motivo que el despliegue anidado de arriba:
+   "Clásico" no define variables --pb2-*). */
+.planb__rendimiento-periodos {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.planb__rendimiento-periodo {
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 6px 14px;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.planb__rendimiento-periodo--activo {
+  background: var(--color-teal-500);
+  border-color: var(--color-teal-500);
+  color: #ffffff;
+}
+
+.planb__rendimiento-tabla {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.85rem;
+}
+
+.planb__rendimiento-tabla th,
+.planb__rendimiento-tabla td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.planb__rendimiento-columna-boton {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--color-text);
+  padding: 0;
+  font-size: inherit;
+}
+
 .planb__persona-subequipo {
   margin: 2px 0 4px 18px;
   padding-left: 12px;

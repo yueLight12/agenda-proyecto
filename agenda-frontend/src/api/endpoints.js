@@ -155,6 +155,10 @@ export const miEquipoApi = {
     (await api.post(`/proyectos/${proyectoId}/aplicar-mi-equipo`)).data,
 };
 
+export const rendimientoApi = {
+  obtener: async (periodo) => (await api.get("/rendimiento", { params: { periodo } })).data,
+};
+
 export const minutasApi = {
   obtener: async (reunionId) => (await api.get(`/reuniones/${reunionId}/minuta`)).data,
   guardar: async (reunionId, contenido) =>

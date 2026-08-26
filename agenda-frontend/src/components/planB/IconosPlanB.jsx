@@ -50,6 +50,15 @@ export function IconoAgenda() {
   );
 }
 
+export function IconoRendimiento() {
+  return (
+    <svg {...props}>
+      <path d="M4 20V10M11 20V4M18 20v-7" />
+      <path d="M3.5 20.5h17" />
+    </svg>
+  );
+}
+
 export function IconoCheck() {
   return (
     <svg {...props}>
