@@ -167,7 +167,11 @@ def _notificar_supervisor_de_asignacion(
             usuario_id=supervisor_id,
             entregable_id=entregable.id,
             tipo=TipoNotificacion.entregable_asignado,
-            mensaje=f'{asignador.nombre} le asignó "{entregable.nombre}" a {responsable.nombre}.',
+            mensaje=(
+                f"{asignador.nombre} le asignó a {responsable.nombre} la tarea "
+                f'"{entregable.nombre}", con fecha de entrega {entregable.fecha_entrega} '
+                f"({_texto_dias_restantes(entregable.fecha_entrega)})."
+            ),
         )
     )
 
