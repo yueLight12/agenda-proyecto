@@ -119,15 +119,47 @@ def _notificar_supervisor_de_asignacion(
     """Avisa al supervisor REAL del responsable cuando quien asignó la tarea
     es otra persona (2026-08-26, a petición de Yue: caso real Bernardo, que
     puede asignar a cualquiera, le asigna algo a Juan José sin que David --
-    supervisor real de Juan José en este proyecto -- se entere). Si el
-    supervisor es justo quien asignó, o el responsable no tiene supervisor
-    en este proyecto (ej. un N2 que reporta directo a nadie más), no hay
-    nada que avisar -- ya lo sabe o no hay a quién avisarle. No dispara
-    push/WhatsApp (a diferencia de la notificación al responsable) para no
-    duplicar el aviso urgente -- esto es solo "entérate", no una tarea
-    propia."""
+    supervisor real de Juan José -- se entere).
+
+    El supervisor NO se busca solo en el proyecto de este entregable
+    (2026-08-26, bug real encontrado en pruebas: la tarea quedó en "Tareas
+    sueltas", el tema personal del responsable, donde nadie tiene
+    supervisor_id propio -- ahí "David es el supervisor de Juan José" seguía
+    siendo cierto en la vida real, solo que no en ESE tema puntual) -- se
+    busca en CUALQUIER tema donde el responsable tenga un supervisor_id real,
+    y si no hay ninguno, en la plantilla de "Mi equipo" de alguien que lo
+    tenga guardado (mismo criterio que ya usa
+    equipos.rol_default_para_nuevo_proyecto). Si el supervisor encontrado es
+    justo quien asignó, o no hay ninguno (ej. un N2 que no reporta a nadie
+    más), no hay nada que avisar. No dispara push/WhatsApp (a diferencia de
+    la notificación al responsable) para no duplicar el aviso urgente --
+    esto es solo "entérate", no una tarea propia."""
     rol_responsable = obtener_rol_en_proyecto(db, responsable.id, entregable.proyecto_id)
     supervisor_id = rol_responsable.supervisor_id if rol_responsable else None
+
+    if not supervisor_id:
+        otro_rol_con_supervisor = (
+            db.query(UsuarioProyectoRol)
+            .filter(
+                UsuarioProyectoRol.usuario_id == responsable.id,
+                UsuarioProyectoRol.supervisor_id.isnot(None),
+            )
+            .order_by(UsuarioProyectoRol.id)
+            .first()
+        )
+        supervisor_id = otro_rol_con_supervisor.supervisor_id if otro_rol_con_supervisor else None
+
+    if not supervisor_id:
+        from app.models.equipo_miembro import EquipoMiembro
+
+        plantilla_de = (
+            db.query(EquipoMiembro)
+            .filter(EquipoMiembro.usuario_id == responsable.id)
+            .order_by(EquipoMiembro.id)
+            .first()
+        )
+        supervisor_id = plantilla_de.propietario_id if plantilla_de else None
+
     if not supervisor_id or supervisor_id == asignador.id:
         return
     db.add(
