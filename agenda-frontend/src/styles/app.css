@@ -2774,6 +2774,563 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
 }
 
 /* ======================================================================
+   Agenda Plan B — diseño "dorado" (2026-08-26, a petición de Yue: capturas
+   de referencia que combinan un shell oscuro casi negro con acento dorado
+   (topbar, "Crear proyecto") con modales/tarjetas claras de avatares
+   circulares de color con iniciales y botones "Elegir" en píldora dorada
+   rellena ("Premium Team Member Selection Modal", "Task manager"). Misma
+   estructura de selectores que "grafito"/"navy" (mismas --pb2-* variables);
+   se diferencia de "navy" en que el shell es más negro que azul marino y
+   el botón "Elegir" queda relleno en píldora (no contorno) -- ver el
+   bloque de overrides de marca al final.
+   ========================================================================= */
+
+:root[data-estilo-planb="dorado"] {
+  color-scheme: light;
+  --pb2-bg: #f7f5ef;
+  --pb2-dot: #ece6d5;
+  --pb2-surface: #ffffff;
+  --pb2-surface-alt: #f4efe0;
+  --pb2-border: #e6ddc3;
+  --pb2-text: #1a1712;
+  --pb2-text-muted: #75705f;
+  --pb2-accent: #d4a017;
+  --pb2-accent-text: #1a1200;
+  --pb2-danger-bg: #fdecea;
+  --pb2-danger-text: #b42318;
+  --pb2-avatar-bg: #d4a017;
+  --pb2-tareas: #1c1c26;
+  --pb2-agenda: #b8862f;
+  --pb2-gold: #e6b91e;
+  --pb2-navy-bar: #0b0b0f;
+}
+
+:root[data-estilo-planb="dorado"][data-theme="oscuro"] {
+  color-scheme: dark;
+  --pb2-bg: #08080a;
+  --pb2-dot: #16161a;
+  --pb2-surface: #1c1c22;
+  --pb2-surface-alt: #242430;
+  --pb2-border: #33333e;
+  --pb2-text: #f5f0e6;
+  --pb2-text-muted: #a8a196;
+  --pb2-accent: #e6b91e;
+  --pb2-accent-text: #14100a;
+  --pb2-danger-bg: #3a1f1c;
+  --pb2-danger-text: #e08277;
+  --pb2-avatar-bg: #e6b91e;
+  --pb2-tareas: #7c8cff;
+  --pb2-agenda: #e6b91e;
+  --pb2-gold: #e6b91e;
+  --pb2-navy-bar: #050506;
+}
+
+[data-estilo-planb="dorado"] .planb {
+  background:
+    radial-gradient(var(--pb2-dot) 1px, transparent 1px) 0 0 / 22px 22px,
+    var(--pb2-bg);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="dorado"] .planb__topbar {
+  background: transparent;
+  border-bottom: none;
+  padding: var(--space-4) var(--space-4) 0;
+  align-items: center;
+}
+
+[data-estilo-planb="dorado"] .planb__topbar h1 {
+  color: var(--pb2-text);
+  font-weight: 800;
+}
+
+[data-estilo-planb="dorado"] .planb__topbar p {
+  color: var(--pb2-text-muted) !important;
+}
+
+[data-estilo-planb="dorado"] .planb__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: var(--pb2-avatar-bg);
+  color: var(--pb2-accent-text);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+[data-estilo-planb="dorado"] .planb__contenido {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  margin-top: var(--space-3);
+}
+
+[data-estilo-planb="dorado"] .planb__semana {
+  background: var(--pb2-surface);
+  border: 1px solid var(--pb2-border);
+  border-radius: 18px;
+}
+
+[data-estilo-planb="dorado"] .planb__semana-titulo {
+  color: var(--pb2-text);
+  font-weight: 700;
+}
+
+[data-estilo-planb="dorado"] .planb__semana-tarjeta {
+  background: var(--pb2-surface-alt);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="dorado"] .planb__semana-tarjeta:hover {
+  border-color: var(--pb2-accent);
+}
+
+[data-estilo-planb="dorado"] .planb__semana-tarjeta--activa {
+  background: var(--pb2-accent);
+  color: var(--pb2-accent-text);
+  border-radius: 999px;
+  box-shadow: none;
+}
+
+[data-estilo-planb="dorado"] h2 {
+  color: var(--pb2-text);
+  font-weight: 800;
+}
+
+[data-estilo-planb="dorado"] .card {
+  background: var(--pb2-surface);
+  border: 1px solid var(--pb2-border);
+  border-radius: 18px;
+  box-shadow: none;
+}
+
+[data-estilo-planb="dorado"] .planb__tarjeta {
+  border: 1px solid var(--pb2-border);
+  border-radius: 16px;
+  background: var(--pb2-surface-alt);
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: var(--space-4) var(--space-3);
+  box-shadow: none;
+}
+
+[data-estilo-planb="dorado"] .planb__tarjeta:hover,
+[data-estilo-planb="dorado"] .planb__tarjeta:focus-visible {
+  border-color: var(--pb2-accent);
+  box-shadow: 0 0 0 1px var(--pb2-accent);
+}
+
+[data-estilo-planb="dorado"] .planb__tarjeta-titulo {
+  color: var(--pb2-text);
+  font-weight: 700;
+}
+
+[data-estilo-planb="dorado"] .planb__tarjeta-texto {
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="dorado"] .planb__tarjeta-icono {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  color: var(--pb2-accent-text);
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: var(--pb2-accent);
+}
+
+[data-estilo-planb="dorado"] .planb__tarjeta-icono svg {
+  width: 22px;
+  height: 22px;
+}
+
+[data-estilo-planb="dorado"] .planb__pendiente-fila {
+  background: var(--pb2-surface-alt);
+  border: 1px solid var(--pb2-border);
+  border-left: 3px solid var(--pb2-accent);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="dorado"] .planb__pendiente-fila:has(.badge--urgente) {
+  border-left-color: var(--color-danger);
+}
+
+[data-estilo-planb="dorado"] .planb__pendiente-fila a {
+  color: var(--pb2-text);
+  text-decoration: none;
+}
+
+[data-estilo-planb="dorado"] .planb__pendiente-fila a:hover {
+  color: var(--pb2-accent);
+}
+
+[data-estilo-planb="dorado"] .badge--urgente {
+  background: var(--pb2-danger-bg);
+  color: var(--pb2-danger-text);
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.7rem;
+  letter-spacing: 0.03em;
+  padding: 2px 10px;
+}
+
+[data-estilo-planb="dorado"] .planb__pendiente-progreso {
+  display: block;
+  margin-top: 8px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--pb2-border);
+  overflow: hidden;
+}
+
+[data-estilo-planb="dorado"] .planb__pendiente-progreso-fill {
+  height: 100%;
+  background: var(--pb2-accent);
+  border-radius: 999px;
+}
+
+[data-estilo-planb="dorado"] .planb__pendiente-boton-clasico {
+  display: none;
+}
+
+[data-estilo-planb="dorado"] .planb__pendiente-accion {
+  color: var(--pb2-text-muted);
+  border: none;
+  background: transparent;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-estilo-planb="dorado"] .planb__pendiente-accion:hover {
+  background: var(--pb2-border);
+  color: var(--pb2-accent);
+}
+
+[data-estilo-planb="dorado"] .planb__pendiente-accion svg {
+  width: 18px;
+  height: 18px;
+}
+
+[data-estilo-planb="dorado"] .btn--ghost {
+  border-radius: 999px;
+  border-color: var(--pb2-border);
+  color: var(--pb2-text);
+  background: var(--pb2-surface-alt);
+}
+
+[data-estilo-planb="dorado"] .btn--ghost:hover {
+  background: var(--pb2-border);
+}
+
+[data-estilo-planb="dorado"] .btn--primary {
+  background: var(--pb2-accent);
+  color: var(--pb2-accent-text);
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+[data-estilo-planb="dorado"] .btn--primary:hover {
+  filter: brightness(1.1);
+}
+
+[data-estilo-planb="dorado"] .modal-overlay {
+  background: rgba(6, 6, 8, 0.65);
+}
+
+[data-estilo-planb="dorado"] .modal-card {
+  background: var(--pb2-surface);
+  border: 1px solid var(--pb2-border);
+  border-radius: 20px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="dorado"] .modal-card h2 {
+  color: var(--pb2-text);
+  font-weight: 800;
+}
+
+[data-estilo-planb="dorado"] .modal-card label > span:first-child {
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="dorado"] .input,
+[data-estilo-planb="dorado"] select.input,
+[data-estilo-planb="dorado"] textarea.input {
+  background: var(--pb2-surface-alt);
+  border: 1px solid var(--pb2-border);
+  border-radius: 10px;
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="dorado"] .input:focus,
+[data-estilo-planb="dorado"] select.input:focus,
+[data-estilo-planb="dorado"] textarea.input:focus {
+  outline: 2px solid var(--pb2-accent);
+  outline-offset: 1px;
+}
+
+[data-estilo-planb="dorado"] input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 40px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--pb2-border);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  flex-shrink: 0;
+}
+
+[data-estilo-planb="dorado"] input[type="checkbox"]::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+[data-estilo-planb="dorado"] input[type="checkbox"]:checked {
+  background: var(--pb2-accent);
+}
+
+[data-estilo-planb="dorado"] input[type="checkbox"]:checked::before {
+  transform: translateX(18px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-estilo-planb="dorado"] input[type="checkbox"],
+  [data-estilo-planb="dorado"] input[type="checkbox"]::before {
+    transition: none;
+  }
+}
+
+[data-estilo-planb="dorado"] .modal-card:has(.planb__calendario) .modal-card__header {
+  background: var(--pb2-surface-alt);
+  color: var(--pb2-text);
+  margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-4)) var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: 20px 20px 0 0;
+}
+
+[data-estilo-planb="dorado"] .modal-card:has(.planb__calendario) .modal-card__header h2 {
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="dorado"] .planb__persona-fila {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  background: var(--pb2-surface-alt);
+  border: 1px solid var(--pb2-border);
+  border-radius: 12px;
+  padding: 10px 14px;
+}
+
+[data-estilo-planb="dorado"] .planb__persona-fila:hover,
+[data-estilo-planb="dorado"] .planb__persona-fila:focus-visible {
+  border-color: var(--pb2-accent);
+}
+
+[data-estilo-planb="dorado"] .planb__persona-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  color: #ffffff;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+[data-estilo-planb="dorado"] .planb__persona-datos {
+  flex: 1;
+  min-width: 0;
+}
+
+[data-estilo-planb="dorado"] .planb__persona-nombre {
+  color: var(--pb2-text);
+  font-weight: 700;
+  display: block;
+}
+
+[data-estilo-planb="dorado"] .planb__persona-puesto {
+  color: var(--pb2-text-muted);
+  font-size: 0.8rem;
+  display: block;
+}
+
+[data-estilo-planb="dorado"] .planb__persona-elegir {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: var(--pb2-accent);
+  color: var(--pb2-accent-text);
+  font-weight: 700;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+[data-estilo-planb="dorado"] .agenda-dia {
+  background: var(--pb2-surface);
+  border: 1px solid var(--pb2-border);
+  border-radius: 14px;
+  padding: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+[data-estilo-planb="dorado"] .agenda-dia__fecha {
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="dorado"] .agenda-dia__numero {
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="dorado"] .agenda-dia__circulo-hoy {
+  background: var(--pb2-accent);
+  color: var(--pb2-accent-text);
+}
+
+[data-estilo-planb="dorado"] .agenda-evento-pill {
+  border-radius: 10px;
+  padding: var(--space-2) var(--space-3);
+  font-weight: 600;
+}
+
+[data-estilo-planb="dorado"] .agenda-sin-planes {
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="dorado"] .mes-banner {
+  background: var(--pb2-surface-alt);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="dorado"] .agenda-semana-vacia {
+  color: var(--pb2-text-muted);
+  border-bottom-color: var(--pb2-border);
+}
+
+[data-estilo-planb="dorado"] .rbc-toolbar-label {
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="dorado"] .rbc-toolbar button {
+  border-color: var(--pb2-border);
+  color: var(--pb2-text);
+  background: var(--pb2-surface-alt);
+}
+
+[data-estilo-planb="dorado"] .rbc-toolbar button:hover {
+  background: var(--pb2-border);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="dorado"] .rbc-toolbar button.rbc-active,
+[data-estilo-planb="dorado"] .rbc-toolbar button.rbc-active:hover,
+[data-estilo-planb="dorado"] .rbc-toolbar button.rbc-active:focus {
+  background: var(--pb2-accent);
+  color: var(--pb2-accent-text);
+  border-color: var(--pb2-accent);
+}
+
+[data-estilo-planb="dorado"] .rbc-calendar,
+[data-estilo-planb="dorado"] .rbc-month-view,
+[data-estilo-planb="dorado"] .rbc-time-view,
+[data-estilo-planb="dorado"] .rbc-agenda-view {
+  background: var(--pb2-surface);
+  border-color: var(--pb2-border);
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="dorado"] .rbc-header,
+[data-estilo-planb="dorado"] .rbc-day-bg,
+[data-estilo-planb="dorado"] .rbc-time-header,
+[data-estilo-planb="dorado"] .rbc-time-content,
+[data-estilo-planb="dorado"] .rbc-timeslot-group,
+[data-estilo-planb="dorado"] .rbc-month-row,
+[data-estilo-planb="dorado"] .rbc-date-cell {
+  border-color: var(--pb2-border) !important;
+}
+
+[data-estilo-planb="dorado"] .rbc-header,
+[data-estilo-planb="dorado"] .rbc-date-cell {
+  color: var(--pb2-text);
+}
+
+[data-estilo-planb="dorado"] .rbc-off-range-bg {
+  background: var(--pb2-surface-alt);
+}
+
+[data-estilo-planb="dorado"] .rbc-off-range {
+  color: var(--pb2-text-muted);
+}
+
+[data-estilo-planb="dorado"] .rbc-today {
+  background: color-mix(in srgb, var(--pb2-accent) 12%, transparent);
+}
+
+/* Overrides de marca "Dorado" -- van DESPUÉS del bloque estructural para
+   que el cascade los gane sin !important: shell casi negro con franja
+   dorada (más oscuro que "navy", que usa azul marino), y el botón
+   "Elegir"/"Crear y cerrar" quedan rellenos en píldora dorada (no de
+   contorno como en "navy") -- así se ven en las capturas de referencia
+   ("Premium Team Member Selection Modal", "Task manager"). */
+[data-estilo-planb="dorado"] .planb__topbar {
+  background: var(--pb2-navy-bar);
+  border-bottom: 3px solid var(--pb2-gold);
+  border-radius: 12px 12px 0 0;
+  padding: var(--space-4);
+  align-items: center;
+}
+
+[data-estilo-planb="dorado"] .planb__topbar h1 {
+  color: #ffffff;
+}
+
+[data-estilo-planb="dorado"] .planb__topbar p {
+  color: #c9c2b0 !important;
+}
+
+[data-estilo-planb="dorado"] .planb__avatar {
+  background: var(--pb2-gold);
+  color: var(--pb2-navy-bar);
+}
+
+[data-estilo-planb="dorado"] .modal-card {
+  border-top: 4px solid var(--pb2-gold);
+}
+
+/* ======================================================================
    Agenda Plan B — diseño "indigo" (2026-08-25, a petición de Yue --
    reactivado junto con "navy", ver comentario al inicio de esta sección).
    Yue no tenía una captura propia del sistema para "índigo": se construyó
