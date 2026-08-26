@@ -47,10 +47,22 @@ def _rango_periodo(periodo: Periodo) -> tuple[date | None, date | None]:
     return None, None
 
 
-def _entregables_visibles(db: Session, usuario: Usuario) -> dict[int, Entregable]:
+def _entregables_visibles(
+    db: Session, usuario: Usuario, proyecto_id: int | None = None
+) -> dict[int, Entregable]:
     """Mismo patrón que MiSemana.jsx: raíces visibles -> cascada por
     subárbol vía query_entregables_visibles (ya expande descendientes
-    sola), deduplicado por id."""
+    sola), deduplicado por id.
+
+    `proyecto_id` (2026-08-26, a petición de Yue: "buscar por proyecto y
+    ver sus métricas") -- si se da, acota TODO el dashboard a ese
+    proyecto/tema y su subárbol en vez de todo lo visible; reusa
+    query_entregables_visibles tal cual (ya valida que el usuario
+    participe ahí -- requerir_participacion_en_proyecto lanza 403/404 si
+    no, mismo gate que cualquier otro endpoint de entregables)."""
+    if proyecto_id is not None:
+        return {e.id: e for e in query_entregables_visibles(db, usuario, proyecto_id).all()}
+
     entregables: dict[int, Entregable] = {}
     for raiz in listar_raices_visibles(db, usuario):
         for e in query_entregables_visibles(db, usuario, raiz.id).all():
@@ -75,9 +87,11 @@ def _primeras_completadas(db: Session, ids: list[int]) -> dict[int, datetime]:
     return primeras
 
 
-def calcular_rendimiento_equipo(db: Session, usuario: Usuario, periodo: Periodo) -> list[dict]:
+def calcular_rendimiento_equipo(
+    db: Session, usuario: Usuario, periodo: Periodo, proyecto_id: int | None = None
+) -> list[dict]:
     inicio, fin = _rango_periodo(periodo)
-    entregables = _entregables_visibles(db, usuario)
+    entregables = _entregables_visibles(db, usuario, proyecto_id)
     if not entregables:
         return []
 
@@ -128,13 +142,16 @@ def calcular_rendimiento_equipo(db: Session, usuario: Usuario, periodo: Periodo)
     return resultado
 
 
-def calcular_resumen_dashboard(db: Session, usuario: Usuario) -> dict:
+def calcular_resumen_dashboard(
+    db: Session, usuario: Usuario, proyecto_id: int | None = None
+) -> dict:
     """Datos para las 3 gráficas adicionales del dashboard (estatus
     org-wide, carga por proyecto, tendencia semanal) -- snapshot actual, no
     depende del selector de periodo de la tabla de personas (un donut de
     "cómo están las tareas AHORA" y una tendencia de varias semanas no
-    tienen "periodo" en el mismo sentido que "completadas esta semana")."""
-    entregables = _entregables_visibles(db, usuario)
+    tienen "periodo" en el mismo sentido que "completadas esta semana").
+    `proyecto_id`: ver _entregables_visibles."""
+    entregables = _entregables_visibles(db, usuario, proyecto_id)
 
     por_estatus = {"pendiente": 0, "en_progreso": 0, "cumplido": 0}
     conteo_proyecto: dict[int, int] = defaultdict(int)

@@ -3,7 +3,7 @@ Router de "Rendimiento": métricas de desempeño por persona sobre el mismo
 conjunto de entregables que cada quien ya puede ver -- ver
 app/services/rendimiento.py, no agrega ninguna regla de permisos nueva.
 """
-from typing import Literal
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -20,15 +20,17 @@ router = APIRouter(tags=["Rendimiento"])
 @router.get("/rendimiento", response_model=list[RendimientoPersonaOut])
 def obtener_rendimiento(
     periodo: Literal["semana", "mes", "todo"] = "mes",
+    proyecto_id: Optional[int] = None,
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(obtener_usuario_actual),
 ):
-    return calcular_rendimiento_equipo(db, usuario, periodo)
+    return calcular_rendimiento_equipo(db, usuario, periodo, proyecto_id)
 
 
 @router.get("/rendimiento/resumen", response_model=ResumenDashboardOut)
 def obtener_resumen_rendimiento(
+    proyecto_id: Optional[int] = None,
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(obtener_usuario_actual),
 ):
-    return calcular_resumen_dashboard(db, usuario)
+    return calcular_resumen_dashboard(db, usuario, proyecto_id)

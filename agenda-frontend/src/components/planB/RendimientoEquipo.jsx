@@ -14,7 +14,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { rendimientoApi } from "../../api/endpoints";
+import { proyectosApi, rendimientoApi } from "../../api/endpoints";
 
 // Dashboard visual de rendimiento (2026-08-26, a petición de Yue: "los
 // usuarios que lo van a utilizar son más de gráficas... se requiere un
@@ -63,17 +63,33 @@ const COLUMNAS_TABLA = [
 
 export default function RendimientoEquipo() {
   const [periodo, setPeriodo] = useState("mes");
+  const [proyectos, setProyectos] = useState([]);
+  const [proyectoId, setProyectoId] = useState("");
+  const [busquedaPersona, setBusquedaPersona] = useState("");
   const [personas, setPersonas] = useState([]);
   const [resumen, setResumen] = useState(null);
   const [orden, setOrden] = useState("completadas");
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
 
+  // Lista de temas/subtemas para el filtro "buscar por proyecto" (2026-08-26,
+  // a petición de Yue) -- se carga una sola vez, independiente del periodo.
+  useEffect(() => {
+    proyectosApi
+      .arbolVisible()
+      .then(setProyectos)
+      .catch(() => setProyectos([]));
+  }, []);
+
   useEffect(() => {
     let cancelado = false;
     setCargando(true);
     setError("");
-    Promise.all([rendimientoApi.obtener(periodo), rendimientoApi.obtenerResumen()])
+    const filtro = proyectoId ? Number(proyectoId) : undefined;
+    Promise.all([
+      rendimientoApi.obtener(periodo, filtro),
+      rendimientoApi.obtenerResumen(filtro),
+    ])
       .then(([datosPersonas, datosResumen]) => {
         if (cancelado) return;
         setPersonas(datosPersonas);
@@ -88,9 +104,12 @@ export default function RendimientoEquipo() {
     return () => {
       cancelado = true;
     };
-  }, [periodo]);
+  }, [periodo, proyectoId]);
 
-  const personasOrdenadas = [...personas].sort((a, b) => b[orden] - a[orden]);
+  const personasFiltradas = personas.filter((p) =>
+    p.nombre.toLowerCase().includes(busquedaPersona.trim().toLowerCase())
+  );
+  const personasOrdenadas = [...personasFiltradas].sort((a, b) => b[orden] - a[orden]);
 
   const datosEstatus = resumen
     ? [
@@ -117,14 +136,42 @@ export default function RendimientoEquipo() {
         ))}
       </div>
 
+      <div className="planb__rendimiento-filtros">
+        <select
+          className="input"
+          value={proyectoId}
+          onChange={(e) => setProyectoId(e.target.value)}
+          aria-label="Filtrar por proyecto"
+        >
+          <option value="">Todos los proyectos</option>
+          {proyectos.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.ruta}
+            </option>
+          ))}
+        </select>
+        <input
+          className="input"
+          type="search"
+          placeholder="Buscar persona..."
+          value={busquedaPersona}
+          onChange={(e) => setBusquedaPersona(e.target.value)}
+          aria-label="Buscar persona"
+        />
+      </div>
+
       {cargando && <p style={{ color: "var(--color-text-muted)" }}>Cargando...</p>}
       {error && !cargando && <p className="error-text">{error}</p>}
 
       {!cargando && !error && personas.length === 0 && (
-        <p style={{ color: "var(--color-text-muted)" }}>Sin datos para este periodo.</p>
+        <p style={{ color: "var(--color-text-muted)" }}>Sin datos para este periodo/proyecto.</p>
       )}
 
-      {!cargando && !error && personas.length > 0 && (
+      {!cargando && !error && personas.length > 0 && personasFiltradas.length === 0 && (
+        <p style={{ color: "var(--color-text-muted)" }}>Nadie coincide con "{busquedaPersona}".</p>
+      )}
+
+      {!cargando && !error && personasFiltradas.length > 0 && (
         <>
           <div className="planb__rendimiento-grafica-card">
             <h3 className="planb__rendimiento-grafica-titulo">

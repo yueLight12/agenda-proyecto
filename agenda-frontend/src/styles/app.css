@@ -1495,6 +1495,17 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
   white-space: nowrap;
 }
 
+.planb__rendimiento-filtros {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.planb__rendimiento-filtros .input {
+  flex: 1;
+  min-width: 160px;
+}
+
 .planb__rendimiento-grafica-card {
   background: var(--color-surface-alt, var(--color-bg));
   border: 1px solid var(--color-border);
