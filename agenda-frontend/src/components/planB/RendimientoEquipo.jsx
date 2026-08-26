@@ -61,6 +61,32 @@ const COLUMNAS_TABLA = [
   { clave: "proyectos", etiqueta: "Proyectos" },
 ];
 
+// Mostrar/ocultar métricas (2026-08-26, a petición de Yue: "al entrar
+// mostramos todo tal cual, pero estaría bien poder ocultar o mostrar las
+// métricas que quiera") -- se guarda por dispositivo en localStorage,
+// mismo patrón que useEstiloPlanB.js/useTema.js. Todas visibles por
+// default -- entrar la primera vez se ve exactamente igual que antes de
+// este cambio.
+const CLAVE_METRICAS_VISIBLES = "rendimiento_metricas_visibles";
+const METRICAS = [
+  { clave: "personas", etiqueta: "Quién entrega más" },
+  { clave: "estatus", etiqueta: "Estatus de tareas" },
+  { clave: "proyecto", etiqueta: "Carga por proyecto" },
+  { clave: "tendencia", etiqueta: "Tendencia" },
+  { clave: "tabla", etiqueta: "Tabla" },
+];
+const METRICAS_DEFAULT = Object.fromEntries(METRICAS.map((m) => [m.clave, true]));
+
+function cargarMetricasVisibles() {
+  try {
+    const guardado = JSON.parse(localStorage.getItem(CLAVE_METRICAS_VISIBLES));
+    if (guardado && typeof guardado === "object") return { ...METRICAS_DEFAULT, ...guardado };
+  } catch {
+    // localStorage corrupto o inaccesible -- se queda con el default.
+  }
+  return { ...METRICAS_DEFAULT };
+}
+
 export default function RendimientoEquipo() {
   const [periodo, setPeriodo] = useState("mes");
   const [proyectos, setProyectos] = useState([]);
@@ -71,6 +97,19 @@ export default function RendimientoEquipo() {
   const [orden, setOrden] = useState("completadas");
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
+  const [metricasVisibles, setMetricasVisibles] = useState(cargarMetricasVisibles);
+
+  const alternarMetrica = (clave) => {
+    setMetricasVisibles((prev) => {
+      const siguiente = { ...prev, [clave]: !prev[clave] };
+      try {
+        localStorage.setItem(CLAVE_METRICAS_VISIBLES, JSON.stringify(siguiente));
+      } catch {
+        // Privacidad estricta / cuota llena -- la preferencia solo dura la sesión.
+      }
+      return siguiente;
+    });
+  };
 
   // Lista de temas/subtemas para el filtro "buscar por proyecto" (2026-08-26,
   // a petición de Yue) -- se carga una sola vez, independiente del periodo.
@@ -160,6 +199,19 @@ export default function RendimientoEquipo() {
         />
       </div>
 
+      <div className="planb__rendimiento-metricas" role="group" aria-label="Mostrar/ocultar métricas">
+        {METRICAS.map((m) => (
+          <label key={m.clave} className="planb__rendimiento-metrica-toggle">
+            <input
+              type="checkbox"
+              checked={metricasVisibles[m.clave]}
+              onChange={() => alternarMetrica(m.clave)}
+            />
+            {m.etiqueta}
+          </label>
+        ))}
+      </div>
+
       {cargando && <p style={{ color: "var(--color-text-muted)" }}>Cargando...</p>}
       {error && !cargando && <p className="error-text">{error}</p>}
 
@@ -173,136 +225,146 @@ export default function RendimientoEquipo() {
 
       {!cargando && !error && personasFiltradas.length > 0 && (
         <>
-          <div className="planb__rendimiento-grafica-card">
-            <h3 className="planb__rendimiento-grafica-titulo">
-              Quién entrega más — Completadas vs. carga actual
-            </h3>
-            <ResponsiveContainer width="100%" height={Math.max(180, personasOrdenadas.length * 44)}>
-              <BarChart data={personasOrdenadas} layout="vertical" margin={{ left: 8, right: 16 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" horizontal={false} />
-                <XAxis type="number" allowDecimals={false} stroke="var(--color-text-muted)" fontSize={12} />
-                <YAxis
-                  type="category"
-                  dataKey="nombre"
-                  width={140}
-                  stroke="var(--color-text-muted)"
-                  fontSize={12}
-                />
-                <Tooltip contentStyle={ESTILO_TOOLTIP} cursor={{ fill: "var(--color-border)", opacity: 0.3 }} />
-                <Legend wrapperStyle={{ fontSize: "0.8rem" }} />
-                <Bar dataKey="completadas" name="Completadas" fill={COLOR_COMPLETADAS} radius={[0, 4, 4, 0]} />
-                <Bar dataKey="pendientes_actuales" name="Carga actual" fill={COLOR_CARGA} radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          {resumen && (
-            <div className="planb__rendimiento-graficas-grid">
-              <div className="planb__rendimiento-grafica-card">
-                <h3 className="planb__rendimiento-grafica-titulo">Estatus de tareas</h3>
-                {totalEstatus === 0 ? (
-                  <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>Sin tareas visibles.</p>
-                ) : (
-                  <ResponsiveContainer width="100%" height={200}>
-                    <PieChart>
-                      <Pie
-                        data={datosEstatus}
-                        dataKey="valor"
-                        nameKey="nombre"
-                        innerRadius={45}
-                        outerRadius={75}
-                        paddingAngle={2}
-                      >
-                        {datosEstatus.map((d) => (
-                          <Cell key={d.clave} fill={d.color} stroke="var(--color-surface)" strokeWidth={2} />
-                        ))}
-                      </Pie>
-                      <Tooltip contentStyle={ESTILO_TOOLTIP} />
-                      <Legend wrapperStyle={{ fontSize: "0.8rem" }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-
-              <div className="planb__rendimiento-grafica-card">
-                <h3 className="planb__rendimiento-grafica-titulo">Carga por proyecto</h3>
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={resumen.por_proyecto} margin={{ left: -20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
-                    <XAxis
-                      dataKey="nombre"
-                      stroke="var(--color-text-muted)"
-                      fontSize={11}
-                      interval={0}
-                      angle={-25}
-                      textAnchor="end"
-                      height={60}
-                    />
-                    <YAxis allowDecimals={false} stroke="var(--color-text-muted)" fontSize={12} />
-                    <Tooltip contentStyle={ESTILO_TOOLTIP} cursor={{ fill: "var(--color-border)", opacity: 0.3 }} />
-                    <Bar dataKey="total" name="Tareas" fill={COLOR_COMPLETADAS} radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="planb__rendimiento-grafica-card">
-                <h3 className="planb__rendimiento-grafica-titulo">Tendencia (últimas 8 semanas)</h3>
-                <ResponsiveContainer width="100%" height={200}>
-                  <LineChart data={resumen.tendencia} margin={{ left: -20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
-                    <XAxis dataKey="etiqueta" stroke="var(--color-text-muted)" fontSize={11} />
-                    <YAxis allowDecimals={false} stroke="var(--color-text-muted)" fontSize={12} />
-                    <Tooltip contentStyle={ESTILO_TOOLTIP} />
-                    <Line
-                      type="monotone"
-                      dataKey="completadas"
-                      name="Completadas"
-                      stroke={COLOR_COMPLETADAS}
-                      strokeWidth={2}
-                      dot={{ r: 3 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
+          {metricasVisibles.personas && (
+            <div className="planb__rendimiento-grafica-card">
+              <h3 className="planb__rendimiento-grafica-titulo">
+                Quién entrega más — Completadas vs. carga actual
+              </h3>
+              <ResponsiveContainer width="100%" height={Math.max(180, personasOrdenadas.length * 44)}>
+                <BarChart data={personasOrdenadas} layout="vertical" margin={{ left: 8, right: 16 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" horizontal={false} />
+                  <XAxis type="number" allowDecimals={false} stroke="var(--color-text-muted)" fontSize={12} />
+                  <YAxis
+                    type="category"
+                    dataKey="nombre"
+                    width={140}
+                    stroke="var(--color-text-muted)"
+                    fontSize={12}
+                  />
+                  <Tooltip contentStyle={ESTILO_TOOLTIP} cursor={{ fill: "var(--color-border)", opacity: 0.3 }} />
+                  <Legend wrapperStyle={{ fontSize: "0.8rem" }} />
+                  <Bar dataKey="completadas" name="Completadas" fill={COLOR_COMPLETADAS} radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="pendientes_actuales" name="Carga actual" fill={COLOR_CARGA} radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           )}
 
-          {/* Vista de tabla (accesibilidad -- mismos datos que la primera
-              gráfica, con todas las columnas para quien prefiera números
-              exactos u ordenar por otra métrica). */}
-          <div style={{ overflowX: "auto" }}>
-            <table className="planb__rendimiento-tabla">
-              <thead>
-                <tr>
-                  <th>Persona</th>
-                  {COLUMNAS_TABLA.map((c) => (
-                    <th key={c.clave}>
-                      <button
-                        type="button"
-                        className="planb__rendimiento-columna-boton"
-                        onClick={() => setOrden(c.clave)}
-                        aria-pressed={orden === c.clave}
-                        title={`Ordenar por ${c.etiqueta}`}
-                      >
-                        {c.etiqueta}
-                        {orden === c.clave ? " ▾" : ""}
-                      </button>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {personasOrdenadas.map((f) => (
-                  <tr key={f.usuario_id}>
-                    <td>{f.nombre}</td>
+          {resumen && (metricasVisibles.estatus || metricasVisibles.proyecto || metricasVisibles.tendencia) && (
+            <div className="planb__rendimiento-graficas-grid">
+              {metricasVisibles.estatus && (
+                <div className="planb__rendimiento-grafica-card">
+                  <h3 className="planb__rendimiento-grafica-titulo">Estatus de tareas</h3>
+                  {totalEstatus === 0 ? (
+                    <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>Sin tareas visibles.</p>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={200}>
+                      <PieChart>
+                        <Pie
+                          data={datosEstatus}
+                          dataKey="valor"
+                          nameKey="nombre"
+                          innerRadius={45}
+                          outerRadius={75}
+                          paddingAngle={2}
+                        >
+                          {datosEstatus.map((d) => (
+                            <Cell key={d.clave} fill={d.color} stroke="var(--color-surface)" strokeWidth={2} />
+                          ))}
+                        </Pie>
+                        <Tooltip contentStyle={ESTILO_TOOLTIP} />
+                        <Legend wrapperStyle={{ fontSize: "0.8rem" }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              )}
+
+              {metricasVisibles.proyecto && (
+                <div className="planb__rendimiento-grafica-card">
+                  <h3 className="planb__rendimiento-grafica-titulo">Carga por proyecto</h3>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={resumen.por_proyecto} margin={{ left: -20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+                      <XAxis
+                        dataKey="nombre"
+                        stroke="var(--color-text-muted)"
+                        fontSize={11}
+                        interval={0}
+                        angle={-25}
+                        textAnchor="end"
+                        height={60}
+                      />
+                      <YAxis allowDecimals={false} stroke="var(--color-text-muted)" fontSize={12} />
+                      <Tooltip contentStyle={ESTILO_TOOLTIP} cursor={{ fill: "var(--color-border)", opacity: 0.3 }} />
+                      <Bar dataKey="total" name="Tareas" fill={COLOR_COMPLETADAS} radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+
+              {metricasVisibles.tendencia && (
+                <div className="planb__rendimiento-grafica-card">
+                  <h3 className="planb__rendimiento-grafica-titulo">Tendencia (últimas 8 semanas)</h3>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <LineChart data={resumen.tendencia} margin={{ left: -20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+                      <XAxis dataKey="etiqueta" stroke="var(--color-text-muted)" fontSize={11} />
+                      <YAxis allowDecimals={false} stroke="var(--color-text-muted)" fontSize={12} />
+                      <Tooltip contentStyle={ESTILO_TOOLTIP} />
+                      <Line
+                        type="monotone"
+                        dataKey="completadas"
+                        name="Completadas"
+                        stroke={COLOR_COMPLETADAS}
+                        strokeWidth={2}
+                        dot={{ r: 3 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+          )}
+
+          {metricasVisibles.tabla && (
+            // Vista de tabla (accesibilidad -- mismos datos que la primera
+            // gráfica, con todas las columnas para quien prefiera números
+            // exactos u ordenar por otra métrica).
+            <div style={{ overflowX: "auto" }}>
+              <table className="planb__rendimiento-tabla">
+                <thead>
+                  <tr>
+                    <th>Persona</th>
                     {COLUMNAS_TABLA.map((c) => (
-                      <td key={c.clave}>{f[c.clave]}</td>
+                      <th key={c.clave}>
+                        <button
+                          type="button"
+                          className="planb__rendimiento-columna-boton"
+                          onClick={() => setOrden(c.clave)}
+                          aria-pressed={orden === c.clave}
+                          title={`Ordenar por ${c.etiqueta}`}
+                        >
+                          {c.etiqueta}
+                          {orden === c.clave ? " ▾" : ""}
+                        </button>
+                      </th>
                     ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {personasOrdenadas.map((f) => (
+                    <tr key={f.usuario_id}>
+                      <td>{f.nombre}</td>
+                      {COLUMNAS_TABLA.map((c) => (
+                        <td key={c.clave}>{f[c.clave]}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </>
       )}
     </div>
