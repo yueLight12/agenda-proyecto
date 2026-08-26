@@ -1495,6 +1495,26 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
   white-space: nowrap;
 }
 
+.planb__rendimiento-grafica-card {
+  background: var(--color-surface-alt, var(--color-bg));
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.planb__rendimiento-grafica-titulo {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  font-weight: 700;
+}
+
+.planb__rendimiento-graficas-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
 .planb__rendimiento-columna-boton {
   background: none;
   border: none;
@@ -1539,11 +1559,13 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
    ya lo identifica. Sin esto, el .modal-card gen�rico (max-width: 480px)
    forzaba scroll horizontal Y vertical anidado dentro del propio scroll
    interno del calendario -- se ve�a mal, como report� Yue. */
-.modal-card:has(.planb__calendario) {
+.modal-card:has(.planb__calendario),
+.modal-card:has(.planb__rendimiento-graficas-grid) {
   width: min(96vw, 1100px);
   max-width: min(96vw, 1100px);
   max-height: 95vh;
   overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .planb__calendario {

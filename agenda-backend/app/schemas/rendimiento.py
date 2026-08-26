@@ -1,6 +1,9 @@
 """
-Esquema de salida de "Rendimiento" (métricas de desempeño por persona).
+Esquemas de salida de "Rendimiento" (métricas de desempeño por
+persona/proyecto/estatus).
 """
+from typing import Optional
+
 from pydantic import BaseModel
 
 
@@ -13,3 +16,26 @@ class RendimientoPersonaOut(BaseModel):
     pendientes_actuales: int
     asignadas_en_periodo: int
     proyectos: int
+
+
+class PorEstatusOut(BaseModel):
+    pendiente: int
+    en_progreso: int
+    cumplido: int
+
+
+class ProyectoCargaOut(BaseModel):
+    proyecto_id: Optional[int] = None
+    nombre: str
+    total: int
+
+
+class TendenciaSemanaOut(BaseModel):
+    etiqueta: str
+    completadas: int
+
+
+class ResumenDashboardOut(BaseModel):
+    por_estatus: PorEstatusOut
+    por_proyecto: list[ProyectoCargaOut]
+    tendencia: list[TendenciaSemanaOut]

@@ -157,6 +157,7 @@ export const miEquipoApi = {
 
 export const rendimientoApi = {
   obtener: async (periodo) => (await api.get("/rendimiento", { params: { periodo } })).data,
+  obtenerResumen: async () => (await api.get("/rendimiento/resumen")).data,
 };
 
 export const minutasApi = {

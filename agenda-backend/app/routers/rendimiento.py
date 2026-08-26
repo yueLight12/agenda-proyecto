@@ -11,8 +11,8 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import obtener_usuario_actual
 from app.models.usuario import Usuario
-from app.schemas.rendimiento import RendimientoPersonaOut
-from app.services.rendimiento import calcular_rendimiento_equipo
+from app.schemas.rendimiento import RendimientoPersonaOut, ResumenDashboardOut
+from app.services.rendimiento import calcular_rendimiento_equipo, calcular_resumen_dashboard
 
 router = APIRouter(tags=["Rendimiento"])
 
@@ -24,3 +24,11 @@ def obtener_rendimiento(
     usuario: Usuario = Depends(obtener_usuario_actual),
 ):
     return calcular_rendimiento_equipo(db, usuario, periodo)
+
+
+@router.get("/rendimiento/resumen", response_model=ResumenDashboardOut)
+def obtener_resumen_rendimiento(
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    return calcular_resumen_dashboard(db, usuario)
