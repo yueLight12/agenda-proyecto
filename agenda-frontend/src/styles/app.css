@@ -3982,11 +3982,16 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
 
 /* Subtítulo "Asigné" dentro de la columna de tareas (2026-08-24) --
    separa visualmente lo que se me asignó a mí (arriba) de lo que yo le
-   asigné a alguien más (abajo, acento amarillo con --color-warning). */
+   asigné a alguien más (abajo, acento amarillo con --color-warning).
+   Borde superior grueso y en color (2026-08-26, a petición de Yue: costaba
+   distinguir dónde terminaba "Mis tareas" y empezaba "Mis tareas
+   asignadas") -- mismo tratamiento que el borde superior de toda la
+   tarjeta (3px), pero en ámbar en vez del azul de "Mis tareas" para que
+   el corte se note de un vistazo. */
 .planb__misemana-subtitulo {
   margin: var(--space-3) 0 var(--space-2);
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--pb2-border, var(--color-border));
+  padding-top: var(--space-3);
+  border-top: 3px solid var(--color-warning);
   font-size: 0.9rem;
 }
 
