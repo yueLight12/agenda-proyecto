@@ -56,7 +56,7 @@ export default function SelectorPersona({ equipo, error, onElegir, onCerrar }) {
         <button
           type="button"
           className="planb__persona-fila"
-          onClick={() => onElegir(String(m.usuario_id))}
+          onClick={() => onElegir(m)}
         >
           <span
             className="planb__persona-avatar"

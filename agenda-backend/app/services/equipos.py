@@ -89,7 +89,9 @@ def _proyectos_administrables_de(db: Session, viewer: Usuario, miembro_id: int) 
     return resultado
 
 
-def listar_mi_equipo_efectivo(db: Session, usuario: Usuario) -> list[EquipoMiembroOut]:
+def listar_mi_equipo_efectivo(
+    db: Session, usuario: Usuario, viewer_para_proyectos: Usuario | None = None
+) -> list[EquipoMiembroOut]:
     """Plantilla guardada + reportes reales (supervisor_id == usuario.id en
     cualquier tema, ver UsuarioProyectoRol) que todavía no estén guardados
     ahí -- para que "Administrar equipo" no obligue a guardar a mano a
@@ -98,7 +100,17 @@ def listar_mi_equipo_efectivo(db: Session, usuario: Usuario) -> list[EquipoMiemb
     guardarlos primero). Los reportes reales se listan de solo lectura
     (`guardado=False`) -- no crean una fila EquipoMiembro nueva, así que
     aplicar_mi_equipo (que sigue leyendo solo la plantilla guardada, sin
-    cambios) no se ve afectado por este merge de solo-listado."""
+    cambios) no se ve afectado por este merge de solo-listado.
+
+    `viewer_para_proyectos` (2026-08-26, ver listar_equipo_de_subordinado):
+    quién puede administrar cada tema se calcula normalmente para `usuario`
+    mismo (self-service, GET /mi-equipo de siempre) -- pero cuando esta
+    función se usa para desplegar el equipo de OTRA persona (ej. Bernardo
+    desplegando el de David), los temas mostrados deben reflejar lo que
+    BERNARDO puede administrar, no lo que David puede, aunque la lista de
+    personas siga siendo la de David. Default a `usuario` para no cambiar
+    el caso de siempre."""
+    viewer = viewer_para_proyectos or usuario
     plantilla = db.query(EquipoMiembro).filter(EquipoMiembro.propietario_id == usuario.id).all()
     resultado = [
         EquipoMiembroOut(
@@ -108,7 +120,7 @@ def listar_mi_equipo_efectivo(db: Session, usuario: Usuario) -> list[EquipoMiemb
             email=m.usuario.email,
             rol=m.rol,
             guardado=True,
-            proyectos=_proyectos_administrables_de(db, usuario, m.usuario.id),
+            proyectos=_proyectos_administrables_de(db, viewer, m.usuario.id),
         )
         for m in plantilla
     ]
@@ -133,7 +145,7 @@ def listar_mi_equipo_efectivo(db: Session, usuario: Usuario) -> list[EquipoMiemb
                 email=fila.usuario.email,
                 rol=fila.rol,
                 guardado=False,
-                proyectos=_proyectos_administrables_de(db, usuario, fila.usuario.id),
+                proyectos=_proyectos_administrables_de(db, viewer, fila.usuario.id),
             )
         )
     return resultado
@@ -158,7 +170,7 @@ def listar_equipo_de_subordinado(
     objetivo = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     if not objetivo:
         raise HTTPException(status_code=404, detail="Persona no encontrada")
-    return listar_mi_equipo_efectivo(db, objetivo)
+    return listar_mi_equipo_efectivo(db, objetivo, viewer_para_proyectos=viewer)
 
 
 def agregar_a_mi_equipo(db: Session, usuario: Usuario, usuario_id: int, rol: RolEnum) -> EquipoMiembro:

@@ -280,8 +280,17 @@ export default function AgendaPlanB() {
 
       {(modalActivo === "tarea" || modalActivo === "persona") && personaElegida && (
         <ModalAsignarTareaRapida
-          equipo={equipo}
-          personaInicialId={personaElegida}
+          // personaElegida puede venir de un equipo anidado (2026-08-26,
+          // ver SelectorPersona.jsx -- Bernardo desplegando el de David),
+          // y no estar en `equipo` (la lista plana del propio Bernardo) --
+          // se agrega aquí si hace falta para que ModalAsignarTareaRapida
+          // encuentre sus `proyectos` al buscarla por id.
+          equipo={
+            equipo.some((m) => m.usuario_id === personaElegida.usuario_id)
+              ? equipo
+              : [...equipo, personaElegida]
+          }
+          personaInicialId={String(personaElegida.usuario_id)}
           onCerrar={cerrarModal}
           onCreado={alTerminarAsignacion}
         />
