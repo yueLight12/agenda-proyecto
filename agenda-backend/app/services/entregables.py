@@ -113,6 +113,33 @@ def _sufijo_link_app() -> str:
     return f"\nEntra aquí: {settings.url_app}"
 
 
+def _notificar_supervisor_de_asignacion(
+    db: Session, asignador: Usuario, responsable: Usuario, entregable: Entregable
+) -> None:
+    """Avisa al supervisor REAL del responsable cuando quien asignó la tarea
+    es otra persona (2026-08-26, a petición de Yue: caso real Bernardo, que
+    puede asignar a cualquiera, le asigna algo a Juan José sin que David --
+    supervisor real de Juan José en este proyecto -- se entere). Si el
+    supervisor es justo quien asignó, o el responsable no tiene supervisor
+    en este proyecto (ej. un N2 que reporta directo a nadie más), no hay
+    nada que avisar -- ya lo sabe o no hay a quién avisarle. No dispara
+    push/WhatsApp (a diferencia de la notificación al responsable) para no
+    duplicar el aviso urgente -- esto es solo "entérate", no una tarea
+    propia."""
+    rol_responsable = obtener_rol_en_proyecto(db, responsable.id, entregable.proyecto_id)
+    supervisor_id = rol_responsable.supervisor_id if rol_responsable else None
+    if not supervisor_id or supervisor_id == asignador.id:
+        return
+    db.add(
+        Notificacion(
+            usuario_id=supervisor_id,
+            entregable_id=entregable.id,
+            tipo=TipoNotificacion.entregable_asignado,
+            mensaje=f'{asignador.nombre} le asignó "{entregable.nombre}" a {responsable.nombre}.',
+        )
+    )
+
+
 def _texto_dias_restantes(fecha_entrega: date) -> str:
     """Texto legible de cuánto falta/pasó para la fecha límite (2026-08-21,
     a petición de Yue para reformular el texto de las notificaciones de
@@ -207,6 +234,7 @@ def crear_entregable(
         responsable = db.query(Usuario).filter(Usuario.id == responsable_id).first()
         if responsable:
             avisar_si_nunca_ha_entrado(db, responsable, usuario, nuevo.nombre)
+            _notificar_supervisor_de_asignacion(db, usuario, responsable, nuevo)
     elif not es_lider and rol.supervisor_id:
         db.add(
             Notificacion(
@@ -522,6 +550,7 @@ def reasignar_entregable(
         nuevo_responsable = db.query(Usuario).filter(Usuario.id == nuevo_responsable_id).first()
         if nuevo_responsable:
             avisar_si_nunca_ha_entrado(db, nuevo_responsable, usuario, entregable.nombre)
+            _notificar_supervisor_de_asignacion(db, usuario, nuevo_responsable, entregable)
     if responsable_anterior_id != usuario.id and responsable_anterior_id != nuevo_responsable_id:
         db.add(
             Notificacion(
