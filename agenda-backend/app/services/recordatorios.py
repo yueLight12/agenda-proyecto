@@ -32,6 +32,7 @@ from app.models.reunion import Reunion
 from app.models.usuario import Usuario
 from app.models.usuario_proyecto_rol import UsuarioProyectoRol
 from app.services.eventos_empresa import proxima_ocurrencia
+from app.services.notificaciones import crear_notificacion
 
 
 def _ya_existe_notificacion_hoy(
@@ -106,14 +107,7 @@ def generar_recordatorios(db: Session) -> int:
             if _ya_existe_notificacion_hoy(db, destinatario_id, entregable.id, tipo):
                 continue
 
-            db.add(
-                Notificacion(
-                    usuario_id=destinatario_id,
-                    entregable_id=entregable.id,
-                    tipo=tipo,
-                    mensaje=mensaje,
-                )
-            )
+            crear_notificacion(db, destinatario_id, tipo, mensaje, entregable_id=entregable.id)
             creadas += 1
 
     db.commit()
@@ -163,13 +157,8 @@ def generar_recordatorios_cumpleanos(db: Session) -> int:
         for usuario in usuarios_activos:
             if _ya_existe_notificacion_cumpleanos_hoy(db, usuario.id, evento.id):
                 continue
-            db.add(
-                Notificacion(
-                    usuario_id=usuario.id,
-                    evento_empresa_id=evento.id,
-                    tipo=TipoNotificacion.otro,
-                    mensaje=mensaje,
-                )
+            crear_notificacion(
+                db, usuario.id, TipoNotificacion.otro, mensaje, evento_empresa_id=evento.id
             )
             creadas += 1
 
@@ -216,13 +205,8 @@ def generar_recordatorios_reuniones_hoy(db: Session) -> int:
         for destinatario_id in destinatarios:
             if _ya_existe_notificacion_reunion_hoy(db, destinatario_id, reunion.id):
                 continue
-            db.add(
-                Notificacion(
-                    usuario_id=destinatario_id,
-                    reunion_id=reunion.id,
-                    tipo=TipoNotificacion.reunion_hoy,
-                    mensaje=mensaje,
-                )
+            crear_notificacion(
+                db, destinatario_id, TipoNotificacion.reunion_hoy, mensaje, reunion_id=reunion.id
             )
             creadas += 1
 
@@ -292,13 +276,12 @@ def generar_recordatorios_previos_reuniones(db: Session) -> int:
         for destinatario_id in destinatarios:
             if _ya_existe_notificacion_recordatorio_reunion(db, destinatario_id, reunion.id):
                 continue
-            db.add(
-                Notificacion(
-                    usuario_id=destinatario_id,
-                    reunion_id=reunion.id,
-                    tipo=TipoNotificacion.recordatorio_reunion,
-                    mensaje=mensaje,
-                )
+            crear_notificacion(
+                db,
+                destinatario_id,
+                TipoNotificacion.recordatorio_reunion,
+                mensaje,
+                reunion_id=reunion.id,
             )
             creadas += 1
 

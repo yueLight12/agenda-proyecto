@@ -32,13 +32,14 @@ from app.core.permissions import (
 )
 from app.models.minuta import Minuta
 from app.models.nota import Nota
-from app.models.notificacion import Notificacion, TipoNotificacion
+from app.models.notificacion import TipoNotificacion
 from app.models.pendiente import Pendiente
 from app.models.usuario import RolEnum, Usuario
 from app.models.usuario_proyecto_rol import UsuarioProyectoRol
 from app.schemas.nota import NotaCrear, NotaOut
 from app.services.almacenamiento import eliminar_imagen, guardar_imagen
 from app.services.entregables import obtener_entregable_o_404
+from app.services.notificaciones import crear_notificacion
 from app.services.proyectos import obtener_proyecto_o_404
 from app.services.reuniones import obtener_reunion_o_404
 
@@ -232,13 +233,12 @@ def _notificar_nota_nueva(db: Session, usuario: Usuario, nota: Nota) -> None:
 
     destinatarios.discard(usuario.id)
     for destinatario_id in destinatarios:
-        db.add(
-            Notificacion(
-                usuario_id=destinatario_id,
-                entregable_id=entregable_id_notif,
-                tipo=TipoNotificacion.otro,
-                mensaje=mensaje,
-            )
+        crear_notificacion(
+            db,
+            destinatario_id,
+            TipoNotificacion.otro,
+            mensaje,
+            entregable_id=entregable_id_notif,
         )
 
 

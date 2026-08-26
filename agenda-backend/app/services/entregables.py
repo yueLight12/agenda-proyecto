@@ -31,6 +31,7 @@ from app.schemas.entregable import EntregableOut
 from app.schemas.nota import NotaCrear
 from app.services.almacenamiento import eliminar_imagen, guardar_imagen
 from app.services.avisos_acceso import avisar_si_nunca_ha_entrado
+from app.services.notificaciones import crear_notificacion
 from app.services.proyectos import es_lider_en_algun_tema
 from app.services.push import enviar_push
 from app.services.whatsapp import enviar_whatsapp
@@ -162,17 +163,16 @@ def _notificar_supervisor_de_asignacion(
 
     if not supervisor_id or supervisor_id == asignador.id:
         return
-    db.add(
-        Notificacion(
-            usuario_id=supervisor_id,
-            entregable_id=entregable.id,
-            tipo=TipoNotificacion.entregable_asignado,
-            mensaje=(
-                f"{asignador.nombre} le asignó a {responsable.nombre} la tarea "
-                f'"{entregable.nombre}", con fecha de entrega {entregable.fecha_entrega} '
-                f"({_texto_dias_restantes(entregable.fecha_entrega)})."
-            ),
-        )
+    crear_notificacion(
+        db,
+        supervisor_id,
+        TipoNotificacion.entregable_asignado,
+        (
+            f"{asignador.nombre} le asignó a {responsable.nombre} la tarea "
+            f'"{entregable.nombre}", con fecha de entrega {entregable.fecha_entrega} '
+            f"({_texto_dias_restantes(entregable.fecha_entrega)})."
+        ),
+        entregable_id=entregable.id,
     )
 
 
@@ -240,26 +240,28 @@ def crear_entregable(
 
     if es_lider and responsable_id != usuario.id:
         urgencia_combinada = es_urgente(nuevo)
-        db.add(
-            Notificacion(
-                usuario_id=responsable_id,
-                entregable_id=nuevo.id,
-                tipo=TipoNotificacion.entregable_asignado,
-                mensaje=(
-                    f'Se te asignó "{nuevo.nombre}", por {usuario.nombre}, con fecha de '
-                    f"entrega {nuevo.fecha_entrega} ({_texto_dias_restantes(nuevo.fecha_entrega)}), "
-                    f"{_texto_urgencia(urgencia_combinada)}."
-                ),
-                urgente=urgencia_combinada,
-            )
+        # push=False: el título/cuerpo de abajo tienen más contexto que el
+        # genérico de crear_notificacion (2026-08-26).
+        crear_notificacion(
+            db,
+            responsable_id,
+            TipoNotificacion.entregable_asignado,
+            (
+                f'Se te asignó "{nuevo.nombre}", por {usuario.nombre}, con fecha de '
+                f"entrega {nuevo.fecha_entrega} ({_texto_dias_restantes(nuevo.fecha_entrega)}), "
+                f"{_texto_urgencia(urgencia_combinada)}."
+            ),
+            entregable_id=nuevo.id,
+            urgente=urgencia_combinada,
+            push=False,
+        )
+        enviar_push(
+            db,
+            responsable_id,
+            "Tarea urgente asignada" if urgencia_combinada else "Nueva tarea asignada",
+            f'{usuario.nombre} te asignó "{nuevo.nombre}" ({_texto_dias_restantes(nuevo.fecha_entrega)}).',
         )
         if urgencia_combinada:
-            enviar_push(
-                db,
-                responsable_id,
-                "Tarea urgente asignada",
-                f'{usuario.nombre} te asignó "{nuevo.nombre}" ({_texto_dias_restantes(nuevo.fecha_entrega)}).',
-            )
             enviar_whatsapp(
                 db,
                 responsable_id,
@@ -272,16 +274,15 @@ def crear_entregable(
             avisar_si_nunca_ha_entrado(db, responsable, usuario, nuevo.nombre)
             _notificar_supervisor_de_asignacion(db, usuario, responsable, nuevo)
     elif not es_lider and rol.supervisor_id:
-        db.add(
-            Notificacion(
-                usuario_id=rol.supervisor_id,
-                entregable_id=nuevo.id,
-                tipo=TipoNotificacion.entregable_asignado,
-                mensaje=(
-                    f'{usuario.nombre} se autoasignó "{nuevo.nombre}" (fecha límite: '
-                    f"{nuevo.fecha_entrega}, {_texto_dias_restantes(nuevo.fecha_entrega)})."
-                ),
-            )
+        crear_notificacion(
+            db,
+            rol.supervisor_id,
+            TipoNotificacion.entregable_asignado,
+            (
+                f'{usuario.nombre} se autoasignó "{nuevo.nombre}" (fecha límite: '
+                f"{nuevo.fecha_entrega}, {_texto_dias_restantes(nuevo.fecha_entrega)})."
+            ),
+            entregable_id=nuevo.id,
         )
 
     return nuevo
@@ -433,13 +434,12 @@ def actualizar_avance(
                 f'{usuario.nombre} actualizó el avance de "{entregable.nombre}" '
                 f"a {porcentaje_avance}%."
             )
-        db.add(
-            Notificacion(
-                usuario_id=supervisor_id,
-                entregable_id=entregable.id,
-                tipo=TipoNotificacion.avance_actualizado,
-                mensaje=mensaje,
-            )
+        crear_notificacion(
+            db,
+            supervisor_id,
+            TipoNotificacion.avance_actualizado,
+            mensaje,
+            entregable_id=entregable.id,
         )
         notificados.add(supervisor_id)
 
@@ -448,13 +448,12 @@ def actualizar_avance(
         and entregable.creado_por != usuario.id
         and entregable.creado_por not in notificados
     ):
-        db.add(
-            Notificacion(
-                usuario_id=entregable.creado_por,
-                entregable_id=entregable.id,
-                tipo=TipoNotificacion.otro,
-                mensaje=f'{usuario.nombre} marcó como completada la tarea "{entregable.nombre}".',
-            )
+        crear_notificacion(
+            db,
+            entregable.creado_por,
+            TipoNotificacion.otro,
+            f'{usuario.nombre} marcó como completada la tarea "{entregable.nombre}".',
+            entregable_id=entregable.id,
         )
 
     return entregable
@@ -554,28 +553,29 @@ def reasignar_entregable(
 
     if nuevo_responsable_id != usuario.id:
         urgencia_combinada = es_urgente(entregable)
-        db.add(
-            Notificacion(
-                usuario_id=nuevo_responsable_id,
-                entregable_id=entregable.id,
-                tipo=TipoNotificacion.entregable_asignado,
-                mensaje=(
-                    f'Se te asignó "{entregable.nombre}", por {usuario.nombre}, con fecha de '
-                    f"entrega {entregable.fecha_entrega} "
-                    f"({_texto_dias_restantes(entregable.fecha_entrega)}), "
-                    f"{_texto_urgencia(urgencia_combinada)}."
-                ),
-                urgente=urgencia_combinada,
-            )
+        # push=False: título/cuerpo específicos abajo, igual que en crear_entregable.
+        crear_notificacion(
+            db,
+            nuevo_responsable_id,
+            TipoNotificacion.entregable_asignado,
+            (
+                f'Se te asignó "{entregable.nombre}", por {usuario.nombre}, con fecha de '
+                f"entrega {entregable.fecha_entrega} "
+                f"({_texto_dias_restantes(entregable.fecha_entrega)}), "
+                f"{_texto_urgencia(urgencia_combinada)}."
+            ),
+            entregable_id=entregable.id,
+            urgente=urgencia_combinada,
+            push=False,
+        )
+        enviar_push(
+            db,
+            nuevo_responsable_id,
+            "Tarea urgente asignada" if urgencia_combinada else "Nueva tarea asignada",
+            f'{usuario.nombre} te asignó "{entregable.nombre}" '
+            f"({_texto_dias_restantes(entregable.fecha_entrega)}).",
         )
         if urgencia_combinada:
-            enviar_push(
-                db,
-                nuevo_responsable_id,
-                "Tarea urgente asignada",
-                f'{usuario.nombre} te asignó "{entregable.nombre}" '
-                f"({_texto_dias_restantes(entregable.fecha_entrega)}).",
-            )
             enviar_whatsapp(
                 db,
                 nuevo_responsable_id,
@@ -588,13 +588,12 @@ def reasignar_entregable(
             avisar_si_nunca_ha_entrado(db, nuevo_responsable, usuario, entregable.nombre)
             _notificar_supervisor_de_asignacion(db, usuario, nuevo_responsable, entregable)
     if responsable_anterior_id != usuario.id and responsable_anterior_id != nuevo_responsable_id:
-        db.add(
-            Notificacion(
-                usuario_id=responsable_anterior_id,
-                entregable_id=entregable.id,
-                tipo=TipoNotificacion.otro,
-                mensaje=f'{usuario.nombre} reasignó "{entregable.nombre}" a otra persona.',
-            )
+        crear_notificacion(
+            db,
+            responsable_anterior_id,
+            TipoNotificacion.otro,
+            f'{usuario.nombre} reasignó "{entregable.nombre}" a otra persona.',
+            entregable_id=entregable.id,
         )
 
     return entregable

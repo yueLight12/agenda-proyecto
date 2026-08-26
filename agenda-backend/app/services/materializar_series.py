@@ -16,9 +16,10 @@ from datetime import date, datetime, time, timedelta
 
 from sqlalchemy.orm import Session
 
-from app.models.notificacion import Notificacion, TipoNotificacion
+from app.models.notificacion import TipoNotificacion
 from app.models.reunion import Reunion, ReunionParticipante
 from app.models.serie_reunion import SerieReunion, TipoRecurrencia
+from app.services.notificaciones import crear_notificacion
 
 
 def _fecha_mes(anio: int, mes: int, dia: int) -> date:
@@ -109,14 +110,13 @@ def materializar_ocurrencias(db: Session, horizonte_dias: int = 14) -> int:
 
             for sp in serie.participantes:
                 db.add(ReunionParticipante(reunion_id=nueva.id, usuario_id=sp.usuario_id))
-                db.add(
-                    Notificacion(
-                        usuario_id=sp.usuario_id,
-                        reunion_id=nueva.id,
-                        tipo=TipoNotificacion.otro,
-                        mensaje=f'Nueva ocurrencia de "{serie.titulo}" agendada para el '
-                        f'{fecha_inicio.strftime("%d/%m/%Y a las %H:%M")}.',
-                    )
+                crear_notificacion(
+                    db,
+                    sp.usuario_id,
+                    TipoNotificacion.otro,
+                    f'Nueva ocurrencia de "{serie.titulo}" agendada para el '
+                    f'{fecha_inicio.strftime("%d/%m/%Y a las %H:%M")}.',
+                    reunion_id=nueva.id,
                 )
             creadas += 1
 

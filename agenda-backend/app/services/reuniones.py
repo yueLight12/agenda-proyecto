@@ -15,6 +15,7 @@ from app.models.usuario import RolEnum, Usuario
 from app.models.usuario_proyecto_rol import UsuarioProyectoRol
 from app.schemas.proyecto import MiembroEquipoOut
 from app.schemas.reunion import ParticipanteOut, ReunionOut
+from app.services.notificaciones import crear_notificacion
 from app.services.proyectos import listar_equipo_visible
 
 
@@ -247,13 +248,13 @@ def crear_reunion(
 
     for uid in set(participantes_ids) - {usuario.id}:
         db.add(ReunionParticipante(reunion_id=nueva.id, usuario_id=uid))
-        db.add(
-            Notificacion(
-                usuario_id=uid,
-                tipo=TipoNotificacion.otro,
-                mensaje=f'{usuario.nombre} te invitó a la reunión "{titulo}" '
-                f'el {fecha_inicio.strftime("%d/%m/%Y a las %H:%M")}.',
-            )
+        crear_notificacion(
+            db,
+            uid,
+            TipoNotificacion.otro,
+            f'{usuario.nombre} te invitó a la reunión "{titulo}" '
+            f'el {fecha_inicio.strftime("%d/%m/%Y a las %H:%M")}.',
+            reunion_id=nueva.id,
         )
 
     return nueva
