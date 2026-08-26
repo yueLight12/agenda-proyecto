@@ -2,24 +2,37 @@
 Servicio del chatbot de consulta.
 
 Por ahora es de solo lectura: arma un bloque de contexto con los datos que el
-usuario YA puede ver (reutilizando query_entregables_visibles, la misma
-función que usan los routers de entregables/resumen) y se lo pasa al LLM
-configurado (Ollama local por default, o Gemini — ver
+usuario YA puede ver (reutilizando query_entregables_visibles/
+query_reuniones_visibles/query_reuniones_generales_visibles, las mismas
+funciones que usan los routers de entregables/reuniones/resumen) y se lo
+pasa al LLM configurado (Ollama local por default, o Gemini/Claude — ver
 app/services/llm_cliente.py) para que redacte la respuesta en español. El
 modelo nunca toca la base de datos ni decide qué es visible — eso ya lo
 filtró este servicio. Si el proveedor es Gemini o Claude (ambos salen a
 internet), el contexto y la pregunta se seudonimizan antes de mandarlos
 (app/services/llm_privacidad.py) y los nombres reales se restauran en la
 respuesta.
+
+Reuniones (2026-08-26, cierra una brecha reportada por Yue: el asistente
+decía "no tengo datos de reuniones" al preguntarle la agenda del día,
+porque este contexto nunca las incluía) -- se limitan a una ventana de
+"hoy + próximos 7 días" (mismo horizonte que ya usa el dashboard ejecutivo
+para "reuniones próximas"), no todo el historial, para no inflar el
+contexto con reuniones pasadas irrelevantes a una pregunta típica.
 """
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.permissions import query_entregables_visibles
+from app.core.permissions import (
+    query_entregables_visibles,
+    query_reuniones_generales_visibles,
+    query_reuniones_visibles,
+)
 from app.models.entregable import Entregable, EstatusEntregable
 from app.models.historial_avance import HistorialAvance
+from app.models.reunion import Reunion
 from app.models.usuario import Usuario
 from app.models.usuario_proyecto_rol import UsuarioProyectoRol
 from app.services.llm_cliente import generar_texto
@@ -83,6 +96,23 @@ def _fechas_cumplido(db: Session, entregable_ids: list[int]) -> dict[int, date]:
     return fechas
 
 
+def _lineas_reuniones(reuniones, encabezado: str) -> list[str]:
+    """Formatea un bloque de reuniones para el contexto del chatbot -- mismo
+    espíritu que las líneas de entregables: una por reunión, con lo que hace
+    falta para responder "¿qué reuniones tengo hoy/esta semana?" sin que el
+    LLM tenga que inventar nada. `reuniones` ya viene ordenada."""
+    if not reuniones:
+        return []
+    lineas = [encabezado]
+    for r in reuniones:
+        organizador = r.organizador.nombre if r.organizador else "(desconocido)"
+        lineas.append(
+            f'    - "{r.titulo}" | inicio: {r.fecha_inicio.strftime("%Y-%m-%d %H:%M")} | '
+            f"duración: {r.duracion_minutos} min | organizador: {organizador}"
+        )
+    return lineas
+
+
 def _construir_contexto(db: Session, usuario: Usuario) -> str:
     """Arma el bloque de datos visibles para este usuario, en todos sus temas."""
     roles = (
@@ -91,12 +121,32 @@ def _construir_contexto(db: Session, usuario: Usuario) -> str:
         .all()
     )
 
-    if not roles:
-        return "El usuario no participa en ningún tema todavía."
-
     hoy = date.today()
     limite_alerta = hoy + timedelta(days=settings.dias_alerta_entregable)
+    # Ventana de reuniones a incluir (2026-08-26, cierra la brecha
+    # reportada por Yue: el asistente decía "no tengo datos de reuniones"
+    # porque este contexto nunca las incluía, solo entregables) -- desde el
+    # inicio de hoy (para que "qué reuniones tuve hoy" incluya las que ya
+    # pasaron) hasta 7 días adelante, mismo horizonte que ya usa el
+    # dashboard ejecutivo para "reuniones próximas" (ver app/routers/dashboard.py).
+    inicio_hoy = datetime.combine(hoy, datetime.min.time())
+    limite_reuniones = datetime.utcnow() + timedelta(days=7)
+
+    reuniones_generales = (
+        query_reuniones_generales_visibles(db, usuario)
+        .filter(Reunion.fecha_inicio >= inicio_hoy, Reunion.fecha_inicio <= limite_reuniones)
+        .order_by(Reunion.fecha_inicio)
+        .all()
+    )
+
     bloques = [f"Hoy es {hoy}."]
+
+    if not roles:
+        bloques.append("El usuario no participa en ningún tema todavía.")
+        lineas_generales = _lineas_reuniones(reuniones_generales, "Reuniones generales (sin tema) esta semana:")
+        if lineas_generales:
+            bloques.append("\n".join(lineas_generales))
+        return "\n\n".join(bloques)
 
     for rol in roles:
         proyecto = rol.proyecto
@@ -163,7 +213,20 @@ def _construir_contexto(db: Session, usuario: Usuario) -> str:
                 else:
                     linea += f" | vence: {e.fecha_entrega}"
                 lineas.append(linea)
+
+        reuniones_tema = (
+            query_reuniones_visibles(db, usuario, proyecto.id)
+            .filter(Reunion.fecha_inicio >= inicio_hoy, Reunion.fecha_inicio <= limite_reuniones)
+            .order_by(Reunion.fecha_inicio)
+            .all()
+        )
+        lineas.extend(_lineas_reuniones(reuniones_tema, "  Reuniones esta semana:"))
+
         bloques.append("\n".join(lineas))
+
+    lineas_generales = _lineas_reuniones(reuniones_generales, "Reuniones generales (sin tema) esta semana:")
+    if lineas_generales:
+        bloques.append("\n".join(lineas_generales))
 
     return "\n\n".join(bloques)
 

@@ -17,10 +17,23 @@ const TARJETAS = [
   { tipo: "rendimiento", Icono: IconoRendimiento, titulo: "Rendimiento", texto: "Ver métricas de tu equipo: quién entrega más y a tiempo." },
 ];
 
-export default function TarjetasAsignar({ onAbrir }) {
+// cardOrder (2026-08-26, panel "Personalizar apariencia") -- array opcional
+// de tipos en el orden que eligió el usuario (ver usePreferenciasApariencia.js).
+// Si viene vacío/incompleto (usuario nunca lo configuró, o llegó un tipo
+// desconocido) se cae de vuelta al orden fijo de TARJETAS -- nunca se
+// pierde una tarjeta por una preferencia inconsistente.
+function ordenarTarjetas(cardOrder) {
+  if (!Array.isArray(cardOrder) || cardOrder.length !== TARJETAS.length) return TARJETAS;
+  const porTipo = Object.fromEntries(TARJETAS.map((t) => [t.tipo, t]));
+  const ordenadas = cardOrder.map((tipo) => porTipo[tipo]).filter(Boolean);
+  return ordenadas.length === TARJETAS.length ? ordenadas : TARJETAS;
+}
+
+export default function TarjetasAsignar({ onAbrir, cardOrder }) {
+  const tarjetas = ordenarTarjetas(cardOrder);
   return (
     <div className="planb__tarjetas">
-      {TARJETAS.map((t) => (
+      {tarjetas.map((t) => (
         <button
           key={t.tipo}
           type="button"

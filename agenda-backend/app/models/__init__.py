@@ -19,3 +19,4 @@ from app.models.agenda_item import AgendaItem, AgendaItemRevision, TipoAgendaIte
 from app.models.suscripcion_push import SuscripcionPush  # noqa: F401
 from app.models.historial_responsable import HistorialResponsable  # noqa: F401
 from app.models.correo_pendiente import CorreoPendiente  # noqa: F401
+from app.models.preferencia_usuario import PreferenciaUsuario  # noqa: F401

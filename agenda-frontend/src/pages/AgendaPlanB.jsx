@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { entregablesApi, miEquipoApi, proyectosApi, reunionesApi } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
 import Modal from "../components/Modal";
+import AppearanceSettings from "../components/AppearanceSettings";
 import ModalAsignarTareaRapida from "../components/ModalAsignarTareaRapida";
 import ModalEditarProyecto from "../components/ModalEditarProyecto";
 import FormularioEntregable from "../components/FormularioEntregable";
@@ -17,6 +18,7 @@ import PendientesUrgentes from "../components/planB/PendientesUrgentes";
 import RendimientoEquipo from "../components/planB/RendimientoEquipo";
 import { ESTILOS_PLANB, useEstiloPlanB } from "../hooks/useEstiloPlanB";
 import { useTema } from "../hooks/useTema";
+import { usePreferenciasApariencia } from "../hooks/usePreferenciasApariencia";
 import { iniciales } from "../utils/avatarPersona";
 
 // Pantalla única "Agenda Plan B" (2026-08-20, a petición de Yue, a partir de
@@ -35,6 +37,7 @@ export default function AgendaPlanB() {
   const { usuario, logout } = useAuth();
   const { estilo, siguienteEstilo } = useEstiloPlanB();
   const { tema, alternarTema } = useTema();
+  const { cardOrder } = usePreferenciasApariencia();
   const [fechaRef, setFechaRef] = useState(new Date());
   const [equipo, setEquipo] = useState([]);
   const [cargandoEquipo, setCargandoEquipo] = useState(true);
@@ -42,6 +45,9 @@ export default function AgendaPlanB() {
   const [modalActivo, setModalActivo] = useState(null); // 'tarea' | 'proyecto' | 'persona' | 'agenda' | null
   const [personaElegida, setPersonaElegida] = useState(null);
   const [recargarPendientes, setRecargarPendientes] = useState(0);
+  // Panel "Personalizar apariencia" (2026-08-26, a petición de Yue) -- ver
+  // AppearanceSettings.jsx / usePreferenciasApariencia.js.
+  const [mostrarApariencia, setMostrarApariencia] = useState(false);
 
   // Detalle de un entregable/reunión abierto desde un link de "Pendientes
   // urgentes"/"Mi semana" (2026-08-22, a petición de Yue: "la única
@@ -168,6 +174,14 @@ export default function AgendaPlanB() {
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <BotonNotificacionesPush />
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={() => setMostrarApariencia(true)}
+            aria-label="Personalizar apariencia (vista previa)"
+          >
+            🎨
+          </button>
           {/* Selector de estilo visual (reactivado 2026-08-25, a petición
               de Yue -- ver useEstiloPlanB.js). Botón que rota al siguiente
               estilo al dar clic (un <select> abría un menú de pantalla
@@ -214,7 +228,7 @@ export default function AgendaPlanB() {
 
         <div className="card">
           <h2 style={{ fontSize: "1rem", marginBottom: 12 }}>Quiero asignar</h2>
-          <TarjetasAsignar onAbrir={setModalActivo} />
+          <TarjetasAsignar onAbrir={setModalActivo} cardOrder={cardOrder} />
         </div>
 
         <PendientesUrgentes
@@ -317,6 +331,12 @@ export default function AgendaPlanB() {
       {modalActivo === "rendimiento" && (
         <Modal titulo="Rendimiento del equipo" onCerrar={cerrarModal}>
           <RendimientoEquipo />
+        </Modal>
+      )}
+
+      {mostrarApariencia && (
+        <Modal titulo="Personalizar apariencia" onCerrar={() => setMostrarApariencia(false)}>
+          <AppearanceSettings onCerrar={() => setMostrarApariencia(false)} />
         </Modal>
       )}
 

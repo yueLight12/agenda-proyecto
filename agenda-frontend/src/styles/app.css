@@ -736,6 +736,97 @@
   background: var(--color-pending-bg);
 }
 
+/* Panel "Personalizar apariencia" (2026-08-26) -- fase 1 mock, ver
+   AppearanceSettings.jsx. Namespace propio, aditivo, no toca .planb__*. */
+.apariencia__seccion { }
+
+.apariencia__titulo-seccion {
+  font-size: 0.95rem;
+  margin-bottom: var(--space-2);
+}
+
+.apariencia__formas {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.apariencia__forma-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.82rem;
+}
+
+.apariencia__forma-btn--activo {
+  border-color: var(--color-teal-500);
+  box-shadow: 0 0 0 1px var(--color-teal-500);
+}
+
+.apariencia__forma-swatch {
+  width: 32px;
+  height: 32px;
+  background: var(--color-teal-500);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.apariencia__lista-orden {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.apariencia__item-orden {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+
+.apariencia__item-orden-botones {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.apariencia__preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.apariencia__preview-tarjeta {
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  font-size: 0.82rem;
+  min-width: 90px;
+  text-align: center;
+}
+
+.apariencia__acciones {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.apariencia__guardado-msg {
+  font-size: 0.82rem;
+  color: var(--color-success);
+}
+
 .input {
   width: 100%;
   padding: var(--space-2) var(--space-2);
@@ -4755,4 +4846,27 @@ button.planb__misemana-fila {
   font-weight: 600;
   color: var(--pb2-text-muted, var(--color-text-muted));
   text-transform: capitalize;
+}
+
+/* Panel "Personalizar apariencia" (2026-08-26, a petición de Yue) -- shape
+   elegido por el usuario (square/rounded/circle), ver
+   usePreferenciasApariencia.js y tokens.css (--radius-shape).
+   Cada uno de los 6 estilos visuales (Clásico y los 5 data-estilo-planb=
+   "...") define su PROPIO border-radius fijo para .card/.planb__tarjeta/
+   .btn/.modal-card/.stat/.login-card más arriba en este archivo -- en vez
+   de tocar esas ~40 reglas dispersas (alto riesgo de romper el look de
+   algún estilo), este bloque final, con mayor especificidad de cascada
+   (viene después) + !important, hace que la preferencia de forma del
+   usuario gane siempre, sin importar qué estilo esté activo. Deliberado:
+   NO toca elementos tipo píldora/badge/avatar circular (border-radius:
+   999px) -- decisión explícita de Yue, esos quedan siempre redondos. */
+.card,
+.planb__tarjeta,
+.btn,
+.btn--primary,
+.btn--ghost,
+.modal-card,
+.stat,
+.login-card {
+  border-radius: var(--radius-shape) !important;
 }

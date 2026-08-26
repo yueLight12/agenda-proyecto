@@ -39,6 +39,11 @@
 
   --radius-sm: 6px;
   --radius-md: 10px;
+  /* Panel "Personalizar apariencia" (2026-08-26) -- shape elegido por el
+     usuario (square/rounded/circle). Default = "rounded", ver
+     usePreferenciasApariencia.js, que lo sobreescribe en runtime vía
+     document.documentElement.style.setProperty. */
+  --radius-shape: 12px;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 16px;

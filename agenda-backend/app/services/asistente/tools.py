@@ -2880,9 +2880,10 @@ TOOLS: dict[str, ToolSpec] = {
     "consultar_agenda": ToolSpec(
         nombre="consultar_agenda",
         descripcion=(
-            "Responder preguntas sobre el estado de proyectos, entregables, avances, pendientes o "
-            "vencidos — consulta de SOLO LECTURA, no ejecuta ninguna acción ni cambia nada. Úsala "
-            "para cualquier pregunta que empiece con qué/cuál/cuántos/cómo va/dime, no para órdenes."
+            "Responder preguntas sobre el estado de proyectos, entregables, avances, pendientes, "
+            "vencidos o reuniones/agenda de hoy o esta semana — consulta de SOLO LECTURA, no ejecuta "
+            "ninguna acción ni cambia nada. Úsala para cualquier pregunta que empiece con "
+            "qué/cuál/cuántos/cómo va/dime, no para órdenes."
         ),
         parametros_llm={
             "pregunta": "la pregunta tal como la dijo el usuario, completa",
@@ -2895,6 +2896,10 @@ TOOLS: dict[str, ToolSpec] = {
             (
                 "cómo va el avance del proyecto Cubo",
                 {"pregunta": "cómo va el avance del proyecto Cubo"},
+            ),
+            (
+                "¿qué reuniones tengo hoy?",
+                {"pregunta": "¿qué reuniones tengo hoy?"},
             ),
         ],
         resolver=_resolver_consultar_agenda,

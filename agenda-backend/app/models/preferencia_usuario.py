@@ -1,0 +1,33 @@
+"""
+Preferencias de apariencia por usuario (panel "Personalizar apariencia",
+2026-08-26, a petición de Yue) -- una fila por usuario (usuario_id único),
+con las 3 preferencias del alcance acordado: shape (forma de tarjetas/
+botones), theme (claro/oscuro) y card_order (orden de las tarjetas de
+"Quiero asignar"). Ver app/services/preferencias.py.
+"""
+from datetime import datetime
+
+from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy.orm import relationship
+
+from app.database import Base
+
+
+class PreferenciaUsuario(Base):
+    __tablename__ = "preferencias_usuario"
+
+    id = Column(Integer, primary_key=True, index=True)
+    usuario_id = Column(
+        Integer, ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    shape = Column(String(20), nullable=False, default="rounded")
+    theme = Column(String(20), nullable=False, default="claro")
+    # Lista de tipos de tarjeta ("tarea", "proyecto", ...) en el orden
+    # elegido por el usuario -- null hasta que el usuario guarda por
+    # primera vez, el frontend usa el orden por defecto en ese caso.
+    card_order = Column(JSON, nullable=True)
+    fecha_actualizacion = Column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+
+    usuario = relationship("Usuario")

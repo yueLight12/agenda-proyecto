@@ -25,6 +25,7 @@ from app.database import get_db
 from app.dependencies import obtener_usuario_actual
 from app.models.usuario import RolEnum, Usuario
 from app.models.usuario_proyecto_rol import UsuarioProyectoRol
+from app.schemas.preferencia_usuario import PreferenciaUsuarioActualizar, PreferenciaUsuarioOut
 from app.schemas.usuario import (
     MiTelefonoActualizar,
     UsuarioActualizar,
@@ -32,6 +33,7 @@ from app.schemas.usuario import (
     UsuarioCrear,
     UsuarioOut,
 )
+from app.services.preferencias import actualizar_preferencias, obtener_o_crear_preferencias
 from app.services.usuarios import (
     obtener_usuario_o_404,
     perfil_visible_a_out,
@@ -108,6 +110,25 @@ def actualizar_mi_telefono(
     db.commit()
     db.refresh(usuario)
     return usuario
+
+
+@router.get("/me/preferencias", response_model=PreferenciaUsuarioOut)
+def obtener_mis_preferencias(
+    db: Session = Depends(get_db), usuario: Usuario = Depends(obtener_usuario_actual)
+):
+    """Panel "Personalizar apariencia" (2026-08-26) -- shape/theme/card_order
+    del usuario actual. Si nunca las guardó, se crean con los valores por
+    defecto del modelo en el primer GET."""
+    return obtener_o_crear_preferencias(db, usuario)
+
+
+@router.patch("/me/preferencias", response_model=PreferenciaUsuarioOut)
+def actualizar_mis_preferencias(
+    datos: PreferenciaUsuarioActualizar,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    return actualizar_preferencias(db, usuario, datos)
 
 
 @router.get("/{usuario_id}/perfil", response_model=UsuarioConRolesOut)

@@ -15,6 +15,22 @@
         }
       })();
     </script>
+    <!-- Panel "Personalizar apariencia" (2026-08-26) -- mismo truco que el
+         script de arriba para --radius-shape: aplica el último valor
+         conocido (mirror en localStorage) antes del primer paint, para no
+         "flashear" el default mientras el GET a /usuarios/me/preferencias
+         responde. Ver usePreferenciasApariencia.js. -->
+    <script>
+      (function () {
+        var radios = { square: "4px", rounded: "12px", circle: "999px" };
+        try {
+          var forma = localStorage.getItem("apariencia_shape");
+          document.documentElement.style.setProperty("--radius-shape", radios[forma] || radios.rounded);
+        } catch (e) {
+          document.documentElement.style.setProperty("--radius-shape", radios.rounded);
+        }
+      })();
+    </script>
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Agenda Inteligente" />

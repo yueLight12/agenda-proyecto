@@ -145,6 +145,11 @@ export const usuariosApi = {
     (await api.patch("/usuarios/me", { telefono_whatsapp: telefonoWhatsapp })).data,
 };
 
+export const preferenciasApi = {
+  obtener: async () => (await api.get("/usuarios/me/preferencias")).data,
+  actualizar: async (datos) => (await api.patch("/usuarios/me/preferencias", datos)).data,
+};
+
 export const miEquipoApi = {
   listar: async () => (await api.get("/mi-equipo")).data,
   listarDe: async (usuarioId) => (await api.get(`/mi-equipo/${usuarioId}/equipo`)).data,
