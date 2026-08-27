@@ -128,12 +128,20 @@ def resumen_dashboard(
         suma_avance_ponderada / total_entregables if total_entregables > 0 else 0.0
     )
 
-    limite_semana = datetime.utcnow() + timedelta(days=7)
+    # Cota inferior = INICIO del día de hoy, no "ahora mismo" (2026-08-27, a
+    # petición de Yue) -- una reunión que ya empezó, o que se le hizo tarde
+    # a la gente, no debe desaparecer de "Pendientes / Por hacer" a media
+    # mañana: sigue disponible para tomarla o dejar notas hasta el final
+    # del día. Antes usaba datetime.utcnow() como cota inferior, así que en
+    # cuanto pasaba la hora de inicio la reunión se caía de esta lista.
+    ahora = datetime.utcnow()
+    inicio_hoy = ahora.replace(hour=0, minute=0, second=0, microsecond=0)
+    limite_semana = ahora + timedelta(days=7)
     reuniones_proximas: list[ReunionProximaOut] = []
     for proyecto in proyectos:
         reuniones = query_reuniones_visibles(db, usuario, proyecto.id).all()
         for r in reuniones:
-            if datetime.utcnow() <= r.fecha_inicio <= limite_semana:
+            if inicio_hoy <= r.fecha_inicio <= limite_semana:
                 reuniones_proximas.append(
                     ReunionProximaOut(
                         id=r.id,

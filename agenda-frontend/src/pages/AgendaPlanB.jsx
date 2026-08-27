@@ -271,6 +271,7 @@ export default function AgendaPlanB() {
           miembros={detalle.miembros}
           organizadorId={detalle.item.organizador_id}
           puedeAdministrar={Boolean(detalle.item.puede_editar)}
+          equipoDisponible={equipo}
           onGuardado={alGuardarReunion}
           onCerrar={cerrarDetalle}
         />

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import ModalAsistenteVoz from "./ModalAsistenteVoz";
+import { useFabAntizoom } from "../hooks/useFabAntizoom";
 
 /**
  * Botón flotante de micrófono, disponible en toda la app (montado una sola
@@ -15,6 +16,13 @@ import ModalAsistenteVoz from "./ModalAsistenteVoz";
  */
 export default function FabAsistenteVoz({ proyectoIdContexto, variante = "global" }) {
   const [abierto, setAbierto] = useState(false);
+  // Solo la variante global usa position: fixed a toda la página (la de
+  // "dentro-modal" es position: absolute anclada a su propia tarjeta, no
+  // le afecta el mismo problema de zoom -- ver useFabAntizoom.js).
+  // 24px = var(--space-4) en tokens.css, mismo margen que ya usaba
+  // .fab-asistente-voz -- para no correr el botón de lugar en el caso
+  // normal (sin zoom), solo corrige cuando el viewport visible diverge.
+  const estiloAntizoom = useFabAntizoom(24);
 
   return (
     <>
@@ -24,6 +32,7 @@ export default function FabAsistenteVoz({ proyectoIdContexto, variante = "global
             ? "btn btn--primary fab-asistente-voz fab-asistente-voz--en-modal"
             : "btn btn--primary fab-asistente-voz"
         }
+        style={variante === "global" ? estiloAntizoom || undefined : undefined}
         type="button"
         onClick={() => setAbierto(true)}
         aria-label="Abrir asistente de voz"

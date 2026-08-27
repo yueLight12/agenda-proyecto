@@ -29,9 +29,17 @@ class ReunionActualizar(BaseModel):
 class ParticipanteOut(BaseModel):
     usuario_id: int
     nombre: str
+    # None = asistencia todavía no tomada -- ver ReunionParticipante.asistio.
+    asistio: Optional[bool] = None
 
     class Config:
         from_attributes = True
+
+
+class AsistenciaActualizar(BaseModel):
+    # Optional para poder "deshacer" una marca por error (mandar null vuelve
+    # a "no tomada"), no solo alternar entre asistió/no asistió.
+    asistio: Optional[bool] = None
 
 
 class ReunionOut(BaseModel):

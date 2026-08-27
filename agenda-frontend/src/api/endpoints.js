@@ -136,6 +136,8 @@ export const reunionesApi = {
     api.put(`/reuniones/${reunionId}/temas`, { proyecto_ids: proyectoIds }),
   temasRelevantes: async (reunionId) =>
     (await api.get(`/reuniones/${reunionId}/temas-relevantes`)).data,
+  actualizarAsistencia: async (reunionId, usuarioId, asistio) =>
+    (await api.patch(`/reuniones/${reunionId}/participantes/${usuarioId}/asistencia`, { asistio })).data,
 };
 
 export const usuariosApi = {

@@ -19,7 +19,7 @@ from app.database import get_db
 from app.dependencies import obtener_usuario_actual
 from app.models.reunion import Reunion
 from app.models.usuario import Usuario
-from app.schemas.reunion import ReunionActualizar, ReunionCrear, ReunionOut
+from app.schemas.reunion import AsistenciaActualizar, ParticipanteOut, ReunionActualizar, ReunionCrear, ReunionOut
 from app.schemas.proyecto import MiembroEquipoOut, ProyectoArbolOut
 from app.schemas.serie_reunion import ActualizarTemasRequest, AgendaItemCrear, AgendaItemOut
 from app.services.reuniones import (
@@ -27,6 +27,7 @@ from app.services.reuniones import (
     crear_reunion as crear_reunion_servicio,
     eliminar_reunion as eliminar_reunion_servicio,
     listar_invitables_reunion as listar_invitables_reunion_servicio,
+    registrar_asistencia as registrar_asistencia_servicio,
     reunion_a_out,
 )
 from app.services.series_reunion import (
@@ -220,6 +221,23 @@ def actualizar_reunion(
     db.commit()
     db.refresh(reunion)
     return reunion_a_out(db, usuario, reunion)
+
+
+@router.patch("/reuniones/{reunion_id}/participantes/{usuario_id}/asistencia", response_model=ParticipanteOut)
+def actualizar_asistencia(
+    reunion_id: int,
+    usuario_id: int,
+    datos: AsistenciaActualizar,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Marcar si un participante asistió o no -- ver
+    app.services.reuniones.registrar_asistencia (permiso: cualquiera que
+    pueda VER la reunión, no solo organizador/N1-N2)."""
+    fila = registrar_asistencia_servicio(db, usuario, reunion_id, usuario_id, datos.asistio)
+    db.commit()
+    db.refresh(fila)
+    return ParticipanteOut(usuario_id=fila.usuario_id, nombre=fila.usuario.nombre, asistio=fila.asistio)
 
 
 @router.delete("/reuniones/{reunion_id}", status_code=status.HTTP_204_NO_CONTENT)

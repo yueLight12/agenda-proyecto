@@ -124,10 +124,13 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
   const gruposAsignadas = agruparPorDiaYUrgencia(asignadas);
 
   // Mismo criterio que el backend en /dashboard/resumen (reuniones_proximas):
-  // una reunión que ya empezó deja de "faltar" -- se oculta sola en cuanto
-  // pasa su hora, sin esperar a que cambie el día (2026-08-25, a petición
-  // de Yue: "si ya son las 11am, ya se tomaron las anteriores").
-  const ahora = new Date();
+  // una reunión de HOY se queda visible todo el día, aunque ya haya
+  // empezado o pasado su hora (2026-08-27, a petición de Yue -- revierte
+  // la decisión del 2026-08-25 de ocultarla en cuanto pasaba su hora:
+  // "puede pasar que no dé tiempo de tomarla, o que empiece tarde, y si
+  // desaparece inmediatamente ya no está disponible para tomarla o dejar
+  // notas"). Solo se excluyen reuniones de días YA pasados de la semana
+  // (vía semana.inicio), nunca por la hora del día de hoy.
   const agenda = reuniones
     .filter(
       (r) =>
@@ -136,7 +139,7 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
     )
     .filter((r) => {
       const f = new Date(r.fecha_inicio);
-      return f >= semana.inicio && f <= finInclusive && f >= ahora;
+      return f >= semana.inicio && f <= finInclusive;
     })
     .sort((a, b) => a.fecha_inicio.localeCompare(b.fecha_inicio));
   const gruposAgenda = agruparReunionesPorDia(agenda);

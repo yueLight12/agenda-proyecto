@@ -7,7 +7,11 @@ permisos (app.core.permissions) ni la construcción de ReunionOut.
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.permissions import puede_editar_reunion, requerir_participacion_en_proyecto
+from app.core.permissions import (
+    puede_editar_reunion,
+    puede_ver_reunion,
+    requerir_participacion_en_proyecto,
+)
 from app.models.equipo_miembro import EquipoMiembro
 from app.models.notificacion import Notificacion, TipoNotificacion
 from app.models.reunion import Reunion, ReunionParticipante
@@ -31,7 +35,7 @@ def reunion_a_out(db: Session, usuario: Usuario, reunion: Reunion) -> ReunionOut
         organizador_id=reunion.organizador_id,
         organizador_nombre=reunion.organizador.nombre,
         participantes=[
-            ParticipanteOut(usuario_id=p.usuario_id, nombre=p.usuario.nombre)
+            ParticipanteOut(usuario_id=p.usuario_id, nombre=p.usuario.nombre, asistio=p.asistio)
             for p in reunion.participantes
         ],
         puede_editar=puede_editar_reunion(db, usuario, reunion),
@@ -44,6 +48,33 @@ def obtener_reunion_o_404(db: Session, reunion_id: int) -> Reunion:
     if not reunion:
         raise HTTPException(status_code=404, detail="Reunión no encontrada")
     return reunion
+
+
+def registrar_asistencia(
+    db: Session, usuario: Usuario, reunion_id: int, usuario_id_participante: int, asistio: bool | None
+) -> ReunionParticipante:
+    """Marca si un participante asistió o no (2026-08-27, a petición de
+    Yue). Permiso: cualquiera que pueda VER la reunión (organizador,
+    invitado, o N1/N2 del tema) puede marcar la asistencia de CUALQUIER
+    participante -- no solo la propia, no solo el organizador -- decisión
+    explícita de Yue, distinta del criterio más estricto de
+    puede_editar_reunion que usa el resto del modal."""
+    reunion = obtener_reunion_o_404(db, reunion_id)
+    if not puede_ver_reunion(db, usuario, reunion):
+        raise HTTPException(status_code=403, detail="No tienes acceso a esta reunión")
+    fila = (
+        db.query(ReunionParticipante)
+        .filter(
+            ReunionParticipante.reunion_id == reunion_id,
+            ReunionParticipante.usuario_id == usuario_id_participante,
+        )
+        .first()
+    )
+    if not fila:
+        raise HTTPException(status_code=404, detail="Esa persona no está invitada a esta reunión")
+    fila.asistio = asistio
+    db.flush()
+    return fila
 
 
 def _fila_a_miembro(fila: UsuarioProyectoRol) -> MiembroEquipoOut:

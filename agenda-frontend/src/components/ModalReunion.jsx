@@ -3,6 +3,7 @@ import { reunionesApi, seriesReunionApi } from "../api/endpoints";
 import BuscadorInvitados from "./BuscadorInvitados";
 import ConfirmDialog from "./ConfirmDialog";
 import Modal from "./Modal";
+import ModalAsignarTareaRapida from "./ModalAsignarTareaRapida";
 import SeccionAgendaChecklist from "./SeccionAgendaChecklist";
 import SeccionNotas from "./SeccionNotas";
 import SelectorTemasChecklist from "./SelectorTemasChecklist";
@@ -74,6 +75,13 @@ export default function ModalReunion({
   // default de abajo. Se ignora si `reunion`/`serie` ya traen su propia
   // fecha (edición).
   fechaHoraSugerida = null,
+  // "Asignar tarea" desde una reunión (2026-08-27, a petición de Yue) --
+  // opcional a propósito: solo Agenda Plan B lo pasa hoy (tiene ya cargado
+  // su `equipo` de /mi-equipo con el detalle de proyectos por persona que
+  // ModalAsignarTareaRapida necesita para el selector de tema). Sin este
+  // prop el botón simplemente no aparece -- CalendarioGlobal.jsx y
+  // TableroProyecto.jsx (sistema viejo) siguen sin él, sin romper nada.
+  equipoDisponible = null,
   onGuardado,
   onCerrar,
 }) {
@@ -134,6 +142,38 @@ export default function ModalReunion({
   // Fuerza a SeccionAgendaChecklist a recargar tras guardar los temas
   // elegidos -- más simple que exponer su `cargar` interno.
   const [versionChecklist, setVersionChecklist] = useState(0);
+
+  // "Asignar tarea" desde esta reunión (2026-08-27) -- solo participantes
+  // reales (organizador + invitados) que además estén en `equipoDisponible`
+  // (a quién YO puedo administrar/asignar, mismo criterio que ya usa
+  // ModalAsignarTareaRapida en el resto de Plan B, no una regla nueva).
+  const [mostrarAsignarTarea, setMostrarAsignarTarea] = useState(false);
+  const participantesAsignables = (equipoDisponible || []).filter(
+    (m) => participantesIds.includes(m.usuario_id) || m.usuario_id === reunionActual?.organizador_id
+  );
+
+  // Asistencia (2026-08-27, a petición de Yue) -- clic directo, sin
+  // confirmar, mismo criterio que "Marcar concluida" en FormularioEntregable.
+  // Clicar el mismo estado ya marcado lo deshace (manda null = "no tomada").
+  const [marcandoAsistenciaDe, setMarcandoAsistenciaDe] = useState(null);
+  const handleMarcarAsistencia = async (usuarioIdParticipante, nuevoValor) => {
+    setMarcandoAsistenciaDe(usuarioIdParticipante);
+    try {
+      const actualizado = await reunionesApi.actualizarAsistencia(
+        reunionActual.id, usuarioIdParticipante, nuevoValor
+      );
+      setReunionActual((actual) => ({
+        ...actual,
+        participantes: actual.participantes.map((p) =>
+          p.usuario_id === usuarioIdParticipante ? { ...p, asistio: actualizado.asistio } : p
+        ),
+      }));
+    } catch {
+      setError("No se pudo actualizar la asistencia.");
+    } finally {
+      setMarcandoAsistenciaDe(null);
+    }
+  };
 
   const puedeEliminar = esEdicion; // ambos, N1/N2/organizador, validado por el backend
 
@@ -439,6 +479,53 @@ export default function ModalReunion({
           </p>
         )}
 
+        {reunionActual && reunionActual.participantes.length > 0 && (
+          <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 16 }}>
+            <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>Asistencia</span>
+            <p style={{ color: "var(--color-text-muted)", fontSize: "0.78rem", margin: "2px 0 8px" }}>
+              Cualquier invitado puede marcarla, no solo quien organiza.
+            </p>
+            <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+              {reunionActual.participantes.map((p) => (
+                <li
+                  key={p.usuario_id}
+                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}
+                >
+                  <span style={{ fontSize: "0.85rem" }}>{p.nombre}</span>
+                  <span style={{ display: "flex", gap: 4 }}>
+                    <button
+                      type="button"
+                      className="btn btn--ghost"
+                      disabled={marcandoAsistenciaDe === p.usuario_id}
+                      onClick={() => handleMarcarAsistencia(p.usuario_id, p.asistio === true ? null : true)}
+                      style={
+                        p.asistio === true
+                          ? { color: "var(--color-success)", borderColor: "var(--color-success)" }
+                          : undefined
+                      }
+                    >
+                      ✓ Asistió
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn--ghost"
+                      disabled={marcandoAsistenciaDe === p.usuario_id}
+                      onClick={() => handleMarcarAsistencia(p.usuario_id, p.asistio === false ? null : false)}
+                      style={
+                        p.asistio === false
+                          ? { color: "var(--color-danger)", borderColor: "var(--color-danger)" }
+                          : undefined
+                      }
+                    >
+                      ✗ No asistió
+                    </button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {reunionActual && (
           <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 16 }}>
             <SeccionNotas
@@ -499,10 +586,25 @@ export default function ModalReunion({
                 </button>
               )}
             </div>
-            <div style={{ justifySelf: "center" }}>
+            <div style={{ justifySelf: "center", display: "flex", gap: 8 }}>
               {esEdicionReunion && (
                 <button type="button" className="btn btn--ghost" onClick={handleReagendar}>
                   Reagendar
+                </button>
+              )}
+              {esEdicionReunion && equipoDisponible && (
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={() => setMostrarAsignarTarea(true)}
+                  disabled={participantesAsignables.length === 0}
+                  title={
+                    participantesAsignables.length === 0
+                      ? "Ninguno de los participantes está en tu equipo para asignarle tareas"
+                      : undefined
+                  }
+                >
+                  Asignar tarea
                 </button>
               )}
             </div>
@@ -554,6 +656,14 @@ export default function ModalReunion({
             </label>
           )}
         </ConfirmDialog>
+      )}
+
+      {mostrarAsignarTarea && (
+        <ModalAsignarTareaRapida
+          equipo={participantesAsignables}
+          onCerrar={() => setMostrarAsignarTarea(false)}
+          onCreado={() => setMostrarAsignarTarea(false)}
+        />
       )}
     </Modal>
   );

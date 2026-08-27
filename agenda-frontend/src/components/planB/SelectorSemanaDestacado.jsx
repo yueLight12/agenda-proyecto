@@ -34,7 +34,11 @@ function sumarSemanas(fecha, delta) {
 // mis tareas + mi agenda de esa semana) en vez del resumen de temas de
 // minuta que se mostraba antes -- reemplazado a petición de Yue (2026-08-22).
 export default function SelectorSemanaDestacado({ fechaRef, onCambiarFecha, onAbrirEntregable, onAbrirReunion }) {
-  const [mostrarDetalle, setMostrarDetalle] = useState(false);
+  // Desplegado por default (2026-08-27, a petición de Yue: "mis tareas,
+  // las que asigné, mi agenda" no deberían requerir un clic extra al
+  // entrar a la ventana principal) -- sigue pudiéndose colapsar/expandir
+  // con el mismo clic en la tarjeta activa de siempre.
+  const [mostrarDetalle, setMostrarDetalle] = useState(true);
   const semanaVigente = semanaActual(fechaRef);
   const numeroSemanaHoy = semanaActual(new Date()).numero;
   const activaRef = useRef(null);

@@ -14,7 +14,7 @@ Visibilidad (ver app.core.permissions.query_reuniones_visibles):
 """
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -90,6 +90,13 @@ class ReunionParticipante(Base):
     id = Column(Integer, primary_key=True, index=True)
     reunion_id = Column(Integer, ForeignKey("reuniones.id"), nullable=False)
     usuario_id = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    # Asistencia (2026-08-27, a petición de Yue: "que quede registrado si
+    # alguien no llegó") -- None = todavía no se tomó, True/False = ya se
+    # marcó. Cualquiera que pueda VER la reunión (organizador, invitado, o
+    # N1/N2 del tema -- ver puede_ver_reunion) puede marcar la asistencia
+    # de CUALQUIER participante, no solo la propia ni solo quien organiza
+    # (decisión explícita de Yue, distinto del criterio de puede_editar_reunion).
+    asistio = Column(Boolean, nullable=True)
 
     reunion = relationship("Reunion", back_populates="participantes")
     usuario = relationship("Usuario")
