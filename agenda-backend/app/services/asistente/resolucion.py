@@ -681,3 +681,51 @@ def resolver_reunion(
             OpcionResolucion(r.id, f"{r.titulo} ({r.fecha_inicio.strftime('%d/%m %H:%M')})") for r in candidatos
         ],
     )
+
+
+def resolver_participante_reunion(reunion, nombre_hablado: Optional[str]) -> ResolucionResultado:
+    """Para asistencia (2026-08-27) -- a diferencia de resolver_persona_en_equipo,
+    busca SOLO entre los invitados de ESTA reunión (reunion.participantes),
+    no en todo el equipo del tema: no tiene sentido marcar asistencia de
+    alguien que ni siquiera estaba invitado."""
+    if not nombre_hablado:
+        return ResolucionResultado(resuelto=False, pregunta="¿De quién?", tipo_entrada="texto")
+    normalizado = _normalizar(nombre_hablado)
+    candidatos = [p for p in reunion.participantes if _coincide_nombre(normalizado, _normalizar(p.usuario.nombre))]
+
+    if len(candidatos) == 1:
+        return ResolucionResultado(resuelto=True, valor=candidatos[0].usuario_id)
+    if not candidatos:
+        return ResolucionResultado(
+            resuelto=False,
+            pregunta=f'"{nombre_hablado}" no está entre los invitados de esa reunión. ¿Quién es?',
+            tipo_entrada="opciones",
+            opciones=[OpcionResolucion(p.usuario_id, p.usuario.nombre) for p in reunion.participantes],
+        )
+    return ResolucionResultado(
+        resuelto=False,
+        pregunta=f'Encontré varios invitados parecidos a "{nombre_hablado}", ¿cuál es?',
+        tipo_entrada="opciones",
+        opciones=[OpcionResolucion(p.usuario_id, p.usuario.nombre) for p in candidatos],
+    )
+
+
+_PALABRAS_ASISTIO = {"si", "sí", "asistio", "asistió", "llego", "llegó", "presente"}
+_PALABRAS_NO_ASISTIO = {"no", "no asistio", "no asistió", "no llego", "no llegó", "falto", "faltó", "ausente"}
+
+
+def resolver_asistio(texto: Optional[str]) -> ResolucionResultado:
+    if not texto:
+        return ResolucionResultado(
+            resuelto=False, pregunta="¿Asistió o no?", tipo_entrada="opciones",
+            opciones=[OpcionResolucion(True, "Asistió"), OpcionResolucion(False, "No asistió")],
+        )
+    normalizado = _normalizar(texto)
+    if normalizado in _PALABRAS_NO_ASISTIO:
+        return ResolucionResultado(resuelto=True, valor=False)
+    if normalizado in _PALABRAS_ASISTIO:
+        return ResolucionResultado(resuelto=True, valor=True)
+    return ResolucionResultado(
+        resuelto=False, pregunta=f'No entendí "{texto}" -- ¿asistió o no?', tipo_entrada="opciones",
+        opciones=[OpcionResolucion(True, "Asistió"), OpcionResolucion(False, "No asistió")],
+    )

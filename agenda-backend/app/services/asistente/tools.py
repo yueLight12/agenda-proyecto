@@ -44,12 +44,14 @@ from app.services.asistente.resolucion import (
     OpcionResolucion,
     ResolucionResultado,
     resolver_acuerdo,
+    resolver_asistio,
     resolver_campo,
     resolver_entregable,
     resolver_fecha,
     resolver_fecha_hora,
     resolver_item_agenda,
     resolver_miembro_mi_equipo,
+    resolver_participante_reunion,
     resolver_persona_en_equipo,
     resolver_persona_organizacion,
     resolver_personas_organizacion,
@@ -94,7 +96,13 @@ from app.services.proyectos import (
     obtener_o_crear_tema_tareas_sueltas,
     resumen_subarbol,
 )
-from app.services.reuniones import actualizar_reunion, crear_reunion, eliminar_reunion
+from app.services.reuniones import (
+    actualizar_reunion,
+    crear_reunion,
+    eliminar_reunion,
+    obtener_reunion_o_404,
+    registrar_asistencia as registrar_asistencia_servicio,
+)
 from app.services.rol_labels import etiqueta_rol as _etiqueta_rol
 from app.services.series_reunion import (
     actualizar_serie,
@@ -268,7 +276,7 @@ def _ejecutar_crear_entregable(db: Session, usuario: Usuario, parametros: dict) 
     db.commit()
     db.refresh(nuevo)
     return {
-        "mensaje": f'Entregable "{nuevo.nombre}" creado correctamente.',
+        "mensaje": f'Listo, ya quedó creado el entregable "{nuevo.nombre}".',
         "resultado": {"id": nuevo.id, "nombre": nuevo.nombre},
     }
 
@@ -328,7 +336,7 @@ def _ejecutar_actualizar_avance(db: Session, usuario: Usuario, parametros: dict)
     db.commit()
     db.refresh(entregable)
     return {
-        "mensaje": f'Avance de "{entregable.nombre}" actualizado a {entregable.porcentaje_avance}%.',
+        "mensaje": f'Listo, actualicé el avance de "{entregable.nombre}" a {entregable.porcentaje_avance}%.',
         "resultado": {"id": entregable.id, "porcentaje_avance": entregable.porcentaje_avance},
     }
 
@@ -431,7 +439,7 @@ def _ejecutar_crear_proyecto(db: Session, usuario: Usuario, parametros: dict) ->
     db.commit()
     db.refresh(nuevo)
     return {
-        "mensaje": f'Tema "{nuevo.nombre}" creado correctamente.',
+        "mensaje": f'Listo, ya quedó creado el tema "{nuevo.nombre}".',
         "resultado": {"id": nuevo.id, "nombre": nuevo.nombre},
     }
 
@@ -567,7 +575,7 @@ def _ejecutar_agendar_reunion(db: Session, usuario: Usuario, parametros: dict) -
     db.commit()
     db.refresh(nueva)
     return {
-        "mensaje": f'Reunión "{nueva.titulo}" agendada correctamente.',
+        "mensaje": f'Listo, quedó agendada la reunión "{nueva.titulo}".',
         "resultado": {"id": nueva.id, "titulo": nueva.titulo},
     }
 
@@ -837,7 +845,7 @@ def _ejecutar_registrar_acuerdo(db: Session, usuario: Usuario, parametros: dict)
     db.commit()
     db.refresh(acuerdo)
     return {
-        "mensaje": f'Acuerdo agregado a la minuta: "{acuerdo.descripcion}".',
+        "mensaje": f'Listo, agregué el acuerdo a la minuta: "{acuerdo.descripcion}".',
         "resultado": {"id": acuerdo.id, "minuta_id": minuta.id},
     }
 
@@ -935,7 +943,7 @@ def _ejecutar_agregar_nota(db: Session, usuario: Usuario, parametros: dict) -> d
     )
     db.commit()
     db.refresh(nota)
-    return {"mensaje": "Nota agregada correctamente.", "resultado": {"id": nota.id}}
+    return {"mensaje": "Listo, quedó agregada la nota.", "resultado": {"id": nota.id}}
 
 
 # --- editar_reunion -----------------------------------------------------------
@@ -1067,7 +1075,66 @@ def _ejecutar_editar_reunion(db: Session, usuario: Usuario, parametros: dict) ->
     reunion = actualizar_reunion(db, usuario, parametros["reunion_id"], campos)
     db.commit()
     db.refresh(reunion)
-    return {"mensaje": f'Reunión "{reunion.titulo}" actualizada correctamente.', "resultado": {"id": reunion.id}}
+    return {"mensaje": f'Listo, actualicé la reunión "{reunion.titulo}".', "resultado": {"id": reunion.id}}
+
+
+# --- registrar_asistencia (2026-08-27, a petición de Yue) -------------------
+
+def _resolver_registrar_asistencia(
+    db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
+) -> ResultadoInterpretacion:
+    proyecto_res = resolver_campo(
+        "proyecto_id", aclaraciones, parametros_llm.get("proyecto"),
+        lambda t: resolver_proyecto(db, usuario, t, proyecto_id_contexto),
+    )
+    if not proyecto_res.resuelto:
+        return _pendiente("proyecto_id", proyecto_res)
+    proyecto_id = proyecto_res.valor
+
+    reunion_res = resolver_campo(
+        "reunion_id", aclaraciones, parametros_llm.get("reunion"),
+        lambda t: resolver_reunion(db, usuario, proyecto_id, t),
+    )
+    if not reunion_res.resuelto:
+        return _pendiente("reunion_id", reunion_res)
+    reunion_id = reunion_res.valor
+    reunion = obtener_reunion_o_404(db, reunion_id)
+
+    persona_res = resolver_campo(
+        "usuario_id_participante", aclaraciones, parametros_llm.get("persona"),
+        lambda t: resolver_participante_reunion(reunion, t),
+    )
+    if not persona_res.resuelto:
+        return _pendiente("usuario_id_participante", persona_res)
+
+    asistio_res = resolver_campo(
+        "asistio", aclaraciones, parametros_llm.get("asistio"), resolver_asistio,
+    )
+    if not asistio_res.resuelto:
+        return _pendiente("asistio", asistio_res)
+
+    persona = next(p for p in reunion.participantes if p.usuario_id == persona_res.valor)
+    parametros = {
+        "reunion_id": reunion_id,
+        "usuario_id_participante": persona_res.valor,
+        "asistio": asistio_res.valor,
+    }
+    verbo = "asistió" if asistio_res.valor else "no asistió"
+    resumen = f'Vas a marcar que {persona.usuario.nombre} {verbo} a la reunión "{reunion.titulo}".'
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen)
+
+
+def _ejecutar_registrar_asistencia(db: Session, usuario: Usuario, parametros: dict) -> dict:
+    fila = registrar_asistencia_servicio(
+        db, usuario, parametros["reunion_id"], parametros["usuario_id_participante"], parametros["asistio"]
+    )
+    db.commit()
+    db.refresh(fila)
+    verbo = "asistió" if fila.asistio else "no asistió"
+    return {
+        "mensaje": f"Listo, marqué que {fila.usuario.nombre} {verbo}.",
+        "resultado": {"usuario_id": fila.usuario_id, "asistio": fila.asistio},
+    }
 
 
 # --- editar_entregable -----------------------------------------------------------
@@ -1168,7 +1235,7 @@ def _ejecutar_editar_entregable(db: Session, usuario: Usuario, parametros: dict)
     db.commit()
     db.refresh(entregable)
     return {
-        "mensaje": f'Entregable "{entregable.nombre}" actualizado correctamente.',
+        "mensaje": f'Listo, actualicé el entregable "{entregable.nombre}".',
         "resultado": {"id": entregable.id},
     }
 
@@ -1224,7 +1291,7 @@ def _ejecutar_editar_proyecto(db: Session, usuario: Usuario, parametros: dict) -
     proyecto = actualizar_proyecto(db, usuario, parametros["proyecto_id"], parametros["campos"])
     db.commit()
     db.refresh(proyecto)
-    return {"mensaje": f'Tema "{proyecto.nombre}" actualizado correctamente.', "resultado": {"id": proyecto.id}}
+    return {"mensaje": f'Listo, actualicé el tema "{proyecto.nombre}".', "resultado": {"id": proyecto.id}}
 
 
 # --- leer_notificaciones (solo lectura, sin confirmación) ------------------
@@ -1296,7 +1363,7 @@ def _resolver_eliminar_entregable(
 def _ejecutar_eliminar_entregable(db: Session, usuario: Usuario, parametros: dict) -> dict:
     eliminar_entregable(db, usuario, parametros["entregable_id"])
     db.commit()
-    return {"mensaje": "Entregable eliminado correctamente.", "resultado": None}
+    return {"mensaje": "Listo, eliminé el entregable.", "resultado": None}
 
 
 # --- eliminar_proyecto ---------------------------------------------------------
@@ -1337,7 +1404,7 @@ def _resolver_eliminar_proyecto(
 def _ejecutar_eliminar_proyecto(db: Session, usuario: Usuario, parametros: dict) -> dict:
     eliminar_proyecto(db, usuario, parametros["proyecto_id"])
     db.commit()
-    return {"mensaje": "Tema eliminado correctamente.", "resultado": None}
+    return {"mensaje": "Listo, eliminé el tema.", "resultado": None}
 
 
 # --- listar_subtemas (solo lectura, sin confirmación) ----------------------
@@ -1402,7 +1469,7 @@ def _resolver_mover_tema(
 def _ejecutar_mover_tema(db: Session, usuario: Usuario, parametros: dict) -> dict:
     proyecto = mover_nodo(db, usuario, parametros["proyecto_id"], parametros["nuevo_parent_id"])
     db.commit()
-    return {"mensaje": f'"{proyecto.nombre}" se movió correctamente.', "resultado": {"id": proyecto.id}}
+    return {"mensaje": f'Listo, moví "{proyecto.nombre}".', "resultado": {"id": proyecto.id}}
 
 
 # --- marcar_tema_seguimiento ----------------------------------------------
@@ -1473,10 +1540,10 @@ def _ejecutar_marcar_tema_seguimiento(db: Session, usuario: Usuario, parametros:
             db, usuario, parametros["reunion_id"], parametros["agenda_item_id"],
             EstadoRevision.revisado, None, None,
         )
-        mensaje = "Tema marcado como revisado."
+        mensaje = "Listo, marqué el tema como revisado."
     else:
         revertir_revision_tema(db, usuario, parametros["agenda_item_id"])
-        mensaje = "Tema vuelto a marcar como pendiente."
+        mensaje = "Listo, volví a marcar el tema como pendiente."
     db.commit()
     return {"mensaje": mensaje, "resultado": {}}
 
@@ -1527,7 +1594,7 @@ def _resolver_eliminar_reunion(
 def _ejecutar_eliminar_reunion(db: Session, usuario: Usuario, parametros: dict) -> dict:
     eliminar_reunion(db, usuario, parametros["reunion_id"])
     db.commit()
-    return {"mensaje": "Reunión eliminada correctamente.", "resultado": None}
+    return {"mensaje": "Listo, eliminé la reunión.", "resultado": None}
 
 
 # --- eliminar_acuerdo -----------------------------------------------------------
@@ -1578,7 +1645,7 @@ def _resolver_eliminar_acuerdo(
 def _ejecutar_eliminar_acuerdo(db: Session, usuario: Usuario, parametros: dict) -> dict:
     eliminar_acuerdo(db, usuario, parametros["acuerdo_id"])
     db.commit()
-    return {"mensaje": "Acuerdo eliminado correctamente.", "resultado": None}
+    return {"mensaje": "Listo, eliminé el acuerdo.", "resultado": None}
 
 
 # --- convertir_acuerdo_a_entregable ---------------------------------------------
@@ -1679,7 +1746,7 @@ def _ejecutar_convertir_acuerdo(db: Session, usuario: Usuario, parametros: dict)
     )
     db.commit()
     return {
-        "mensaje": f'Acuerdo convertido en entregable: "{acuerdo.descripcion}".',
+        "mensaje": f'Listo, convertí el acuerdo en entregable: "{acuerdo.descripcion}".',
         "resultado": {"id": acuerdo.entregable_id},
     }
 
@@ -1839,7 +1906,7 @@ def _resolver_quitar_de_mi_equipo(
 def _ejecutar_quitar_de_mi_equipo(db: Session, usuario: Usuario, parametros: dict) -> dict:
     quitar_de_mi_equipo(db, usuario, parametros["usuario_id"])
     db.commit()
-    return {"mensaje": "Se quitó de tu equipo guardado.", "resultado": None}
+    return {"mensaje": "Listo, lo quité de tu equipo guardado.", "resultado": None}
 
 
 # --- aplicar_mi_equipo (plantilla personal) -------------------------------------
@@ -1885,7 +1952,7 @@ def _ejecutar_aplicar_mi_equipo(db: Session, usuario: Usuario, parametros: dict)
     resultado = aplicar_mi_equipo(db, usuario, parametros["proyecto_id"])
     db.commit()
     return {
-        "mensaje": f"Se aplicó tu equipo guardado al tema ({len(resultado)} persona(s)).",
+        "mensaje": f"Listo, apliqué tu equipo guardado al tema ({len(resultado)} persona(s)).",
         "resultado": {"cantidad": len(resultado)},
     }
 
@@ -1999,8 +2066,8 @@ def _ejecutar_crear_serie_reunion(db: Session, usuario: Usuario, parametros: dic
     db.commit()
     db.refresh(nueva)
     return {
-        "mensaje": f'Junta recurrente "{nueva.titulo}" creada correctamente. '
-        "Sus próximas ocurrencias se agendarán solas.",
+        "mensaje": f'Listo, quedó creada la junta recurrente "{nueva.titulo}". '
+        "Sus próximas ocurrencias se agendan solas.",
         "resultado": {"id": nueva.id, "titulo": nueva.titulo},
     }
 
@@ -2118,7 +2185,7 @@ def _ejecutar_editar_serie_reunion(db: Session, usuario: Usuario, parametros: di
     db.commit()
     db.refresh(serie)
     return {
-        "mensaje": f'Junta recurrente "{serie.titulo}" actualizada correctamente.',
+        "mensaje": f'Listo, actualicé la junta recurrente "{serie.titulo}".',
         "resultado": {"id": serie.id},
     }
 
@@ -2258,7 +2325,7 @@ def _ejecutar_marcar_revision_agenda(db: Session, usuario: Usuario, parametros: 
         EstadoRevision(parametros["estado"]), parametros["nota"], parametros["nuevo_pendiente_texto"],
     )
     db.commit()
-    return {"mensaje": "Quedó registrado en la agenda.", "resultado": {"id": resultado.id}}
+    return {"mensaje": "Listo, lo registré en la agenda.", "resultado": {"id": resultado.id}}
 
 
 # --- mover_item_agenda (reordenar checklist de una junta recurrente) -----
@@ -2321,7 +2388,7 @@ def _resolver_mover_item_agenda(
 def _ejecutar_mover_item_agenda(db: Session, usuario: Usuario, parametros: dict) -> dict:
     mover_item_agenda(db, usuario, parametros["agenda_item_id"], parametros["direccion"])
     db.commit()
-    return {"mensaje": "Se reordenó el ítem en la agenda.", "resultado": None}
+    return {"mensaje": "Listo, reordené el ítem en la agenda.", "resultado": None}
 
 
 TOOLS: dict[str, ToolSpec] = {
@@ -2624,6 +2691,30 @@ TOOLS: dict[str, ToolSpec] = {
         ],
         resolver=_resolver_editar_reunion,
         ejecutar=_ejecutar_editar_reunion,
+    ),
+    "registrar_asistencia": ToolSpec(
+        nombre="registrar_asistencia",
+        descripcion="Marcar si una persona asistió o no a una reunión que ya existe -- solo aplica a "
+        "alguien que ya estaba invitado a esa reunión. Cualquier invitado puede marcar la asistencia "
+        "de cualquier otro, no solo quien organiza.",
+        parametros_llm={
+            "reunion": "título de la reunión, tal como se mencionó",
+            "proyecto": "nombre del proyecto/tema si se mencionó, si no dejar vacío",
+            "persona": "nombre de quien se marca",
+            "asistio": "'sí'/'asistió' o 'no'/'no asistió'/'faltó', tal como se dijo",
+        },
+        ejemplos=[
+            (
+                "marca que Juan no llegó a la reunión de revisión de avances",
+                {"reunion": "revisión de avances", "proyecto": "", "persona": "Juan", "asistio": "no asistió"},
+            ),
+            (
+                "Lucía sí asistió a la junta de presupuesto",
+                {"reunion": "presupuesto", "proyecto": "", "persona": "Lucía", "asistio": "sí"},
+            ),
+        ],
+        resolver=_resolver_registrar_asistencia,
+        ejecutar=_ejecutar_registrar_asistencia,
     ),
     "editar_entregable": ToolSpec(
         nombre="editar_entregable",
