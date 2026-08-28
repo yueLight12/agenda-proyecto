@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { entregablesApi, proyectosApi, reunionesApi } from "../../api/endpoints";
+import { entregablesApi, pendientesPersonalesApi, proyectosApi, reunionesApi } from "../../api/endpoints";
 import { useAuth } from "../../context/AuthContext";
 import { fechaLocal } from "../../utils/fechas";
 import BadgeUrgente from "../BadgeUrgente";
@@ -67,6 +67,19 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
 
+  // Pendientes personales (2026-08-27, a petición de Yue: "pasar por
+  // leche", "pagar colegiatura" -- cosas privadas que no son ni reuniones
+  // ni tareas de proyecto). A diferencia de reuniones/entregables, NO se
+  // filtran por `semana` -- es un checklist que persiste hasta marcarse
+  // como hecho, no algo agendado a un rango de fechas puntual.
+  const [pendientesPersonales, setPendientesPersonales] = useState([]);
+  const [nuevoPendiente, setNuevoPendiente] = useState("");
+  const [nuevaFechaPendiente, setNuevaFechaPendiente] = useState("");
+
+  const cargarPendientesPersonales = () => {
+    pendientesPersonalesApi.listar().then(setPendientesPersonales).catch(() => {});
+  };
+
   useEffect(() => {
     let cancelado = false;
     setCargando(true);
@@ -95,6 +108,33 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(cargarPendientesPersonales, []);
+
+  const agregarPendientePersonal = (evento) => {
+    evento.preventDefault();
+    const contenido = nuevoPendiente.trim();
+    if (!contenido) return;
+    pendientesPersonalesApi
+      .crear({ contenido, fecha_limite: nuevaFechaPendiente || null })
+      .then(() => {
+        setNuevoPendiente("");
+        setNuevaFechaPendiente("");
+        cargarPendientesPersonales();
+      })
+      .catch(() => {});
+  };
+
+  const alternarHechoPendientePersonal = (pendiente) => {
+    pendientesPersonalesApi
+      .actualizar(pendiente.id, { hecho: !pendiente.hecho })
+      .then(cargarPendientesPersonales)
+      .catch(() => {});
+  };
+
+  const eliminarPendientePersonal = (pendienteId) => {
+    pendientesPersonalesApi.eliminar(pendienteId).then(cargarPendientesPersonales).catch(() => {});
+  };
 
   if (cargando) return <p>Cargando tu semana...</p>;
   if (error) return <p className="error-text">{error}</p>;
@@ -259,6 +299,70 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
               </div>
             </div>
           ))
+        )}
+
+        {/* Pendientes personales -- separados de las reuniones a propósito
+            (2026-08-27, a petición de Yue: "separar mis reuniones con
+            temas personales"). 100% privados, ver
+            app/models/pendiente_personal.py -- nadie más los ve. */}
+        <h3 className="planb__misemana-subtitulo">Mis pendientes</h3>
+        <form className="planb__misemana-nuevo-pendiente" onSubmit={agregarPendientePersonal}>
+          <input
+            className="input"
+            type="text"
+            placeholder="Agregar un pendiente personal..."
+            value={nuevoPendiente}
+            onChange={(e) => setNuevoPendiente(e.target.value)}
+          />
+          <input
+            className="input"
+            type="date"
+            aria-label="Fecha límite (opcional)"
+            value={nuevaFechaPendiente}
+            onChange={(e) => setNuevaFechaPendiente(e.target.value)}
+          />
+          <button type="submit" className="btn btn--ghost">
+            +
+          </button>
+        </form>
+        {pendientesPersonales.length === 0 ? (
+          <p className="planb__misemana-vacio">Sin pendientes personales.</p>
+        ) : (
+          <div className="stack" style={{ gap: 6 }}>
+            {pendientesPersonales.map((p) => (
+              <div key={p.id} className="planb__misemana-fila planb__misemana-pendiente-personal">
+                <label className="planb__misemana-pendiente-personal-check">
+                  <input
+                    type="checkbox"
+                    checked={p.hecho}
+                    onChange={() => alternarHechoPendientePersonal(p)}
+                  />
+                  <span
+                    className="planb__misemana-fila-titulo"
+                    style={p.hecho ? { textDecoration: "line-through", opacity: 0.6 } : undefined}
+                  >
+                    {p.contenido}
+                  </span>
+                </label>
+                {p.fecha_limite && (
+                  <span className="planb__misemana-fila-fecha">
+                    {fechaLocal(p.fecha_limite).toLocaleDateString("es-MX", {
+                      day: "numeric",
+                      month: "short",
+                    })}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className="planb__misemana-pendiente-personal-borrar"
+                  aria-label="Eliminar pendiente"
+                  onClick={() => eliminarPendientePersonal(p.id)}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>

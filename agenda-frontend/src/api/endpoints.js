@@ -239,6 +239,13 @@ export const pendientesApi = {
   eliminar: async (pendienteId) => api.delete(`/pendientes/${pendienteId}`),
 };
 
+export const pendientesPersonalesApi = {
+  listar: async () => (await api.get("/pendientes-personales")).data,
+  crear: async (datos) => (await api.post("/pendientes-personales", datos)).data,
+  actualizar: async (id, datos) => (await api.patch(`/pendientes-personales/${id}`, datos)).data,
+  eliminar: async (id) => api.delete(`/pendientes-personales/${id}`),
+};
+
 export const acuerdosApi = {
   listarPorProyecto: async (proyectoId) =>
     (await api.get(`/proyectos/${proyectoId}/acuerdos`)).data,

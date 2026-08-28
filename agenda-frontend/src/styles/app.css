@@ -1626,6 +1626,18 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
   font-weight: 700;
 }
 
+.planb__rendimiento-grafica-encabezado {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.planb__rendimiento-grafica-encabezado .planb__rendimiento-grafica-titulo {
+  margin: 0;
+}
+
 .planb__rendimiento-graficas-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -4846,6 +4858,52 @@ button.planb__misemana-fila {
   font-weight: 600;
   color: var(--pb2-text-muted, var(--color-text-muted));
   text-transform: capitalize;
+}
+
+/* Pendientes personales (2026-08-27, a petición de Yue) -- checklist
+   privado, separado de "Mi agenda" (reuniones) dentro de la misma
+   columna. Mismo look que .planb__misemana-fila, sin el tratamiento de
+   <button> porque cada fila es un <div> con su propio checkbox/botón
+   internos, no un solo elemento clicable. */
+.planb__misemana-nuevo-pendiente {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.planb__misemana-nuevo-pendiente input[type="text"] {
+  flex: 1;
+  min-width: 0;
+}
+
+.planb__misemana-nuevo-pendiente input[type="date"] {
+  flex-shrink: 0;
+  width: 130px;
+}
+
+.planb__misemana-pendiente-personal-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  flex: 1;
+  cursor: pointer;
+}
+
+.planb__misemana-pendiente-personal-borrar {
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  color: var(--pb2-text-muted, var(--color-text-muted));
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+
+.planb__misemana-pendiente-personal-borrar:hover,
+.planb__misemana-pendiente-personal-borrar:focus-visible {
+  color: var(--color-danger);
 }
 
 /* Panel "Personalizar apariencia" (2026-08-26, a petición de Yue) -- shape

@@ -27,6 +27,7 @@ from app.routers import (
     notas,
     notificaciones,
     pendientes,
+    pendientes_personales,
     proyectos,
     push,
     rendimiento,
@@ -34,6 +35,7 @@ from app.routers import (
     reuniones,
     series_reunion,
     usuarios,
+    whatsapp_webhook,
 )
 from app.services.eventos_tiempo_real import registrar_hooks_sqlalchemy, registrar_loop
 from app.services.materializar_series import materializar_ocurrencias
@@ -89,6 +91,7 @@ app.include_router(equipo_resumen.router)
 app.include_router(minutas.router)
 app.include_router(notas.router)
 app.include_router(pendientes.router)
+app.include_router(pendientes_personales.router)
 app.include_router(push.router)
 app.include_router(eventos_empresa.router)
 app.include_router(admin.router)
@@ -96,6 +99,7 @@ app.include_router(chatbot.router)
 app.include_router(asistente.router)
 app.include_router(series_reunion.router)
 app.include_router(eventos_tiempo_real.router)
+app.include_router(whatsapp_webhook.router)
 # app.include_router(integraciones.router)  # INACTIVO 2026-08-24, ver app/routers/integraciones.py
 
 

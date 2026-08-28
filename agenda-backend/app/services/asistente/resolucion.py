@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from app.core.permissions import query_entregables_visibles, query_reuniones_visibles
 from app.models.equipo_miembro import EquipoMiembro
 from app.models.minuta import Minuta
+from app.models.pendiente_personal import PendientePersonal
 from app.models.usuario import RolEnum, Usuario
 from app.services.proyectos import listar_equipo_visible, listar_proyectos_visibles
 
@@ -298,6 +299,39 @@ def resolver_entregable(
         pregunta=f'Encontré varios entregables parecidos a "{nombre_hablado}", ¿cuál es?',
         tipo_entrada="opciones",
         opciones=[OpcionResolucion(e.id, e.nombre) for e in candidatos],
+    )
+
+
+def resolver_pendiente_personal(
+    db: Session, usuario: Usuario, texto_hablado: Optional[str], solo_pendientes: bool = True
+) -> ResolucionResultado:
+    """Busca entre los PENDIENTES PERSONALES del propio usuario (nunca de
+    nadie más -- son 100% privados, ver app/models/pendiente_personal.py)
+    por coincidencia de texto en `contenido`. `solo_pendientes=True` (para
+    "márcalo como hecho") excluye los que ya están hechos; False (para
+    "bórralo") busca en todos."""
+    if not texto_hablado:
+        return ResolucionResultado(resuelto=False, pregunta="¿Cuál pendiente?", tipo_entrada="texto")
+
+    query = db.query(PendientePersonal).filter(PendientePersonal.usuario_id == usuario.id)
+    if solo_pendientes:
+        query = query.filter(PendientePersonal.hecho.is_(False))
+    normalizado = _normalizar(texto_hablado)
+    candidatos = [p for p in query.all() if normalizado in _normalizar(p.contenido)]
+
+    if len(candidatos) == 1:
+        return ResolucionResultado(resuelto=True, valor=candidatos[0].id)
+    if not candidatos:
+        return ResolucionResultado(
+            resuelto=False,
+            pregunta=f'No encontré ningún pendiente tuyo parecido a "{texto_hablado}". ¿Cómo lo escribiste?',
+            tipo_entrada="texto",
+        )
+    return ResolucionResultado(
+        resuelto=False,
+        pregunta=f'Encontré varios pendientes parecidos a "{texto_hablado}", ¿cuál es?',
+        tipo_entrada="opciones",
+        opciones=[OpcionResolucion(p.id, p.contenido) for p in candidatos],
     )
 
 

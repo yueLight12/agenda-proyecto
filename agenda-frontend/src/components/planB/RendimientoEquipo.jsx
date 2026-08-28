@@ -37,6 +37,7 @@ const COLOR_EN_PROGRESO = "var(--color-warning)";
 const COLOR_PENDIENTE = "var(--color-text-muted)";
 const COLOR_COMPLETADAS = "var(--color-teal-500)";
 const COLOR_CARGA = "var(--color-warning)";
+const COLOR_VENCIDAS = "var(--color-danger)";
 
 const ESTILO_TOOLTIP = {
   background: "var(--color-surface)",
@@ -57,8 +58,21 @@ const COLUMNAS_TABLA = [
   { clave: "a_tiempo", etiqueta: "A tiempo" },
   { clave: "tarde", etiqueta: "Tarde" },
   { clave: "pendientes_actuales", etiqueta: "Carga actual" },
+  { clave: "total_asignadas", etiqueta: "Total asignadas" },
   { clave: "asignadas_en_periodo", etiqueta: "Asignadas" },
+  { clave: "vencidas", etiqueta: "Vencidas" },
+  { clave: "dias_atraso_max", etiqueta: "Días atraso (máx)" },
+  { clave: "dias_atraso_promedio", etiqueta: "Días atraso (prom)" },
   { clave: "proyectos", etiqueta: "Proyectos" },
+];
+
+// "Carga" se puede ver de dos formas (2026-08-27, a petición de Yue: "ambas
+// con capacidad de elegir cuál quiero ver") -- activas ahora mismo, o el
+// volumen total histórico asignado. Afecta la gráfica "Quién entrega más",
+// no la tabla (la tabla ya muestra ambas columnas siempre).
+const VISTAS_CARGA = [
+  { valor: "pendientes_actuales", etiqueta: "Carga activa" },
+  { valor: "total_asignadas", etiqueta: "Total asignadas" },
 ];
 
 // Mostrar/ocultar métricas (2026-08-26, a petición de Yue: "al entrar
@@ -73,6 +87,7 @@ const METRICAS = [
   { clave: "estatus", etiqueta: "Estatus de tareas" },
   { clave: "proyecto", etiqueta: "Carga por proyecto" },
   { clave: "tendencia", etiqueta: "Tendencia" },
+  { clave: "vencidas", etiqueta: "Tareas vencidas" },
   { clave: "tabla", etiqueta: "Tabla" },
 ];
 const METRICAS_DEFAULT = Object.fromEntries(METRICAS.map((m) => [m.clave, true]));
@@ -95,6 +110,7 @@ export default function RendimientoEquipo() {
   const [personas, setPersonas] = useState([]);
   const [resumen, setResumen] = useState(null);
   const [orden, setOrden] = useState("completadas");
+  const [vistaCarga, setVistaCarga] = useState("pendientes_actuales");
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
   const [metricasVisibles, setMetricasVisibles] = useState(cargarMetricasVisibles);
@@ -227,9 +243,24 @@ export default function RendimientoEquipo() {
         <>
           {metricasVisibles.personas && (
             <div className="planb__rendimiento-grafica-card">
-              <h3 className="planb__rendimiento-grafica-titulo">
-                Quién entrega más — Completadas vs. carga actual
-              </h3>
+              <div className="planb__rendimiento-grafica-encabezado">
+                <h3 className="planb__rendimiento-grafica-titulo">
+                  Quién entrega más — Completadas vs. carga
+                </h3>
+                <div className="planb__rendimiento-periodos" role="tablist" aria-label="Vista de carga">
+                  {VISTAS_CARGA.map((v) => (
+                    <button
+                      key={v.valor}
+                      type="button"
+                      className={`planb__rendimiento-periodo${vistaCarga === v.valor ? " planb__rendimiento-periodo--activo" : ""}`}
+                      onClick={() => setVistaCarga(v.valor)}
+                      aria-pressed={vistaCarga === v.valor}
+                    >
+                      {v.etiqueta}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <ResponsiveContainer width="100%" height={Math.max(180, personasOrdenadas.length * 44)}>
                 <BarChart data={personasOrdenadas} layout="vertical" margin={{ left: 8, right: 16 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" horizontal={false} />
@@ -244,9 +275,53 @@ export default function RendimientoEquipo() {
                   <Tooltip contentStyle={ESTILO_TOOLTIP} cursor={{ fill: "var(--color-border)", opacity: 0.3 }} />
                   <Legend wrapperStyle={{ fontSize: "0.8rem" }} />
                   <Bar dataKey="completadas" name="Completadas" fill={COLOR_COMPLETADAS} radius={[0, 4, 4, 0]} />
-                  <Bar dataKey="pendientes_actuales" name="Carga actual" fill={COLOR_CARGA} radius={[0, 4, 4, 0]} />
+                  <Bar
+                    dataKey={vistaCarga}
+                    name={VISTAS_CARGA.find((v) => v.valor === vistaCarga).etiqueta}
+                    fill={COLOR_CARGA}
+                    radius={[0, 4, 4, 0]}
+                  />
                 </BarChart>
               </ResponsiveContainer>
+            </div>
+          )}
+
+          {metricasVisibles.vencidas && (
+            <div className="planb__rendimiento-grafica-card">
+              <h3 className="planb__rendimiento-grafica-titulo">Tareas vencidas por persona</h3>
+              {personasOrdenadas.every((p) => p.vencidas === 0) ? (
+                <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
+                  Nadie tiene tareas vencidas.
+                </p>
+              ) : (
+                <ResponsiveContainer width="100%" height={Math.max(180, personasOrdenadas.length * 44)}>
+                  <BarChart
+                    data={[...personasOrdenadas].sort((a, b) => b.vencidas - a.vencidas)}
+                    layout="vertical"
+                    margin={{ left: 8, right: 16 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" horizontal={false} />
+                    <XAxis type="number" allowDecimals={false} stroke="var(--color-text-muted)" fontSize={12} />
+                    <YAxis
+                      type="category"
+                      dataKey="nombre"
+                      width={140}
+                      stroke="var(--color-text-muted)"
+                      fontSize={12}
+                    />
+                    <Tooltip
+                      contentStyle={ESTILO_TOOLTIP}
+                      cursor={{ fill: "var(--color-border)", opacity: 0.3 }}
+                      formatter={(valor, nombre, item) =>
+                        nombre === "Vencidas"
+                          ? [`${valor} (máx. ${item.payload.dias_atraso_max} días de atraso)`, nombre]
+                          : [valor, nombre]
+                      }
+                    />
+                    <Bar dataKey="vencidas" name="Vencidas" fill={COLOR_VENCIDAS} radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </div>
           )}
 

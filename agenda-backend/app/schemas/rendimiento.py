@@ -14,7 +14,11 @@ class RendimientoPersonaOut(BaseModel):
     a_tiempo: int
     tarde: int
     pendientes_actuales: int
+    total_asignadas: int
     asignadas_en_periodo: int
+    vencidas: int
+    dias_atraso_max: int
+    dias_atraso_promedio: float
     proyectos: int
 
 

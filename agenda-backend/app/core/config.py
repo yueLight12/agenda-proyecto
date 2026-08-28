@@ -99,6 +99,24 @@ class Settings(BaseSettings):
     # sandbox -- cada destinatario debe unirse una vez con su código "join").
     twilio_whatsapp_from: str = ""
 
+    # Asignar tareas por WhatsApp (2026-08-27, a petición de Yue: puente de
+    # transición para quien ya vive en WhatsApp -- no reemplaza la app,
+    # solo evita el salto brusco). Piloto DELIBERADAMENTE acotado a un
+    # número (Bernardo) y una sola acción (crear_entregable) -- ver
+    # app/routers/whatsapp_webhook.py. Lista separada por comas de números
+    # en formato internacional (ej. "+525512345678,+525587654321") -- vacío
+    # = nadie puede usar el canal todavía (falla cerrado, no abierto).
+    whatsapp_asignador_tareas_telefonos: str = ""
+
+    # URL pública exacta del webhook (ej.
+    # "https://agenda-demo.usw3.devtunnels.ms/webhooks/whatsapp"), tal como
+    # quedó configurada en la consola de Twilio -- la validación de firma
+    # (RequestValidator) exige comparar contra la MISMA URL que Twilio usó
+    # para firmar, y `request.url` dentro del contenedor puede no coincidir
+    # si el túnel no reenvía el Host original. Vacío = usar request.url tal
+    # cual (sirve si el túnel sí preserva el Host).
+    whatsapp_webhook_url_publica: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 

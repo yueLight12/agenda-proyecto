@@ -97,6 +97,7 @@ def calcular_rendimiento_equipo(
 
     primeras_completadas = _primeras_completadas(db, list(entregables.keys()))
 
+    hoy = date.today()
     personas: dict[int, dict] = {}
 
     def _fila(usuario_id: int) -> dict:
@@ -109,17 +110,36 @@ def calcular_rendimiento_equipo(
                 "a_tiempo": 0,
                 "tarde": 0,
                 "pendientes_actuales": 0,
+                "total_asignadas": 0,
                 "asignadas_en_periodo": 0,
+                "vencidas": 0,
+                "dias_atraso_max": 0,
                 "proyectos_ids": set(),
+                "_dias_atraso_lista": [],
             }
         return personas[usuario_id]
 
     for e in entregables.values():
         fila = _fila(e.responsable_id)
         fila["proyectos_ids"].add(e.proyecto_id)
+        fila["total_asignadas"] += 1
 
+        # "Carga" en dos sabores (2026-08-27, a petición de Yue: quiere
+        # elegir entre ver solo lo activo o el volumen histórico completo)
+        # -- pendientes_actuales = activas ahora mismo, total_asignadas =
+        # todo lo que se le ha asignado sin importar estatus.
         if e.estatus != EstatusEntregable.cumplido:
             fila["pendientes_actuales"] += 1
+
+            # Vencida = pendiente/en_progreso (avance < 100) cuya fecha
+            # límite ya pasó -- definición confirmada por Yue el
+            # 2026-08-27. Días de atraso = hoy - fecha_entrega.
+            if e.fecha_entrega < hoy:
+                dias = (hoy - e.fecha_entrega).days
+                fila["vencidas"] += 1
+                fila["_dias_atraso_lista"].append(dias)
+                if dias > fila["dias_atraso_max"]:
+                    fila["dias_atraso_max"] = dias
 
         fecha_completado = primeras_completadas.get(e.id)
         if fecha_completado is not None and (
@@ -137,6 +157,8 @@ def calcular_rendimiento_equipo(
     resultado = []
     for fila in personas.values():
         fila["proyectos"] = len(fila.pop("proyectos_ids"))
+        dias_lista = fila.pop("_dias_atraso_lista")
+        fila["dias_atraso_promedio"] = round(sum(dias_lista) / len(dias_lista), 1) if dias_lista else 0
         resultado.append(fila)
     resultado.sort(key=lambda f: f["completadas"], reverse=True)
     return resultado

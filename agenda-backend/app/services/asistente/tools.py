@@ -36,10 +36,12 @@ from app.models.entregable import Entregable
 from app.models.equipo_miembro import EquipoMiembro
 from app.models.minuta import AcuerdoMinuta, Minuta
 from app.models.notificacion import Notificacion
+from app.models.pendiente_personal import PendientePersonal
 from app.models.proyecto import Proyecto
 from app.models.reunion import Reunion
 from app.models.usuario import RolEnum, Usuario
 from app.schemas.nota import NotaCrear
+from app.schemas.pendiente_personal import PendientePersonalActualizar, PendientePersonalCrear
 from app.services.asistente.resolucion import (
     OpcionResolucion,
     ResolucionResultado,
@@ -52,6 +54,7 @@ from app.services.asistente.resolucion import (
     resolver_item_agenda,
     resolver_miembro_mi_equipo,
     resolver_participante_reunion,
+    resolver_pendiente_personal,
     resolver_persona_en_equipo,
     resolver_persona_organizacion,
     resolver_personas_organizacion,
@@ -67,6 +70,11 @@ from app.services.entregables import (
     actualizar_entregable,
     crear_entregable,
     eliminar_entregable,
+)
+from app.services.pendientes_personales import (
+    actualizar_pendiente_personal,
+    crear_pendiente_personal,
+    eliminar_pendiente_personal,
 )
 from app.services.equipos import (
     agregar_a_mi_equipo,
@@ -2385,6 +2393,119 @@ def _resolver_mover_item_agenda(
     return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen)
 
 
+# --- crear_pendiente_personal / completar_pendiente_personal / eliminar_pendiente_personal ----
+# Checklist 100% privado del usuario (2026-08-27, a petición de Yue --
+# "pasar por leche", "pagar colegiatura", cosas que NO son tareas de
+# proyecto ni reuniones). A diferencia de crear_entregable, aquí nunca hay
+# proyecto ni responsable que resolver -- siempre es para quien habla, y
+# nadie más puede verlo ni tocarlo (ver app/services/pendientes_personales.py).
+
+def _resolver_crear_pendiente_personal(
+    db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
+) -> ResultadoInterpretacion:
+    contenido = (
+        aclaraciones.get("contenido")
+        if isinstance(aclaraciones.get("contenido"), str)
+        else parametros_llm.get("contenido")
+    )
+    contenido = (contenido or "").strip()
+    if not contenido:
+        return ResultadoInterpretacion(
+            listo=False, campo="contenido", pregunta="¿Qué quieres que te anote?", tipo_entrada="texto"
+        )
+
+    fecha_limite = None
+    texto_fecha = parametros_llm.get("fecha_limite") or ""
+    if texto_fecha.strip() or "fecha_limite" in aclaraciones:
+        fecha_res = resolver_campo(
+            "fecha_limite", aclaraciones, parametros_llm.get("fecha_limite"),
+            lambda t: resolver_fecha(t),
+        )
+        if not fecha_res.resuelto:
+            return _pendiente("fecha_limite", fecha_res)
+        fecha_limite = fecha_res.valor
+
+    parametros = {
+        "contenido": contenido,
+        "fecha_limite": fecha_limite.isoformat() if fecha_limite else None,
+    }
+    sufijo_fecha = f", para el {fecha_limite.isoformat()}" if fecha_limite else ""
+    resumen = f'Voy a anotar "{contenido}" en tus pendientes personales{sufijo_fecha}. ¿Confirmas?'
+    preview = {"tipo": "pendiente_personal", "contenido": contenido, "fecha_limite": parametros["fecha_limite"]}
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen, preview=preview)
+
+
+def _ejecutar_crear_pendiente_personal(db: Session, usuario: Usuario, parametros: dict) -> dict:
+    from datetime import date
+
+    nuevo = crear_pendiente_personal(
+        db,
+        usuario,
+        PendientePersonalCrear(
+            contenido=parametros["contenido"],
+            fecha_limite=date.fromisoformat(parametros["fecha_limite"]) if parametros.get("fecha_limite") else None,
+        ),
+    )
+    db.commit()
+    db.refresh(nuevo)
+    return {
+        "mensaje": f'Listo, ya quedó anotado "{nuevo.contenido}" en tus pendientes.',
+        "resultado": {"id": nuevo.id, "contenido": nuevo.contenido},
+    }
+
+
+def _resolver_completar_pendiente_personal(
+    db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
+) -> ResultadoInterpretacion:
+    pendiente_res = resolver_campo(
+        "pendiente_personal_id", aclaraciones, parametros_llm.get("pendiente"),
+        lambda t: resolver_pendiente_personal(db, usuario, t, solo_pendientes=True),
+    )
+    if not pendiente_res.resuelto:
+        return _pendiente("pendiente_personal_id", pendiente_res)
+
+    actual = db.query(PendientePersonal).filter(PendientePersonal.id == pendiente_res.valor).first()
+    contenido = actual.contenido if actual else "ese pendiente"
+    parametros = {"pendiente_personal_id": pendiente_res.valor}
+    resumen = f'Voy a marcar "{contenido}" como hecho. ¿Confirmas?'
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen)
+
+
+def _ejecutar_completar_pendiente_personal(db: Session, usuario: Usuario, parametros: dict) -> dict:
+    actualizado = actualizar_pendiente_personal(
+        db, usuario, parametros["pendiente_personal_id"], PendientePersonalActualizar(hecho=True)
+    )
+    db.commit()
+    db.refresh(actualizado)
+    return {
+        "mensaje": f'Listo, marqué "{actualizado.contenido}" como hecho.',
+        "resultado": {"id": actualizado.id},
+    }
+
+
+def _resolver_eliminar_pendiente_personal(
+    db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
+) -> ResultadoInterpretacion:
+    pendiente_res = resolver_campo(
+        "pendiente_personal_id", aclaraciones, parametros_llm.get("pendiente"),
+        lambda t: resolver_pendiente_personal(db, usuario, t, solo_pendientes=False),
+    )
+    if not pendiente_res.resuelto:
+        return _pendiente("pendiente_personal_id", pendiente_res)
+
+    actual = db.query(PendientePersonal).filter(PendientePersonal.id == pendiente_res.valor).first()
+    contenido = actual.contenido if actual else "ese pendiente"
+    parametros = {"pendiente_personal_id": pendiente_res.valor}
+    resumen = f'Voy a ELIMINAR el pendiente "{contenido}". ¿Confirmas?'
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen)
+
+
+def _ejecutar_eliminar_pendiente_personal(db: Session, usuario: Usuario, parametros: dict) -> dict:
+    eliminar_pendiente_personal(db, usuario, parametros["pendiente_personal_id"])
+    db.commit()
+    return {"mensaje": "Listo, eliminé ese pendiente.", "resultado": None}
+
+
 def _ejecutar_mover_item_agenda(db: Session, usuario: Usuario, parametros: dict) -> dict:
     mover_item_agenda(db, usuario, parametros["agenda_item_id"], parametros["direccion"])
     db.commit()
@@ -3149,5 +3270,55 @@ TOOLS: dict[str, ToolSpec] = {
         ],
         resolver=_resolver_mover_item_agenda,
         ejecutar=_ejecutar_mover_item_agenda,
+    ),
+    "crear_pendiente_personal": ToolSpec(
+        nombre="crear_pendiente_personal",
+        descripcion=(
+            "Anotar un pendiente PERSONAL del usuario, privado, que NO es una tarea de proyecto ni "
+            "se asigna a nadie (ej. 'recuérdame pasar por leche', 'anota que tengo que pagar la "
+            "colegiatura de los niños'). Diferente de crear_entregable: aquí nunca hay proyecto, "
+            "responsable ni % de avance -- es solo un recordatorio privado que nadie más puede ver. "
+            "Úsala cuando el usuario pide que le ANOTES/RECUERDES algo personal, no cuando pide "
+            "crear/asignar una tarea de trabajo."
+        ),
+        parametros_llm={
+            "contenido": "qué es lo que hay que recordar/hacer, tal como se dijo",
+            "fecha_limite": "fecha límite si se mencionó (ej. 'para el viernes'), o vacío si no se dijo ninguna",
+        },
+        ejemplos=[
+            ("recuérdame pasar por leche en el camino a casa", {"contenido": "pasar por leche", "fecha_limite": ""}),
+            (
+                "anota que tengo que pagar la colegiatura de los niños antes del día 5",
+                {"contenido": "pagar la colegiatura de los niños", "fecha_limite": "el día 5"},
+            ),
+        ],
+        resolver=_resolver_crear_pendiente_personal,
+        ejecutar=_ejecutar_crear_pendiente_personal,
+    ),
+    "completar_pendiente_personal": ToolSpec(
+        nombre="completar_pendiente_personal",
+        descripcion=(
+            "Marcar como HECHO un pendiente personal ya anotado (ej. 'ya pasé por la leche', 'marca "
+            "como hecho lo de la colegiatura'). Solo busca entre los pendientes personales privados "
+            "del propio usuario, nunca entre tareas de proyecto (para eso usa "
+            "actualizar_avance_entregable)."
+        ),
+        parametros_llm={"pendiente": "de qué pendiente se trata, tal como se mencionó"},
+        ejemplos=[
+            ("ya pasé por la leche", {"pendiente": "leche"}),
+            ("márcame como hecho lo de la colegiatura", {"pendiente": "colegiatura"}),
+        ],
+        resolver=_resolver_completar_pendiente_personal,
+        ejecutar=_ejecutar_completar_pendiente_personal,
+    ),
+    "eliminar_pendiente_personal": ToolSpec(
+        nombre="eliminar_pendiente_personal",
+        descripcion="Eliminar un pendiente personal privado ya anotado (no una tarea de proyecto).",
+        parametros_llm={"pendiente": "de qué pendiente se trata, tal como se mencionó"},
+        ejemplos=[
+            ("borra el pendiente de pasar por leche", {"pendiente": "pasar por leche"}),
+        ],
+        resolver=_resolver_eliminar_pendiente_personal,
+        ejecutar=_ejecutar_eliminar_pendiente_personal,
     ),
 }
