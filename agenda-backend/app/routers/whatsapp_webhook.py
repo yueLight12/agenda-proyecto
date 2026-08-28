@@ -10,8 +10,16 @@ Piloto DELIBERADAMENTE acotado (confirmado por Yue el 2026-08-27):
   nadie pasa.
 - Solo la acción crear_entregable -- cualquier otra interpretación del LLM
   se rechaza con un mensaje explicativo, nunca se ejecuta otra cosa.
-- El destinatario de la tarea debe estar en el equipo directo de quien
-  escribe (mismo criterio que "Mi equipo" -- listar_mi_equipo_efectivo).
+- El destinatario debe estar en el equipo directo de quien escribe, O un
+  nivel abajo de cualquiera de sus reportes directos (2026-08-28, a
+  petición de Yue: "si Bernardo quiere asignar algo a Juan José que está
+  dentro del equipo de David, como David está en el equipo de Bernardo eso
+  sí debería estar permitido" -- mismo alcance que ya tiene el selector
+  anidado de la UI, ver listar_equipo_de_subordinado en
+  app/services/equipos.py, reusado tal cual, sin duplicar la regla). La
+  notificación al supervisor real (David, en el ejemplo) ya la manda sola
+  crear_entregable -- ver _notificar_supervisor_de_asignacion en
+  app/services/entregables.py, no hace falta nada nuevo aquí.
 
 Al responsable SIEMPRE le llega un WhatsApp con la tarea (sin importar si
 es "urgente" -- a diferencia del resto del sistema, ver
@@ -65,7 +73,7 @@ from app.services.asistente.interprete import interpretar_instruccion
 from app.services.asistente.tools import TOOLS
 from app.services.asistente.whisper_client import transcribir as transcribir_audio
 from app.services.entregables import actualizar_avance
-from app.services.equipos import listar_mi_equipo_efectivo
+from app.services.equipos import listar_equipo_de_subordinado, listar_mi_equipo_efectivo
 from app.services.whatsapp import enviar_whatsapp
 
 logger = logging.getLogger(__name__)
@@ -114,6 +122,25 @@ async def _leer_formulario_validado(request: Request) -> dict:
     if not validador.validate(url, datos, firma):
         raise HTTPException(status_code=403, detail="Firma de Twilio inválida")
     return datos
+
+
+def _en_equipo_extendido(db: Session, usuario: Usuario, responsable_id: int) -> bool:
+    """Equipo directo de `usuario`, o un nivel abajo de cualquiera de sus
+    reportes directos -- mismo alcance que el selector anidado de la UI
+    ("¿A quién le quieres asignar...?"), reusando listar_equipo_de_subordinado
+    tal cual (ya valida por su cuenta que cada miembro sea reporte directo
+    real de `usuario` antes de expandir su equipo)."""
+    equipo_directo = listar_mi_equipo_efectivo(db, usuario)
+    if any(m.usuario_id == responsable_id for m in equipo_directo):
+        return True
+    for miembro in equipo_directo:
+        try:
+            subequipo = listar_equipo_de_subordinado(db, usuario, miembro.usuario_id)
+        except HTTPException:
+            continue
+        if any(sm.usuario_id == responsable_id for sm in subequipo):
+            return True
+    return False
 
 
 def _marcar_completada(db: Session, usuario: Usuario, entregable_id: int) -> Response:
@@ -195,11 +222,10 @@ async def whatsapp_entrante(request: Request, db: Session = Depends(get_db)):
         return _respuesta_twiml(f"{resultado.pregunta} Vuelve a escribirme con todo junto en un solo mensaje.")
 
     responsable_id = resultado.parametros["responsable_id"]
-    equipo = listar_mi_equipo_efectivo(db, usuario)
-    if not any(m.usuario_id == responsable_id for m in equipo):
+    if not _en_equipo_extendido(db, usuario, responsable_id):
         return _respuesta_twiml(
-            "Por ahora solo puedo asignar tareas a alguien de tu equipo directo. "
-            "Agrégalo primero en \"Mi equipo\" desde la app."
+            "Por ahora solo puedo asignar tareas a alguien de tu equipo, o del equipo de "
+            "alguien de tu equipo. Agrégalo primero en \"Mi equipo\" desde la app."
         )
 
     try:

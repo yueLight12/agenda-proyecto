@@ -338,18 +338,50 @@ def resolver_pendiente_personal(
 _PREFIJO_ARTICULO = re.compile(r"^(para\s+)?(el|la|los|las)\s+(d[ií]as?\s*,?\s*)?", flags=re.IGNORECASE)
 
 
+def _parsear_fecha_es(texto: str) -> Optional[datetime]:
+    """Envoltura sobre dateparser con dos correcciones encontradas el
+    2026-08-28 (Yue: "crea una tarea para el viernes" -- dicho un viernes --
+    devolvió el 2026-08-04, que ni siquiera es viernes):
+
+    1. `RELATIVE_BASE` explícito es OBLIGATORIO. Sin él, dateparser 1.2.0
+       combinado con PREFER_DATES_FROM="future" puede devolver una fecha
+       que ni corresponde al día de la semana pedido -- bug de la
+       librería, no de nuestro texto de entrada.
+    2. Un día de la semana que coincide con HOY debe resolver a HOY, no al
+       de la semana siguiente (confirmado por Yue) -- PREFER_DATES_FROM
+       "future" por sí solo salta HOY (lo trata como "no futuro"). Se
+       intenta primero con "current_period" (que si hoy es viernes,
+       resuelve "viernes" a hoy); si esa fecha ya pasó (ej. "el lunes"
+       dicho un viernes, donde el lunes de ESTA semana ya pasó), se
+       descarta y se usa "future" como red de seguridad -- nunca se
+       agenda algo con fecha límite en el pasado."""
+    ahora = datetime.now()
+    opciones_actual = {
+        "languages": ["es"],
+        "settings": {"RELATIVE_BASE": ahora, "PREFER_DATES_FROM": "current_period"},
+    }
+    dt = dateparser.parse(texto, **opciones_actual)
+    if dt and dt.date() >= ahora.date():
+        return dt
+
+    opciones_futuro = {
+        "languages": ["es"],
+        "settings": {"RELATIVE_BASE": ahora, "PREFER_DATES_FROM": "future"},
+    }
+    return dateparser.parse(texto, **opciones_futuro)
+
+
 def resolver_fecha(texto: Optional[str]) -> ResolucionResultado:
     if not texto:
         return ResolucionResultado(resuelto=False, pregunta="¿Para qué fecha?", tipo_entrada="fecha")
 
-    opciones_parseo = {"languages": ["es"], "settings": {"PREFER_DATES_FROM": "future"}}
-    dt = dateparser.parse(texto, **opciones_parseo)
+    dt = _parsear_fecha_es(texto)
     if not dt:
         # dateparser a veces no reconoce fechas con artículo delante
         # ("el viernes"); reintenta sin el artículo antes de rendirse.
         sin_articulo = _PREFIJO_ARTICULO.sub("", texto.strip())
         if sin_articulo != texto.strip():
-            dt = dateparser.parse(sin_articulo, **opciones_parseo)
+            dt = _parsear_fecha_es(sin_articulo)
     if not dt:
         return ResolucionResultado(
             resuelto=False,
