@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { entregablesApi, pendientesPersonalesApi, proyectosApi, reunionesApi } from "../../api/endpoints";
 import { useAuth } from "../../context/AuthContext";
 import { fechaLocal } from "../../utils/fechas";
@@ -66,6 +66,19 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
   const [reuniones, setReuniones] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
+
+  // Divisor "Ahora" dentro del día de hoy en "Mi agenda" (2026-08-28, a
+  // petición de Yue: mismo espíritu que la línea roja de Teams en el
+  // Calendario, pero adaptado a una lista por día en vez de una
+  // cuadrícula de horas -- aquí no hay eje de horas contra qué
+  // posicionar una línea, así que se separan las reuniones ya pasadas de
+  // las que faltan hoy). Se actualiza solo cada minuto mientras la
+  // pantalla siga abierta, igual que la línea del Calendario.
+  const [ahora, setAhora] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setAhora(new Date()), 60000);
+    return () => clearInterval(id);
+  }, []);
 
   // Pendientes personales (2026-08-27, a petición de Yue: "pasar por
   // leche", "pagar colegiatura" -- cosas privadas que no son ni reuniones
@@ -259,46 +272,77 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
         {agenda.length === 0 ? (
           <p className="planb__misemana-vacio">Sin reuniones esta semana.</p>
         ) : (
-          gruposAgenda.map((grupo) => (
-            <div key={grupo.clave} className="planb__misemana-grupo-dia">
-              <p className="planb__misemana-dia">
-                {grupo.fecha.toLocaleDateString("es-MX", {
-                  weekday: "long",
-                  day: "numeric",
-                })}
-              </p>
-              <div className="stack" style={{ gap: 6 }}>
-                {grupo.items.map((r) =>
-                  r.proyecto_id ? (
-                    <button
-                      key={r.id}
-                      type="button"
-                      className="planb__misemana-fila"
-                      onClick={() => onAbrirReunion?.(r.proyecto_id, r.id)}
-                    >
-                      <span className="planb__misemana-fila-titulo">{r.titulo}</span>
-                      <span className="planb__misemana-fila-fecha">
-                        {new Date(r.fecha_inicio).toLocaleTimeString("es-MX", {
-                          hour: "numeric",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                    </button>
-                  ) : (
-                    <div key={r.id} className="planb__misemana-fila">
-                      <span className="planb__misemana-fila-titulo">{r.titulo}</span>
-                      <span className="planb__misemana-fila-fecha">
-                        {new Date(r.fecha_inicio).toLocaleTimeString("es-MX", {
-                          hour: "numeric",
-                          minute: "2-digit",
-                        })}
-                      </span>
+          gruposAgenda.map((grupo) => {
+            // Divisor "Ahora" solo en el grupo de HOY (misma clave
+            // año-mes-día que `ahora`, ver agruparReunionesPorDia arriba)
+            // -- posición = primer ítem con fecha_inicio futura; si todos
+            // ya pasaron, el divisor queda al final del día.
+            const claveHoy = `${ahora.getFullYear()}-${ahora.getMonth()}-${ahora.getDate()}`;
+            const esGrupoHoy = grupo.clave === claveHoy;
+            const indiceDivisor = esGrupoHoy
+              ? (() => {
+                  const i = grupo.items.findIndex((r) => new Date(r.fecha_inicio) > ahora);
+                  return i === -1 ? grupo.items.length : i;
+                })()
+              : -1;
+
+            return (
+              <div key={grupo.clave} className="planb__misemana-grupo-dia">
+                <p className="planb__misemana-dia">
+                  {grupo.fecha.toLocaleDateString("es-MX", {
+                    weekday: "long",
+                    day: "numeric",
+                  })}
+                </p>
+                <div className="stack" style={{ gap: 6 }}>
+                  {grupo.items.map((r, idx) => (
+                    <Fragment key={r.id}>
+                      {idx === indiceDivisor && (
+                        <div key="ahora" className="planb__misemana-ahora" role="separator" aria-label="Ahora">
+                          <span className="planb__misemana-ahora-linea" />
+                          <span className="planb__misemana-ahora-etiqueta">Ahora</span>
+                          <span className="planb__misemana-ahora-linea" />
+                        </div>
+                      )}
+                      {r.proyecto_id ? (
+                        <button
+                          key={r.id}
+                          type="button"
+                          className="planb__misemana-fila"
+                          onClick={() => onAbrirReunion?.(r.proyecto_id, r.id)}
+                        >
+                          <span className="planb__misemana-fila-titulo">{r.titulo}</span>
+                          <span className="planb__misemana-fila-fecha">
+                            {new Date(r.fecha_inicio).toLocaleTimeString("es-MX", {
+                              hour: "numeric",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                        </button>
+                      ) : (
+                        <div key={r.id} className="planb__misemana-fila">
+                          <span className="planb__misemana-fila-titulo">{r.titulo}</span>
+                          <span className="planb__misemana-fila-fecha">
+                            {new Date(r.fecha_inicio).toLocaleTimeString("es-MX", {
+                              hour: "numeric",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                        </div>
+                      )}
+                    </Fragment>
+                  ))}
+                  {indiceDivisor === grupo.items.length && (
+                    <div className="planb__misemana-ahora" role="separator" aria-label="Ahora">
+                      <span className="planb__misemana-ahora-linea" />
+                      <span className="planb__misemana-ahora-etiqueta">Ahora</span>
+                      <span className="planb__misemana-ahora-linea" />
                     </div>
-                  )
-                )}
+                  )}
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
 
         {/* Pendientes personales -- separados de las reuniones a propósito

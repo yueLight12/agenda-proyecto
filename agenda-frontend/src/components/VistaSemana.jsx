@@ -62,7 +62,19 @@ export default function VistaSemana({
 }) {
   const [ancla, setAncla] = useState(() => startOfWeek(new Date(), { locale: es }));
   const dias = Array.from({ length: 7 }, (_, i) => addDays(ancla, i));
-  const hoy = new Date();
+
+  // La línea "ahora" se mueve sola mientras la pantalla sigue abierta
+  // (2026-08-28, a petición de Yue: "que se vea como en Teams") -- sin
+  // este timer, `new Date()` solo se recalculaba cuando el componente se
+  // volvía a renderizar por otro motivo (cambiar de semana, recargar
+  // datos), así que la línea se quedaba congelada en la hora en que se
+  // abrió la pantalla. Cada minuto basta -- la línea representa la hora
+  // actual, no hace falta más precisión que esa.
+  const [hoy, setHoy] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setHoy(new Date()), 60000);
+    return () => clearInterval(id);
+  }, []);
 
   const tiraDiasRef = useRef(null);
   const diasScrollRef = useRef(null);

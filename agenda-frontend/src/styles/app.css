@@ -4865,6 +4865,36 @@ button.planb__misemana-fila {
    columna. Mismo look que .planb__misemana-fila, sin el tratamiento de
    <button> porque cada fila es un <div> con su propio checkbox/botón
    internos, no un solo elemento clicable. */
+/* Divisor "Ahora" en "Mi agenda" (2026-08-28) -- equivalente de la línea
+   roja de Teams (.vsem__linea-ahora) pero para una lista por día en vez de
+   una cuadrícula de horas: separa visualmente las reuniones de HOY que ya
+   pasaron de las que faltan. */
+.planb__misemana-ahora {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0;
+}
+
+.planb__misemana-ahora-linea {
+  flex: 1;
+  height: 1px;
+  background: var(--color-danger);
+  opacity: 0.5;
+}
+
+.planb__misemana-ahora-etiqueta {
+  flex-shrink: 0;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--color-danger);
+  padding: 1px 6px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
 .planb__misemana-nuevo-pendiente {
   display: flex;
   gap: var(--space-2);
