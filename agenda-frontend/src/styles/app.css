@@ -4747,6 +4747,43 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
   margin: 0;
 }
 
+/* Encabezados colapsables (2026-08-28, a petición de Yue: las 4 secciones
+   de "Mi semana" -- Mis tareas a realizar / Mis tareas que asigné / Mi
+   agenda / Mis pendientes -- se pueden colapsar por separado). Reemplaza
+   los <h3> planos de antes por un <button> con el mismo look, para poder
+   hacerle clic; `.planb__misemana-subtitulo` (abajo) sigue aplicándose
+   encima para los dos encabezados "de acento" (Asigné/Pendientes), por
+   eso este bloque va ANTES en el archivo -- mismo empate de especificidad
+   CSS, gana el que aparece después. */
+.planb__misemana-encabezado-seccion {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.planb__misemana-chevron {
+  display: inline-block;
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  color: var(--pb2-text-muted, var(--color-text-muted));
+  transition: transform 0.15s ease;
+}
+
+.planb__misemana-chevron--colapsado {
+  transform: rotate(-90deg);
+}
+
 /* Subtítulo "Asigné" dentro de la columna de tareas (2026-08-24) --
    separa visualmente lo que se me asignó a mí (arriba) de lo que yo le
    asigné a alguien más (abajo, acento amarillo con --color-warning).

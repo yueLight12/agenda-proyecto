@@ -60,8 +60,56 @@ function agruparReunionesPorDia(lista) {
   return grupos;
 }
 
+// Colapsar cada sección por separado (2026-08-28, a petición de Yue) --
+// persistido en localStorage por dispositivo, mismo patrón que
+// RendimientoEquipo.jsx (METRICAS_DEFAULT/cargarMetricasVisibles). Todas
+// expandidas por default -- entrar la primera vez se ve igual que antes.
+const CLAVE_SECCIONES_COLAPSADAS = "misemana_secciones_colapsadas";
+const SECCIONES_DEFAULT = { tareas: false, asignadas: false, agenda: false, pendientes: false };
+
+function cargarSeccionesColapsadas() {
+  try {
+    const guardado = JSON.parse(localStorage.getItem(CLAVE_SECCIONES_COLAPSADAS));
+    if (guardado && typeof guardado === "object") return { ...SECCIONES_DEFAULT, ...guardado };
+  } catch {
+    // localStorage corrupto o inaccesible -- se queda con el default.
+  }
+  return { ...SECCIONES_DEFAULT };
+}
+
+function EncabezadoSeccion({ clave, colapsadas, alternar, className, children }) {
+  const colapsada = colapsadas[clave];
+  return (
+    <button
+      type="button"
+      className={`planb__misemana-encabezado-seccion${className ? ` ${className}` : ""}`}
+      onClick={() => alternar(clave)}
+      aria-expanded={!colapsada}
+    >
+      <span className={`planb__misemana-chevron${colapsada ? " planb__misemana-chevron--colapsado" : ""}`}>
+        ▾
+      </span>
+      {children}
+    </button>
+  );
+}
+
 export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) {
   const { usuario } = useAuth();
+  const [seccionesColapsadas, setSeccionesColapsadas] = useState(cargarSeccionesColapsadas);
+
+  const alternarSeccion = (clave) => {
+    setSeccionesColapsadas((prev) => {
+      const siguiente = { ...prev, [clave]: !prev[clave] };
+      try {
+        localStorage.setItem(CLAVE_SECCIONES_COLAPSADAS, JSON.stringify(siguiente));
+      } catch {
+        // Privacidad estricta / cuota llena -- la preferencia solo dura la sesión.
+      }
+      return siguiente;
+    });
+  };
+
   const [entregables, setEntregables] = useState([]);
   const [reuniones, setReuniones] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -200,8 +248,10 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
   return (
     <div className="planb__misemana">
       <div className="planb__misemana-col planb__misemana-col--tareas">
-        <h3>Mis tareas a realizar</h3>
-        {tareas.length === 0 ? (
+        <EncabezadoSeccion clave="tareas" colapsadas={seccionesColapsadas} alternar={alternarSeccion}>
+          Mis tareas a realizar
+        </EncabezadoSeccion>
+        {!seccionesColapsadas.tareas && (tareas.length === 0 ? (
           <p className="planb__misemana-vacio">Sin tareas con fecha esta semana.</p>
         ) : (
           gruposTareas.map((grupo) => (
@@ -227,13 +277,20 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
               </div>
             </div>
           ))
-        )}
+        ))}
 
         {/* Tareas que asigné a alguien más, separadas abajo con acento
             amarillo (2026-08-24, a petición de Yue) -- ver filtro
             `asignadas` arriba. */}
-        <h3 className="planb__misemana-subtitulo">Mis tareas que asigné</h3>
-        {asignadas.length === 0 ? (
+        <EncabezadoSeccion
+          clave="asignadas"
+          colapsadas={seccionesColapsadas}
+          alternar={alternarSeccion}
+          className="planb__misemana-subtitulo"
+        >
+          Mis tareas que asigné
+        </EncabezadoSeccion>
+        {!seccionesColapsadas.asignadas && (asignadas.length === 0 ? (
           <p className="planb__misemana-vacio">Sin tareas asignadas por ti esta semana.</p>
         ) : (
           gruposAsignadas.map((grupo) => (
@@ -264,12 +321,14 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
               </div>
             </div>
           ))
-        )}
+        ))}
       </div>
 
       <div className="planb__misemana-col planb__misemana-col--agenda">
-        <h3>Mi agenda</h3>
-        {agenda.length === 0 ? (
+        <EncabezadoSeccion clave="agenda" colapsadas={seccionesColapsadas} alternar={alternarSeccion}>
+          Mi agenda
+        </EncabezadoSeccion>
+        {!seccionesColapsadas.agenda && (agenda.length === 0 ? (
           <p className="planb__misemana-vacio">Sin reuniones esta semana.</p>
         ) : (
           gruposAgenda.map((grupo) => {
@@ -343,13 +402,22 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
               </div>
             );
           })
-        )}
+        ))}
 
         {/* Pendientes personales -- separados de las reuniones a propósito
             (2026-08-27, a petición de Yue: "separar mis reuniones con
             temas personales"). 100% privados, ver
             app/models/pendiente_personal.py -- nadie más los ve. */}
-        <h3 className="planb__misemana-subtitulo">Mis pendientes</h3>
+        <EncabezadoSeccion
+          clave="pendientes"
+          colapsadas={seccionesColapsadas}
+          alternar={alternarSeccion}
+          className="planb__misemana-subtitulo"
+        >
+          Mis pendientes
+        </EncabezadoSeccion>
+        {!seccionesColapsadas.pendientes && (
+        <>
         <form className="planb__misemana-nuevo-pendiente" onSubmit={agregarPendientePersonal}>
           <input
             className="input"
@@ -407,6 +475,8 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
               </div>
             ))}
           </div>
+        )}
+        </>
         )}
       </div>
     </div>
