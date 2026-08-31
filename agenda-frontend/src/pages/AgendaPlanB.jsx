@@ -48,6 +48,15 @@ export default function AgendaPlanB() {
   // Panel "Personalizar apariencia" (2026-08-26, a petición de Yue) -- ver
   // AppearanceSettings.jsx / usePreferenciasApariencia.js.
   const [mostrarApariencia, setMostrarApariencia] = useState(false);
+  // "Modo editor" (2026-08-31, a petición de Yue: "dejar oculto lo de poder
+  // modificar la interfaz, el estilo y el tema, que solo aparezca con un
+  // botón") -- los 3 controles de personalización (🎨 apariencia, rotador
+  // de estilo visual, claro/oscuro) quedan ocultos del topbar por default y
+  // solo se muestran mientras este modo está activo. Empieza siempre
+  // apagado (no se persiste): es un modo de "estoy ajustando cosas ahora",
+  // no una preferencia permanente -- igual que "Personalizar apariencia" en
+  // sí, que ya es un modal aparte y no un panel siempre abierto.
+  const [modoEditor, setModoEditor] = useState(false);
 
   // Detalle de un entregable/reunión abierto desde un link de "Pendientes
   // urgentes"/"Mi semana" (2026-08-22, a petición de Yue: "la única
@@ -174,39 +183,58 @@ export default function AgendaPlanB() {
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <BotonNotificacionesPush />
+          {/* "Modo editor" (2026-08-31) -- único control de personalización
+              visible siempre; los otros 3 (apariencia/estilo/tema) solo
+              aparecen mientras este está activo, ver estado arriba. */}
           <button
             type="button"
             className="btn btn--ghost"
-            onClick={() => setMostrarApariencia(true)}
-            aria-label="Personalizar apariencia (vista previa)"
+            onClick={() => setModoEditor((v) => !v)}
+            aria-pressed={modoEditor}
+            aria-label={modoEditor ? "Salir del modo editor" : "Entrar al modo editor"}
+            title={modoEditor ? "Salir del modo editor" : "Personalizar interfaz, estilo y tema"}
           >
-            🎨
+            ✏️
           </button>
-          {/* Selector de estilo visual (reactivado 2026-08-25, a petición
-              de Yue -- ver useEstiloPlanB.js). Botón que rota al siguiente
-              estilo al dar clic (un <select> abría un menú de pantalla
-              completa en móvil, Yue pidió que cambiara directo). */}
-          <button
-            type="button"
-            className="btn btn--ghost"
-            onClick={siguienteEstilo}
-            aria-label="Cambiar estilo visual de Agenda Plan B"
-          >
-            {ESTILOS_PLANB.find((op) => op.valor === estilo)?.etiqueta || estilo}
-          </button>
-          {/* Tema claro/oscuro (2026-08-21, a petición de Yue) -- ya
-              existía en AppLayout.jsx pero Agenda Plan B es una pantalla
-              independiente (sin AppLayout), así que no lo heredaba. Mismo
-              hook/patrón exacto que AppLayout.jsx, ver useTema.js. */}
-          <button
-            type="button"
-            className="btn btn--ghost topbar-tema-btn"
-            onClick={alternarTema}
-            aria-label={tema === "oscuro" ? "Cambiar a tema claro" : "Cambiar a tema oscuro"}
-            aria-pressed={tema === "oscuro"}
-          >
-            {tema === "oscuro" ? "☀️" : "🌙"}
-          </button>
+          {modoEditor && (
+            <>
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => setMostrarApariencia(true)}
+                aria-label="Personalizar apariencia (vista previa)"
+              >
+                🎨
+              </button>
+              {/* Selector de estilo visual (reactivado 2026-08-25, a
+                  petición de Yue -- ver useEstiloPlanB.js). Botón que rota
+                  al siguiente estilo al dar clic (un <select> abría un menú
+                  de pantalla completa en móvil, Yue pidió que cambiara
+                  directo). */}
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={siguienteEstilo}
+                aria-label="Cambiar estilo visual de Agenda Plan B"
+              >
+                {ESTILOS_PLANB.find((op) => op.valor === estilo)?.etiqueta || estilo}
+              </button>
+              {/* Tema claro/oscuro (2026-08-21, a petición de Yue) -- ya
+                  existía en AppLayout.jsx pero Agenda Plan B es una
+                  pantalla independiente (sin AppLayout), así que no lo
+                  heredaba. Mismo hook/patrón exacto que AppLayout.jsx, ver
+                  useTema.js. */}
+              <button
+                type="button"
+                className="btn btn--ghost topbar-tema-btn"
+                onClick={alternarTema}
+                aria-label={tema === "oscuro" ? "Cambiar a tema claro" : "Cambiar a tema oscuro"}
+                aria-pressed={tema === "oscuro"}
+              >
+                {tema === "oscuro" ? "☀️" : "🌙"}
+              </button>
+            </>
+          )}
           <button type="button" className="btn btn--ghost" onClick={logout}>
             Salir
           </button>
