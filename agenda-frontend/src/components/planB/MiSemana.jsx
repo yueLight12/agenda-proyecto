@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from "react";
-import { entregablesApi, pendientesPersonalesApi, proyectosApi, reunionesApi } from "../../api/endpoints";
+import { entregablesApi, eventosEmpresaApi, pendientesPersonalesApi, proyectosApi, reunionesApi } from "../../api/endpoints";
 import { useAuth } from "../../context/AuthContext";
 import { fechaLocal } from "../../utils/fechas";
 import BadgeUrgente from "../BadgeUrgente";
@@ -140,6 +140,33 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
   const cargarPendientesPersonales = () => {
     pendientesPersonalesApi.listar().then(setPendientesPersonales).catch(() => {});
   };
+
+  // Cumpleaños próximos en "Mis pendientes" (2026-08-31, a petición de Yue)
+  // -- solo informativos, NO son PendientePersonal (ese modelo es 100%
+  // privado y editable por su dueño, ver comentario arriba; un cumpleaños
+  // es dato compartido de la empresa, ver app/models/evento_empresa.py) --
+  // no se pueden marcar como hechos ni borrar, solo se muestran. Ventana de
+  // 7 días (a petición de Yue) para no saturar la lista con todo el año.
+  const DIAS_VENTANA_CUMPLEANOS = 7;
+  const [cumpleanosProximos, setCumpleanosProximos] = useState([]);
+  useEffect(() => {
+    eventosEmpresaApi
+      .listar()
+      .then((eventos) => {
+        const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+        const limite = new Date(hoy);
+        limite.setDate(limite.getDate() + DIAS_VENTANA_CUMPLEANOS);
+        setCumpleanosProximos(
+          eventos.filter((e) => {
+            if (e.tipo !== "cumpleanos") return false;
+            const f = fechaLocal(e.fecha);
+            return f >= hoy && f <= limite;
+          })
+        );
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     let cancelado = false;
@@ -439,6 +466,18 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
         </EncabezadoSeccion>
         {!seccionesColapsadas.pendientes && (
         <>
+        {cumpleanosProximos.length > 0 && (
+          <div className="stack" style={{ gap: 6, marginBottom: 6 }}>
+            {cumpleanosProximos.map((c) => (
+              <div key={`cumple-${c.id}`} className="planb__misemana-fila planb__misemana-cumpleanos">
+                <span className="planb__misemana-fila-titulo">🎂 Cumpleaños de {c.nombre}</span>
+                <span className="planb__misemana-fila-fecha">
+                  {fechaLocal(c.fecha).toLocaleDateString("es-MX", { day: "numeric", month: "short" })}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
         <form className="planb__misemana-nuevo-pendiente" onSubmit={agregarPendientePersonal}>
           <input
             className="input"

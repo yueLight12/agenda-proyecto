@@ -4878,6 +4878,14 @@ button.planb__misemana-fila {
   text-decoration: underline;
 }
 
+/* Cumpleaños próximos en "Mis pendientes" (2026-08-31) -- solo
+   informativos (sin checkbox ni botón de borrar, a diferencia de
+   .planb__misemana-pendiente-personal), tinte sutil para no confundirse
+   con un pendiente real de la lista. */
+.planb__misemana-cumpleanos {
+  background: var(--color-warning-bg, var(--pb2-surface, var(--color-surface)));
+}
+
 .planb__misemana-fila-titulo {
   display: block;
   width: 100%;
