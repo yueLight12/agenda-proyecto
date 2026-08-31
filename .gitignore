@@ -1,5 +1,6 @@
 # Backend
 agenda-backend/venv/
+agenda-backend/.venv/
 agenda-backend/__pycache__/
 agenda-backend/**/__pycache__/
 agenda-backend/.env
@@ -24,6 +25,7 @@ agenda-backend/uploads/
 agenda-frontend/node_modules/
 agenda-frontend/dist/
 agenda-frontend/.env
+agenda-frontend/.env.local
 
 # General
 .DS_Store
