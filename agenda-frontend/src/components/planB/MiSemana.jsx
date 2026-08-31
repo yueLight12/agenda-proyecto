@@ -205,6 +205,18 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
   const finInclusive = new Date(semana.fin);
   finInclusive.setHours(23, 59, 59, 999);
 
+  // Cota inferior de reuniones (2026-08-30, a petición de Yue: "que
+  // desaparezcan al final del día") -- una reunión de un día YA pasado
+  // dentro de la semana en curso ya no debe verse en "Mi agenda" (antes
+  // solo se ocultaban al cambiar de semana, así que el lunes seguía
+  // apareciendo el jueves). Si la semana visible es una semana pasada
+  // completa (navegando el historial), se sigue mostrando entera --
+  // aquí no aplica "desaparecer", es una consulta de historial. Si es la
+  // semana actual o una futura, la cota inferior es HOY a medianoche.
+  const inicioHoy = new Date();
+  inicioHoy.setHours(0, 0, 0, 0);
+  const cotaInferiorReuniones = finInclusive < inicioHoy ? semana.inicio : (semana.inicio > inicioHoy ? semana.inicio : inicioHoy);
+
   const entregablesDeLaSemana = entregables.filter((e) => {
     const f = fechaLocal(e.fecha_entrega);
     return f >= semana.inicio && f <= finInclusive;
@@ -224,14 +236,15 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
   );
   const gruposAsignadas = agruparPorDiaYUrgencia(asignadas);
 
-  // Mismo criterio que el backend en /dashboard/resumen (reuniones_proximas):
-  // una reunión de HOY se queda visible todo el día, aunque ya haya
-  // empezado o pasado su hora (2026-08-27, a petición de Yue -- revierte
-  // la decisión del 2026-08-25 de ocultarla en cuanto pasaba su hora:
-  // "puede pasar que no dé tiempo de tomarla, o que empiece tarde, y si
-  // desaparece inmediatamente ya no está disponible para tomarla o dejar
-  // notas"). Solo se excluyen reuniones de días YA pasados de la semana
-  // (vía semana.inicio), nunca por la hora del día de hoy.
+  // Una reunión de HOY se queda visible todo el día, aunque ya haya
+  // empezado o pasado su hora (2026-08-27, a petición de Yue: "puede pasar
+  // que no dé tiempo de tomarla, o que empiece tarde, y si desaparece
+  // inmediatamente ya no está disponible para tomarla o dejar notas") --
+  // pero un día YA pasado dentro de la semana en curso sí desaparece
+  // (2026-08-30, a petición de Yue: "que desaparezcan al final del día"),
+  // vía cotaInferiorReuniones. Si la semana visible ya terminó por
+  // completo, se muestra íntegra (consulta de historial, no aplica
+  // "desaparecer").
   const agenda = reuniones
     .filter(
       (r) =>
@@ -240,7 +253,7 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
     )
     .filter((r) => {
       const f = new Date(r.fecha_inicio);
-      return f >= semana.inicio && f <= finInclusive;
+      return f >= cotaInferiorReuniones && f <= finInclusive;
     })
     .sort((a, b) => a.fecha_inicio.localeCompare(b.fecha_inicio));
   const gruposAgenda = agruparReunionesPorDia(agenda);
