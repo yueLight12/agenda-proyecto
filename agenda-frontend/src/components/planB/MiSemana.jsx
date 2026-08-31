@@ -357,6 +357,14 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
                   return i === -1 ? grupo.items.length : i;
                 })()
               : -1;
+            // Etiqueta del divisor (2026-08-31, a petición de Yue: "que no
+            // diga Ahora, que diga qué día y hora") -- día + hora en vez de
+            // la palabra fija, mismo formato que ya usan el encabezado de
+            // día y la hora de cada reunión más abajo.
+            const etiquetaAhora = `${ahora.toLocaleDateString("es-MX", {
+              weekday: "long",
+              day: "numeric",
+            })}, ${ahora.toLocaleTimeString("es-MX", { hour: "numeric", minute: "2-digit" })}`;
 
             return (
               <div key={grupo.clave} className="planb__misemana-grupo-dia">
@@ -370,9 +378,9 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
                   {grupo.items.map((r, idx) => (
                     <Fragment key={r.id}>
                       {idx === indiceDivisor && (
-                        <div key="ahora" className="planb__misemana-ahora" role="separator" aria-label="Ahora">
+                        <div key="ahora" className="planb__misemana-ahora" role="separator" aria-label={etiquetaAhora}>
                           <span className="planb__misemana-ahora-linea" />
-                          <span className="planb__misemana-ahora-etiqueta">Ahora</span>
+                          <span className="planb__misemana-ahora-etiqueta">{etiquetaAhora}</span>
                           <span className="planb__misemana-ahora-linea" />
                         </div>
                       )}
@@ -405,9 +413,9 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
                     </Fragment>
                   ))}
                   {indiceDivisor === grupo.items.length && (
-                    <div className="planb__misemana-ahora" role="separator" aria-label="Ahora">
+                    <div className="planb__misemana-ahora" role="separator" aria-label={etiquetaAhora}>
                       <span className="planb__misemana-ahora-linea" />
-                      <span className="planb__misemana-ahora-etiqueta">Ahora</span>
+                      <span className="planb__misemana-ahora-etiqueta">{etiquetaAhora}</span>
                       <span className="planb__misemana-ahora-linea" />
                     </div>
                   )}

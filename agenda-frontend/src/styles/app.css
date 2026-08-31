@@ -4934,15 +4934,21 @@ button.planb__misemana-fila {
 }
 
 .planb__misemana-ahora-etiqueta {
-  flex-shrink: 0;
+  /* Antes decía solo "AHORA" en mayúsculas (texto corto, la mayúscula se
+     veía bien); ahora lleva día + hora (2026-08-31, a petición de Yue) --
+     mayúscula y letter-spacing se ven mal en una fecha, y flex-shrink: 0
+     desbordaba en pantallas angostas con este texto más largo. */
+  flex-shrink: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 0.65rem;
   font-weight: 700;
   color: #fff;
   background: var(--color-danger);
   padding: 1px 6px;
   border-radius: 999px;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
 }
 
 .planb__misemana-nuevo-pendiente {
