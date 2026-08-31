@@ -25,12 +25,18 @@ const TARJETAS_INFO = {
 
 export default function AppearanceSettings({ onCerrar }) {
   const { tema, alternarTema } = useTema();
-  const { shape: shapeGuardado, cardOrder: cardOrderGuardado, cargando, guardar: guardarPreferencias } =
-    usePreferenciasApariencia();
+  const {
+    shape: shapeGuardado,
+    cardOrder: cardOrderGuardado,
+    hiddenCards: hiddenCardsGuardado,
+    cargando,
+    guardar: guardarPreferencias,
+  } = usePreferenciasApariencia();
   // Estado local de edición (borrador) -- separado del guardado para que
   // "Guardar cambios" siga siendo un paso explícito, no autosave en cada clic.
   const [shape, setShape] = useState(shapeGuardado);
   const [cardOrder, setCardOrder] = useState(cardOrderGuardado);
+  const [hiddenCards, setHiddenCards] = useState(hiddenCardsGuardado);
   const [guardado, setGuardado] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
@@ -42,9 +48,10 @@ export default function AppearanceSettings({ onCerrar }) {
     if (!guardado) {
       setShape(shapeGuardado);
       setCardOrder(cardOrderGuardado);
+      setHiddenCards(hiddenCardsGuardado);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shapeGuardado, cardOrderGuardado]);
+  }, [shapeGuardado, cardOrderGuardado, hiddenCardsGuardado]);
 
   const radioActual = FORMAS.find((f) => f.valor === shape)?.radio || "12px";
 
@@ -64,11 +71,18 @@ export default function AppearanceSettings({ onCerrar }) {
     setGuardado(false);
   };
 
+  const alternarOculta = (tipo) => {
+    setHiddenCards((actual) =>
+      actual.includes(tipo) ? actual.filter((t) => t !== tipo) : [...actual, tipo]
+    );
+    setGuardado(false);
+  };
+
   const guardar = async () => {
     setGuardando(true);
     setError("");
     try {
-      await guardarPreferencias({ shape, cardOrder, theme: tema });
+      await guardarPreferencias({ shape, cardOrder, hiddenCards, theme: tema });
       setGuardado(true);
     } catch (e) {
       setError(e?.response?.data?.detail || "No se pudieron guardar los cambios, intenta de nuevo.");
@@ -122,11 +136,22 @@ export default function AppearanceSettings({ onCerrar }) {
       </section>
 
       <section className="apariencia__seccion">
-        <h3 className="apariencia__titulo-seccion">Orden de tarjetas en "Quiero asignar"</h3>
+        <h3 className="apariencia__titulo-seccion">Tarjetas en "Quiero asignar"</h3>
+        <p className="apariencia__ayuda">
+          Ordénalas con ↑/↓ y desmarca las que no te interese ver -- ocultarla no quita la
+          función, solo la saca de esta vista.
+        </p>
         <ul className="apariencia__lista-orden">
           {cardOrder.map((tipo, indice) => (
             <li key={tipo} className="apariencia__item-orden">
-              <span>{TARJETAS_INFO[tipo] || tipo}</span>
+              <label className="apariencia__item-orden-check">
+                <input
+                  type="checkbox"
+                  checked={!hiddenCards.includes(tipo)}
+                  onChange={() => alternarOculta(tipo)}
+                />
+                <span>{TARJETAS_INFO[tipo] || tipo}</span>
+              </label>
               <span className="apariencia__item-orden-botones">
                 <button
                   type="button"
@@ -155,11 +180,16 @@ export default function AppearanceSettings({ onCerrar }) {
       <section className="apariencia__seccion">
         <h3 className="apariencia__titulo-seccion">Vista previa</h3>
         <div className="apariencia__preview">
-          {cardOrder.map((tipo) => (
-            <div key={tipo} className="apariencia__preview-tarjeta" style={{ borderRadius: radioActual }}>
-              {TARJETAS_INFO[tipo] || tipo}
-            </div>
-          ))}
+          {cardOrder
+            .filter((tipo) => !hiddenCards.includes(tipo))
+            .map((tipo) => (
+              <div key={tipo} className="apariencia__preview-tarjeta" style={{ borderRadius: radioActual }}>
+                {TARJETAS_INFO[tipo] || tipo}
+              </div>
+            ))}
+          {cardOrder.every((tipo) => hiddenCards.includes(tipo)) && (
+            <p className="apariencia__ayuda">Ocultaste todas las tarjetas -- ese grid se vería vacío.</p>
+          )}
         </div>
       </section>
 

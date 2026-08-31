@@ -26,6 +26,12 @@ class PreferenciaUsuario(Base):
     # elegido por el usuario -- null hasta que el usuario guarda por
     # primera vez, el frontend usa el orden por defecto en ese caso.
     card_order = Column(JSON, nullable=True)
+    # Tipos de tarjeta que el usuario decidió ocultar de "Quiero asignar"
+    # (2026-08-31, a petición de Yue: "que un usuario pueda elegir que no le
+    # interesa ver Proyectos, por ejemplo") -- null/[] = todas visibles.
+    # Ocultar una tarjeta es solo una preferencia de vista: no bloquea la
+    # función correspondiente en ningún otro lado (decisión explícita de Yue).
+    tarjetas_ocultas = Column(JSON, nullable=True)
     fecha_actualizacion = Column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )

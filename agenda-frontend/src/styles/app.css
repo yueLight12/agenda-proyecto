@@ -801,6 +801,19 @@
   gap: var(--space-1);
 }
 
+/* Checkbox mostrar/ocultar por tarjeta (2026-08-31) -- ver AppearanceSettings.jsx. */
+.apariencia__item-orden-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.apariencia__ayuda {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin: 0 0 var(--space-2);
+}
+
 .apariencia__preview {
   display: flex;
   flex-wrap: wrap;

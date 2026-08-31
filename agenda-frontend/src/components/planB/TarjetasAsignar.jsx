@@ -29,8 +29,13 @@ function ordenarTarjetas(cardOrder) {
   return ordenadas.length === TARJETAS.length ? ordenadas : TARJETAS;
 }
 
-export default function TarjetasAsignar({ onAbrir, cardOrder }) {
-  const tarjetas = ordenarTarjetas(cardOrder);
+// hiddenCards (2026-08-31, panel "Personalizar apariencia") -- tipos que el
+// usuario decidió no ver en este grid. Ocultar es solo una preferencia de
+// vista: la función correspondiente sigue existiendo en el resto de la app
+// (decisión explícita de Yue, no hace falta un acceso alterno aquí).
+export default function TarjetasAsignar({ onAbrir, cardOrder, hiddenCards }) {
+  const ocultas = new Set(Array.isArray(hiddenCards) ? hiddenCards : []);
+  const tarjetas = ordenarTarjetas(cardOrder).filter((t) => !ocultas.has(t.tipo));
   return (
     <div className="planb__tarjetas">
       {tarjetas.map((t) => (

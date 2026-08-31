@@ -37,7 +37,7 @@ export default function AgendaPlanB() {
   const { usuario, logout } = useAuth();
   const { estilo, siguienteEstilo } = useEstiloPlanB();
   const { tema, alternarTema } = useTema();
-  const { cardOrder } = usePreferenciasApariencia();
+  const { cardOrder, hiddenCards } = usePreferenciasApariencia();
   const [fechaRef, setFechaRef] = useState(new Date());
   const [equipo, setEquipo] = useState([]);
   const [cargandoEquipo, setCargandoEquipo] = useState(true);
@@ -228,7 +228,7 @@ export default function AgendaPlanB() {
 
         <div className="card">
           <h2 style={{ fontSize: "1rem", marginBottom: 12 }}>Quiero asignar</h2>
-          <TarjetasAsignar onAbrir={setModalActivo} cardOrder={cardOrder} />
+          <TarjetasAsignar onAbrir={setModalActivo} cardOrder={cardOrder} hiddenCards={hiddenCards} />
         </div>
 
         <PendientesUrgentes

@@ -19,6 +19,10 @@ const RADIOS = { square: "4px", rounded: "12px", circle: "999px" };
 export const ORDEN_DEFECTO_TARJETAS = ["tarea", "proyecto", "persona", "agenda", "rendimiento"];
 const CLAVE_SHAPE = "apariencia_shape";
 const CLAVE_CARD_ORDER = "apariencia_card_order";
+// Tarjetas ocultas (2026-08-31, a petición de Yue: "que un usuario pueda
+// elegir que no le interesa ver Proyectos, por ejemplo") -- mismo mirror en
+// localStorage que shape/cardOrder, ver justificación arriba.
+const CLAVE_HIDDEN_CARDS = "apariencia_hidden_cards";
 
 function aplicarShape(shape) {
   document.documentElement.style.setProperty("--radius-shape", RADIOS[shape] || RADIOS.rounded);
@@ -36,9 +40,20 @@ function leerCardOrderGuardado() {
   return ORDEN_DEFECTO_TARJETAS;
 }
 
+function leerHiddenCardsGuardado() {
+  try {
+    const guardado = JSON.parse(localStorage.getItem(CLAVE_HIDDEN_CARDS));
+    if (Array.isArray(guardado)) return guardado;
+  } catch {
+    // localStorage corrupto o vacío -- se usa "ninguna oculta".
+  }
+  return [];
+}
+
 export function usePreferenciasApariencia() {
   const [shape, setShape] = useState(() => localStorage.getItem(CLAVE_SHAPE) || "rounded");
   const [cardOrder, setCardOrder] = useState(leerCardOrderGuardado);
+  const [hiddenCards, setHiddenCards] = useState(leerHiddenCardsGuardado);
   const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
@@ -57,6 +72,10 @@ export function usePreferenciasApariencia() {
           setCardOrder(datos.card_order);
           localStorage.setItem(CLAVE_CARD_ORDER, JSON.stringify(datos.card_order));
         }
+        if (Array.isArray(datos.tarjetas_ocultas)) {
+          setHiddenCards(datos.tarjetas_ocultas);
+          localStorage.setItem(CLAVE_HIDDEN_CARDS, JSON.stringify(datos.tarjetas_ocultas));
+        }
       })
       .catch(() => {
         // Sin conexión o sesión vencida -- se queda con el mirror local /
@@ -70,20 +89,28 @@ export function usePreferenciasApariencia() {
     };
   }, []);
 
-  const guardar = useCallback(async ({ shape: nuevaForma, cardOrder: nuevoOrden, theme }) => {
-    const datos = await preferenciasApi.actualizar({
-      shape: nuevaForma,
-      card_order: nuevoOrden,
-      theme,
-    });
-    setShape(datos.shape);
-    localStorage.setItem(CLAVE_SHAPE, datos.shape);
-    if (Array.isArray(datos.card_order)) {
-      setCardOrder(datos.card_order);
-      localStorage.setItem(CLAVE_CARD_ORDER, JSON.stringify(datos.card_order));
-    }
-    return datos;
-  }, []);
+  const guardar = useCallback(
+    async ({ shape: nuevaForma, cardOrder: nuevoOrden, hiddenCards: nuevasOcultas, theme }) => {
+      const datos = await preferenciasApi.actualizar({
+        shape: nuevaForma,
+        card_order: nuevoOrden,
+        tarjetas_ocultas: nuevasOcultas,
+        theme,
+      });
+      setShape(datos.shape);
+      localStorage.setItem(CLAVE_SHAPE, datos.shape);
+      if (Array.isArray(datos.card_order)) {
+        setCardOrder(datos.card_order);
+        localStorage.setItem(CLAVE_CARD_ORDER, JSON.stringify(datos.card_order));
+      }
+      if (Array.isArray(datos.tarjetas_ocultas)) {
+        setHiddenCards(datos.tarjetas_ocultas);
+        localStorage.setItem(CLAVE_HIDDEN_CARDS, JSON.stringify(datos.tarjetas_ocultas));
+      }
+      return datos;
+    },
+    []
+  );
 
-  return { shape, cardOrder, cargando, guardar };
+  return { shape, cardOrder, hiddenCards, cargando, guardar };
 }
