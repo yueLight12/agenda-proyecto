@@ -26,7 +26,7 @@ from typing import Optional
 
 from fastapi import HTTPException, status
 from sqlalchemy import or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.entregable import Entregable
 from app.models.historial_responsable import HistorialResponsable
@@ -37,7 +37,10 @@ from app.services import arbol_proyectos
 
 
 def obtener_rol_en_proyecto(
-    db: Session, usuario_id: int, proyecto_id: int
+    db: Session,
+    usuario_id: int,
+    proyecto_id: int,
+    indice: Optional[dict] = None,
 ) -> Optional[UsuarioProyectoRol]:
     """Devuelve la fila de rol EXPLÍCITA más cercana del usuario, caminando
     la cadena de ancestros de proyecto_id (él mismo primero). None si no
@@ -45,8 +48,18 @@ def obtener_rol_en_proyecto(
     ancestro). El `.proyecto_id` de la fila devuelta puede ser distinto del
     `proyecto_id` consultado si la fila es heredada -- los llamadores que
     necesitan distinguir local vs. heredado comparan ambos valores (ver
-    query_entregables_visibles)."""
-    indice = arbol_proyectos.cargar_indice(db)
+    query_entregables_visibles).
+
+    `indice` (2026-08-31, optimización de /dashboard/resumen y similares):
+    si el llamador YA cargó el árbol completo (arbol_proyectos.cargar_indice)
+    porque va a llamar esta función muchas veces en el mismo request (una
+    por cada proyecto raíz visible), puede pasarlo para no recargar el
+    árbol entero desde la DB en cada llamada -- en un entorno con latencia
+    de red alta hacia la DB (ver CLAUDE.md, entorno de desarrollo local)
+    esto es la diferencia entre 1 y decenas de viajes de red. Si no se
+    pasa, el comportamiento es IDÉNTICO al de siempre (carga fresca)."""
+    if indice is None:
+        indice = arbol_proyectos.cargar_indice(db)
     cadena = arbol_proyectos.cadena_ancestros(indice, proyecto_id)
     filas_por_nodo = {
         r.proyecto_id: r
@@ -176,7 +189,7 @@ def temas_relevantes_para_participantes(db: Session, participantes_ids: list[int
 
 
 def requerir_participacion_en_proyecto(
-    db: Session, usuario: Usuario, proyecto_id: int
+    db: Session, usuario: Usuario, proyecto_id: int, indice: Optional[dict] = None
 ) -> UsuarioProyectoRol:
     """
     Lanza 403 si el usuario no tiene ningún rol asignado en el proyecto.
@@ -185,13 +198,15 @@ def requerir_participacion_en_proyecto(
     cualquier proyecto, aunque no tenga una fila en usuario_proyecto_rol —
     así tiene control total automático incluso en proyectos creados después
     de volverse super admin, sin tener que asignarlo a mano cada vez.
+
+    `indice`: ver obtener_rol_en_proyecto -- se reenvía tal cual.
     """
     if usuario.es_super_admin:
         return UsuarioProyectoRol(
             usuario_id=usuario.id, proyecto_id=proyecto_id, rol=RolEnum.N1
         )
 
-    rol = obtener_rol_en_proyecto(db, usuario.id, proyecto_id)
+    rol = obtener_rol_en_proyecto(db, usuario.id, proyecto_id, indice=indice)
     if rol is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -240,7 +255,7 @@ def _ids_involucrado_por_cadena(db: Session, usuario_id: int, ids_entregables_ca
 
 
 def query_entregables_visibles(
-    db: Session, usuario: Usuario, proyecto_id: int
+    db: Session, usuario: Usuario, proyecto_id: int, indice: Optional[dict] = None
 ):
     """
     Implementa la sección 4 del documento de diseño, ahora sobre el
@@ -268,11 +283,22 @@ def query_entregables_visibles(
 
     Devuelve un Query de SQLAlchemy ya filtrado (no ejecutado), listo para
     aplicar .all(), paginación, etc.
+
+    `indice`: ver obtener_rol_en_proyecto -- si se pasa, evita recargar el
+    árbol de proyectos desde la DB. La query resultante además precarga
+    `responsable`/`proyecto` con joinedload (2026-08-31) para que iterar
+    los resultados y leer `.responsable.nombre`/`.proyecto.nombre` (como
+    hace /dashboard/resumen) no dispare una consulta extra por cada fila.
     """
-    rol = requerir_participacion_en_proyecto(db, usuario, proyecto_id)
-    indice = arbol_proyectos.cargar_indice(db)
+    rol = requerir_participacion_en_proyecto(db, usuario, proyecto_id, indice=indice)
+    if indice is None:
+        indice = arbol_proyectos.cargar_indice(db)
     ids_subtree = arbol_proyectos.ids_subarbol(indice, proyecto_id)
-    base_query = db.query(Entregable).filter(Entregable.proyecto_id.in_(ids_subtree))
+    base_query = (
+        db.query(Entregable)
+        .filter(Entregable.proyecto_id.in_(ids_subtree))
+        .options(joinedload(Entregable.responsable), joinedload(Entregable.proyecto))
+    )
 
     heredado = rol.proyecto_id != proyecto_id
 
@@ -388,7 +414,9 @@ def puede_reasignar_entregable(db: Session, usuario: Usuario, entregable: Entreg
     return rol is not None and rol.rol in (RolEnum.N1, RolEnum.N2)
 
 
-def query_reuniones_visibles(db: Session, usuario: Usuario, proyecto_id: int):
+def query_reuniones_visibles(
+    db: Session, usuario: Usuario, proyecto_id: int, indice: Optional[dict] = None
+):
     """
     Regla de visibilidad de reuniones (distinta a la de entregables, sin
     cambios de asimetría al generalizar a árbol -- N2 nunca tuvo aquí un
@@ -403,11 +431,20 @@ def query_reuniones_visibles(db: Session, usuario: Usuario, proyecto_id: int):
     Devuelve un Query de SQLAlchemy ya filtrado, listo para .all()/paginación.
     Reuniones "generales" (proyecto_id NULL, sin tema) NO pasan por aquí --
     ver query_reuniones_generales_visibles.
+
+    `indice`: ver obtener_rol_en_proyecto. La query resultante además
+    precarga `organizador`/`proyecto` con joinedload (2026-08-31), mismo
+    motivo que en query_entregables_visibles.
     """
-    rol = requerir_participacion_en_proyecto(db, usuario, proyecto_id)
-    indice = arbol_proyectos.cargar_indice(db)
+    rol = requerir_participacion_en_proyecto(db, usuario, proyecto_id, indice=indice)
+    if indice is None:
+        indice = arbol_proyectos.cargar_indice(db)
     ids_subtree = arbol_proyectos.ids_subarbol(indice, proyecto_id)
-    base_query = db.query(Reunion).filter(Reunion.proyecto_id.in_(ids_subtree))
+    base_query = (
+        db.query(Reunion)
+        .filter(Reunion.proyecto_id.in_(ids_subtree))
+        .options(joinedload(Reunion.organizador), joinedload(Reunion.proyecto))
+    )
 
     if rol.rol == RolEnum.N1:
         return base_query

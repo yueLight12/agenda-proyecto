@@ -22,6 +22,7 @@ from app.schemas.dashboard import (
     ResumenPorProyectoOut,
     ReunionProximaOut,
 )
+from app.services import arbol_proyectos
 from app.services.entregables import es_urgente
 from app.services.proyectos import listar_raices_visibles
 
@@ -41,6 +42,15 @@ def resumen_dashboard(
     # quedaba ciego a subtemas -- ahora reutiliza el mismo servicio que
     # GET /proyectos).
     proyectos = listar_raices_visibles(db, usuario)
+    # Árbol cargado UNA vez y reenviado a cada llamada de
+    # query_entregables_visibles/query_reuniones_visibles de abajo
+    # (2026-08-31, optimización) -- sin esto, cada una de las N llamadas
+    # (una por proyecto raíz visible) recargaba el árbol completo desde la
+    # DB por su cuenta; en un entorno con latencia de red alta hacia la DB
+    # (ver CLAUDE.md, entorno de desarrollo local) eso eran decenas de
+    # viajes de red redundantes solo para este dato, que no cambia dentro
+    # de un mismo request de solo lectura como este.
+    indice = arbol_proyectos.cargar_indice(db)
 
     hoy = date.today()
     limite_alerta = hoy + timedelta(days=settings.dias_alerta_entregable)
@@ -54,7 +64,7 @@ def resumen_dashboard(
     suma_avance_ponderada = 0.0
 
     for proyecto in proyectos:
-        entregables = query_entregables_visibles(db, usuario, proyecto.id).all()
+        entregables = query_entregables_visibles(db, usuario, proyecto.id, indice=indice).all()
         total = len(entregables)
         vencidos = sum(
             1
@@ -139,7 +149,7 @@ def resumen_dashboard(
     limite_semana = ahora + timedelta(days=7)
     reuniones_proximas: list[ReunionProximaOut] = []
     for proyecto in proyectos:
-        reuniones = query_reuniones_visibles(db, usuario, proyecto.id).all()
+        reuniones = query_reuniones_visibles(db, usuario, proyecto.id, indice=indice).all()
         for r in reuniones:
             if inicio_hoy <= r.fecha_inicio <= limite_semana:
                 reuniones_proximas.append(
