@@ -1,0 +1,73 @@
+name: agenda-nueva-mysql
+
+# Stack PARALELO al de docker-compose.dev-local.yml (2026-09-07, a
+# petición de Yue: el equipo que va a llevar esto a producción usa MySQL,
+# así que hay que validar la migración ANTES de tocar el stack de Postgres
+# que el equipo sigue usando activamente para probar). Puertos y nombre de
+# proyecto distintos a propósito de TODOS los demás compose de esta
+# máquina (dev-local usa 5452/8011/8013/5184) para que puedan convivir sin
+# chocar -- se puede levantar este stack sin apagar el de Postgres.
+#
+# Diferencia clave con dev-local: no incluye `whisper` (no tiene nada que
+# ver con la base de datos, y así no se duplica un contenedor pesado /
+# GPU solo para esta prueba) -- el asistente de voz no transcribe en este
+# stack, todo lo demás (API, entregables, reuniones, WhatsApp, etc.) sí
+# funciona igual.
+#
+# Migraciones: usa un historial de Alembic APARTE (migrations_mysql/, ver
+# alembic_mysql.ini) en vez de replayear las ~30 migraciones de Postgres
+# (2 de ellas tienen SQL crudo específico de Postgres, `ALTER TYPE ...
+# ADD VALUE`, que no aplica en MySQL) -- una sola migración "base" nueva,
+# generada desde los modelos actuales, ya que esto no está en producción
+# y no hace falta preservar ese historial.
+
+services:
+  db:
+    image: mysql:8
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: mysqlroot
+      MYSQL_DATABASE: agenda_inteligente
+      MYSQL_USER: agenda
+      MYSQL_PASSWORD: agenda
+    ports:
+      - "3320:3306"
+    volumes:
+      - agenda_nueva_mysql_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pmysqlroot"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+
+  api:
+    build: ./agenda-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - ./agenda-backend/.env
+    environment:
+      DATABASE_URL: mysql+pymysql://agenda:agenda@db:3306/agenda_inteligente
+      SECRET_KEY: dev-secret-key-cambiar-en-produccion
+      # Sin WHISPER_URL a propósito -- no hay contenedor whisper en este
+      # stack, la transcripción de voz no aplica aquí (ver nota arriba).
+    ports:
+      - "8014:8000"
+    volumes:
+      - ./agenda-backend:/code
+
+  web:
+    build:
+      context: ./agenda-frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL_MYSQL:-http://localhost:8014}
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "5186:5173"
+
+volumes:
+  agenda_nueva_mysql_db_data:

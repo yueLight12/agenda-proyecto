@@ -33,7 +33,15 @@ services:
       retries: 10
 
   whisper:
-    image: onerahmet/openai-whisper-asr-webservice:latest
+    # Imagen -gpu (2026-09-02, a petición de Yue: mejorar tiempos del
+    # asistente -- esta laptop tiene una GTX 1060 dedicada que la imagen
+    # normal (CPU-only) no aprovechaba). Requiere el NVIDIA Container
+    # Toolkit instalado y el runtime "nvidia" registrado en Docker (ver
+    # `docker info | grep Runtimes`); si esta imagen no existe en otra
+    # máquina donde se levante este compose, revertir a
+    # "onerahmet/openai-whisper-asr-webservice:latest" y quitar el bloque
+    # `deploy` de abajo.
+    image: onerahmet/openai-whisper-asr-webservice:latest-gpu
     restart: unless-stopped
     environment:
       ASR_MODEL: small
@@ -42,6 +50,13 @@ services:
       - agenda_nueva_whisper_models:/root/.cache/whisper
     ports:
       - "8013:9000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
   api:
     build: ./agenda-backend

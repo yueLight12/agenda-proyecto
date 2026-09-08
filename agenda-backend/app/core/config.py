@@ -98,6 +98,43 @@ class Settings(BaseSettings):
     # ej. "whatsapp:+14155238886" (el mismo para todos los clientes en
     # sandbox -- cada destinatario debe unirse una vez con su código "join").
     twilio_whatsapp_from: str = ""
+    # Número de Twilio para SMS (2026-09-01, a petición de Yue: para una demo
+    # ante gente de alto perfil, el "join" del sandbox de WhatsApp no es
+    # viable -- SMS con este número no lo requiere). Sin el prefijo
+    # "whatsapp:", ej. "+14155551234". Ver enviar_whatsapp en
+    # app/services/whatsapp.py, que ahora manda por SMS con este número en
+    # vez de WhatsApp con twilio_whatsapp_from. Si la cuenta Twilio sigue en
+    # trial, cada número destino debe verificarse antes en la consola de
+    # Twilio (Verified Caller IDs) -- eso no aplica una vez que la cuenta
+    # tenga saldo pagado.
+    twilio_sms_from: str = ""
+
+    # Ultramsg (2026-09-02, a petición de Yue) -- SOLO para una demo puntual
+    # ante gente de alto perfil que necesita ver el mensaje llegar por
+    # WhatsApp de verdad (no SMS, ver twilio_sms_from arriba), sin pedirle a
+    # nadie que mande "join" antes. Ultramsg NO es la API oficial de
+    # WhatsApp Business -- automatiza WhatsApp Web (login por QR desde un
+    # teléfono), va contra los términos de servicio de WhatsApp y el número
+    # se puede bloquear sin aviso con uso real/sostenido. Aceptado
+    # EXPLÍCITAMENTE por Yue como solución desechable solo para la demo,
+    # con el plan de reemplazarla por WhatsApp Business real (ver CLAUDE.md)
+    # antes de cualquier uso en un entorno de trabajo real. Ver
+    # whatsapp_proveedor abajo para el switch, y app/services/whatsapp.py.
+    ultramsg_instance_id: str = ""
+    ultramsg_token: str = ""
+    # Ultramsg NO tiene firma de petición como Twilio (X-Twilio-Signature) --
+    # sin esto, cualquiera que adivine la URL del webhook podría mandar
+    # "LISTO #id" falsos. Como defensa mínima, el segmento del path debe
+    # coincidir con este valor (URL no listada públicamente + secreto en el
+    # path). Genera algo random y ponlo también al configurar webhook_url
+    # en Ultramsg, ej. ".../webhooks/ultramsg/<esto>".
+    ultramsg_webhook_secreto: str = ""
+
+    # Switch de canal para enviar_whatsapp (2026-09-02): "sms" (default, el
+    # fix de producción del 2026-09-01, sin fricción y sin riesgo) o
+    # "ultramsg" (WhatsApp real, solo para la demo puntual de arriba --
+    # cambiar de vuelta a "sms" en cuanto termine la demo).
+    whatsapp_proveedor: str = "sms"
 
     # Asignar tareas por WhatsApp (2026-08-27, a petición de Yue: puente de
     # transición para quien ya vive en WhatsApp -- no reemplaza la app,

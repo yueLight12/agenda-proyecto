@@ -49,8 +49,10 @@ from app.services.asistente.resolucion import (
     resolver_asistio,
     resolver_campo,
     resolver_entregable,
+    resolver_entregable_pendiente_aprobacion,
     resolver_fecha,
     resolver_fecha_hora,
+    resolver_hora_opcional,
     resolver_item_agenda,
     resolver_miembro_mi_equipo,
     resolver_participante_reunion,
@@ -68,8 +70,10 @@ from app.services.chatbot import responder_pregunta
 from app.services.entregables import (
     actualizar_avance,
     actualizar_entregable,
+    aprobar_entregable,
     crear_entregable,
     eliminar_entregable,
+    rechazar_entregable,
 )
 from app.services.pendientes_personales import (
     actualizar_pendiente_personal,
@@ -242,6 +246,10 @@ def _resolver_crear_entregable(
     if not fecha_res.resuelto:
         return _pendiente("fecha_entrega", fecha_res)
 
+    # Hora opcional (2026-09-01, a petición de Yue) -- resolver_hora_opcional
+    # nunca bloquea: si no se menciona hora, sigue sin ella.
+    hora_res = resolver_hora_opcional(parametros_llm.get("hora_entrega"))
+
     responsable_obj = db.query(Usuario).filter(Usuario.id == responsable_res.valor).first()
 
     parametros = {
@@ -250,9 +258,11 @@ def _resolver_crear_entregable(
         "descripcion": parametros_llm.get("descripcion") or None,
         "responsable_id": responsable_res.valor,
         "fecha_entrega": fecha_res.valor.isoformat(),
+        "hora_entrega": hora_res.valor.isoformat() if hora_res.valor else None,
         "sensible": bool(parametros_llm.get("sensible") or False),
     }
-    resumen = f'Voy a crear el entregable "{nombre}", con fecha límite {fecha_res.valor.isoformat()}. ¿Confirmas?'
+    sufijo_hora = f" a las {hora_res.valor.strftime('%H:%M')}" if hora_res.valor else ""
+    resumen = f'Voy a crear el entregable "{nombre}", con fecha límite {fecha_res.valor.isoformat()}{sufijo_hora}. ¿Confirmas?'
     preview = {
         "tipo": "entregable",
         "nombre": nombre,
@@ -267,7 +277,7 @@ def _resolver_crear_entregable(
 
 
 def _ejecutar_crear_entregable(db: Session, usuario: Usuario, parametros: dict) -> dict:
-    from datetime import date
+    from datetime import date, time
 
     rol = requerir_participacion_en_proyecto(db, usuario, parametros["proyecto_id"])
     nuevo = crear_entregable(
@@ -279,6 +289,7 @@ def _ejecutar_crear_entregable(db: Session, usuario: Usuario, parametros: dict) 
         descripcion=parametros.get("descripcion"),
         responsable_id=parametros["responsable_id"],
         fecha_entrega=date.fromisoformat(parametros["fecha_entrega"]),
+        hora_entrega=time.fromisoformat(parametros["hora_entrega"]) if parametros.get("hora_entrega") else None,
         sensible=parametros.get("sensible", False),
     )
     db.commit()
@@ -346,6 +357,76 @@ def _ejecutar_actualizar_avance(db: Session, usuario: Usuario, parametros: dict)
     return {
         "mensaje": f'Listo, actualicé el avance de "{entregable.nombre}" a {entregable.porcentaje_avance}%.',
         "resultado": {"id": entregable.id, "porcentaje_avance": entregable.porcentaje_avance},
+    }
+
+
+# --- aprobar_entregable / rechazar_entregable ("Visto bueno", 2026-09-03) -
+# Solo aplican a tareas en estatus pendiente_aprobacion que EL USUARIO
+# pueda aprobar (quien la creó, o N1/N2 del tema -- nunca el responsable,
+# ver resolver_entregable_pendiente_aprobacion / puede_aprobar_rechazar_
+# entregable). No piden proyecto -- buscan en todos los temas donde
+# participa quien habla.
+
+def _resolver_aprobar_entregable(
+    db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
+) -> ResultadoInterpretacion:
+    entregable_res = resolver_campo(
+        "entregable_id", aclaraciones, parametros_llm.get("entregable"),
+        lambda t: resolver_entregable_pendiente_aprobacion(db, usuario, t),
+    )
+    if not entregable_res.resuelto:
+        return _pendiente("entregable_id", entregable_res)
+
+    entregable = db.query(Entregable).filter(Entregable.id == entregable_res.valor).first()
+    parametros = {"entregable_id": entregable_res.valor}
+    resumen = f'Voy a darle el visto bueno a "{entregable.nombre}" -- quedará completada. ¿Confirmas?'
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen)
+
+
+def _ejecutar_aprobar_entregable(db: Session, usuario: Usuario, parametros: dict) -> dict:
+    entregable = aprobar_entregable(db, usuario, parametros["entregable_id"])
+    db.commit()
+    db.refresh(entregable)
+    return {
+        "mensaje": f'Listo, le di el visto bueno a "{entregable.nombre}", ya quedó completada.',
+        "resultado": {"id": entregable.id},
+    }
+
+
+def _resolver_rechazar_entregable(
+    db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
+) -> ResultadoInterpretacion:
+    entregable_res = resolver_campo(
+        "entregable_id", aclaraciones, parametros_llm.get("entregable"),
+        lambda t: resolver_entregable_pendiente_aprobacion(db, usuario, t),
+    )
+    if not entregable_res.resuelto:
+        return _pendiente("entregable_id", entregable_res)
+
+    nota = (
+        aclaraciones.get("nota") if isinstance(aclaraciones.get("nota"), str) else parametros_llm.get("nota")
+    )
+    nota = (nota or "").strip()
+    if not nota:
+        return ResultadoInterpretacion(
+            listo=False, campo="nota",
+            pregunta="¿Qué le falta o qué hay que corregir? (el motivo es obligatorio)",
+            tipo_entrada="texto",
+        )
+
+    entregable = db.query(Entregable).filter(Entregable.id == entregable_res.valor).first()
+    parametros = {"entregable_id": entregable_res.valor, "nota": nota}
+    resumen = f'Voy a rechazar "{entregable.nombre}" con el motivo "{nota}". ¿Confirmas?'
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen)
+
+
+def _ejecutar_rechazar_entregable(db: Session, usuario: Usuario, parametros: dict) -> dict:
+    entregable = rechazar_entregable(db, usuario, parametros["entregable_id"], parametros["nota"])
+    db.commit()
+    db.refresh(entregable)
+    return {
+        "mensaje": f'Listo, rechacé "{entregable.nombre}" y le avisé al responsable por qué.',
+        "resultado": {"id": entregable.id},
     }
 
 
@@ -873,11 +954,17 @@ def _resolver_agregar_nota(
 
     entregable_id = None
     reunion_id = None
+    proyecto_id_nota = None
 
-    # Alcance de esta fase: nota sobre una reunión o un entregable
-    # directamente (no sobre una minuta específica). Si el texto no dice
-    # cuál de los dos, se pregunta y por default se intenta como reunión
-    # primero (las notas de reunión son el caso más común pedido por Yue).
+    # Alcance: nota sobre una reunión, un entregable, o el tema/proyecto en
+    # sí (2026-09-07, a petición de Yue: no había forma de anotar algo
+    # suelto sobre un tema, solo sobre una reunión/entregable puntual
+    # dentro de él -- el backend ya soportaba Nota.proyecto_id desde el
+    # caso Diana, ver app/models/nota.py, solo faltaba exponerlo aquí). Si
+    # no se menciona reunión ni entregable, PERO sí se resolvió un
+    # proyecto_id (explícito o por contexto de pantalla), se asume que la
+    # nota es sobre el tema mismo -- ya no se pregunta "¿sobre qué reunión
+    # o entregable?" en ese caso, que era justo el hueco reportado.
     if "entregable_id" in aclaraciones:
         entregable_res = resolver_campo(
             "entregable_id", aclaraciones, None, lambda t: resolver_entregable(db, usuario, proyecto_id, t),
@@ -902,10 +989,12 @@ def _resolver_agregar_nota(
         if not reunion_res.resuelto:
             return _pendiente("reunion_id", reunion_res)
         reunion_id = reunion_res.valor
+    elif proyecto_id:
+        proyecto_id_nota = proyecto_id
     else:
         return ResultadoInterpretacion(
             listo=False, campo="reunion_id",
-            pregunta="¿La nota es sobre qué reunión o entregable? Dime el nombre.",
+            pregunta="¿La nota es sobre qué reunión, entregable o tema? Dime el nombre.",
             tipo_entrada="texto",
         )
 
@@ -918,17 +1007,29 @@ def _resolver_agregar_nota(
             listo=False, campo="contenido", pregunta="¿Qué dice la nota?", tipo_entrada="texto"
         )
 
-    parametros = {"entregable_id": entregable_id, "reunion_id": reunion_id, "contenido": contenido}
-    destino = "el entregable" if entregable_id else "la reunión"
-    resumen = f'Voy a agregar esta nota a {destino}: "{contenido}". ¿Confirmas?'
+    parametros = {
+        "entregable_id": entregable_id,
+        "reunion_id": reunion_id,
+        "proyecto_id": proyecto_id_nota,
+        "contenido": contenido,
+    }
 
     destino_nombre = None
     if entregable_id:
         e = db.query(Entregable).filter(Entregable.id == entregable_id).first()
         destino_nombre = e.nombre if e else None
+        destino_frase = "al entregable"
     elif reunion_id:
         r = db.query(Reunion).filter(Reunion.id == reunion_id).first()
         destino_nombre = r.titulo if r else None
+        destino_frase = "a la reunión"
+    else:
+        p = db.query(Proyecto).filter(Proyecto.id == proyecto_id_nota).first()
+        destino_nombre = p.nombre if p else None
+        destino_frase = "al tema"
+
+    destino_frase += f' "{destino_nombre}"' if destino_nombre else ""
+    resumen = f'Voy a agregar esta nota {destino_frase}: "{contenido}". ¿Confirmas?'
     preview = {
         "tipo": "nota",
         "contenido": contenido,
@@ -946,6 +1047,7 @@ def _ejecutar_agregar_nota(db: Session, usuario: Usuario, parametros: dict) -> d
             contenido=parametros["contenido"],
             entregable_id=parametros.get("entregable_id"),
             reunion_id=parametros.get("reunion_id"),
+            proyecto_id=parametros.get("proyecto_id"),
             minuta_id=None,
         ),
     )
@@ -1189,6 +1291,12 @@ def _resolver_editar_entregable(
         campos["fecha_entrega"] = fecha_res.valor.isoformat()
         resumen_partes.append(f"fecha límite al {fecha_res.valor.isoformat()}")
 
+    if parametros_llm.get("hora_entrega"):
+        hora_res = resolver_hora_opcional(parametros_llm.get("hora_entrega"))
+        if hora_res.valor:
+            campos["hora_entrega"] = hora_res.valor.isoformat()
+            resumen_partes.append(f"hora a las {hora_res.valor.strftime('%H:%M')}")
+
     if parametros_llm.get("responsable_nuevo") or "responsable_id" in aclaraciones:
         responsable_res = resolver_campo(
             "responsable_id", aclaraciones, parametros_llm.get("responsable_nuevo"),
@@ -1233,11 +1341,13 @@ def _resolver_editar_entregable(
 
 
 def _ejecutar_editar_entregable(db: Session, usuario: Usuario, parametros: dict) -> dict:
-    from datetime import date
+    from datetime import date, time
 
     campos = dict(parametros["campos"])
     if "fecha_entrega" in campos:
         campos["fecha_entrega"] = date.fromisoformat(campos["fecha_entrega"])
+    if "hora_entrega" in campos:
+        campos["hora_entrega"] = time.fromisoformat(campos["hora_entrega"])
 
     entregable = actualizar_entregable(db, usuario, parametros["entregable_id"], campos)
     db.commit()
@@ -2425,18 +2535,51 @@ def _resolver_crear_pendiente_personal(
             return _pendiente("fecha_limite", fecha_res)
         fecha_limite = fecha_res.valor
 
+    hora_res = resolver_hora_opcional(parametros_llm.get("hora_limite"))
+
+    texto_recurrencia = (parametros_llm.get("recurrencia") or "").strip().lower()
+    recurrencia = "ninguna"
+    # Bug real (2026-09-02, encontrado probando tiempos de respuesta con
+    # Haiku): "mes" NO es substring de "mensual" (la "n" se interpone:
+    # m-e-N-s-u-a-l) -- este chequeo nunca disparaba "mensual" pese a que
+    # el LLM sí devolvía el parámetro correcto. Se compara contra las
+    # palabras completas que se le pide devolver al modelo (ver
+    # parametros_llm de este ToolSpec), con "mes"/"semana" como respaldo
+    # por si en algún momento devuelve una frase en vez de la palabra sola.
+    if fecha_limite and texto_recurrencia:
+        if "mensual" in texto_recurrencia or "mes" in texto_recurrencia.split():
+            recurrencia = "mensual"
+        elif "semanal" in texto_recurrencia or "semana" in texto_recurrencia.split():
+            recurrencia = "semanal"
+        elif any(p in texto_recurrencia for p in ("anual", "año", "anio")):
+            recurrencia = "anual"
+
     parametros = {
         "contenido": contenido,
         "fecha_limite": fecha_limite.isoformat() if fecha_limite else None,
+        "hora_limite": hora_res.valor.isoformat() if hora_res.valor else None,
+        "recurrencia": recurrencia,
     }
-    sufijo_fecha = f", para el {fecha_limite.isoformat()}" if fecha_limite else ""
-    resumen = f'Voy a anotar "{contenido}" en tus pendientes personales{sufijo_fecha}. ¿Confirmas?'
-    preview = {"tipo": "pendiente_personal", "contenido": contenido, "fecha_limite": parametros["fecha_limite"]}
+    sufijo_hora = f" a las {hora_res.valor.strftime('%H:%M')}" if hora_res.valor else ""
+    sufijo_fecha = f", para el {fecha_limite.isoformat()}{sufijo_hora}" if fecha_limite else ""
+    sufijo_recurrencia = {
+        "mensual": ", y se repite cada mes",
+        "semanal": ", y se repite cada semana",
+        "anual": ", y se repite cada año",
+    }.get(recurrencia, "")
+    resumen = f'Voy a anotar "{contenido}" en tus pendientes personales{sufijo_fecha}{sufijo_recurrencia}. ¿Confirmas?'
+    preview = {
+        "tipo": "pendiente_personal",
+        "contenido": contenido,
+        "fecha_limite": parametros["fecha_limite"],
+        "hora_limite": parametros["hora_limite"],
+        "recurrencia": recurrencia,
+    }
     return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen, preview=preview)
 
 
 def _ejecutar_crear_pendiente_personal(db: Session, usuario: Usuario, parametros: dict) -> dict:
-    from datetime import date
+    from datetime import date, time
 
     nuevo = crear_pendiente_personal(
         db,
@@ -2444,6 +2587,8 @@ def _ejecutar_crear_pendiente_personal(db: Session, usuario: Usuario, parametros
         PendientePersonalCrear(
             contenido=parametros["contenido"],
             fecha_limite=date.fromisoformat(parametros["fecha_limite"]) if parametros.get("fecha_limite") else None,
+            hora_limite=time.fromisoformat(parametros["hora_limite"]) if parametros.get("hora_limite") else None,
+            recurrencia=parametros.get("recurrencia") or "ninguna",
         ),
     )
     db.commit()
@@ -2521,24 +2666,31 @@ TOOLS: dict[str, ToolSpec] = {
             "pendiente de revisar el contrato para mañana') -- no confundir con el estado "
             "'pendiente' de revisión de agenda de una junta, que es un concepto distinto y no "
             "usa esta tool. El proyecto/tema es OPCIONAL: si no se menciona ninguno, la tarea "
-            "se crea igual, sin preguntar por un tema."
+            "se crea igual, sin preguntar por un tema. IMPORTANTE: úsala también cuando la "
+            "intención de ASIGNAR/CREAR una tarea es clara pero faltan detalles (ej. 'quiero "
+            "asignarle una tarea a David', sin decir cuál ni para cuándo) -- deja los campos que "
+            "falten vacíos, el sistema le va a preguntar lo que falte después. NO la trates como "
+            "'no_entendido' solo porque falten datos; 'no_entendido' es únicamente para cuando la "
+            "intención misma no es crear/asignar una tarea."
         ),
         parametros_llm={
             "nombre": "nombre del entregable",
             "descripcion": "descripción opcional, o null si no se dijo",
             "responsable": "nombre de la persona a quien se asigna, tal como se mencionó; si no se dijo, dejar vacío (se autoasigna a quien habla)",
             "fecha_entrega": "fecha límite tal como se dijo en el texto (ej. 'el viernes', 'en dos semanas')",
+            "hora_entrega": "hora límite tal como se dijo (ej. 'a las 3 de la tarde'), o vacío si no se mencionó -- es opcional, no preguntar por ella si no se dijo",
             "proyecto": "nombre del proyecto/tema SOLO si se mencionó explícitamente; si no, dejar vacío -- no es obligatorio",
             "sensible": "true o false, si se dijo que es sensible/confidencial (default false)",
         },
         ejemplos=[
             (
-                "crea un entregable para Carlos, el informe de ventas, para el viernes",
+                "crea un entregable para Carlos, el informe de ventas, para el viernes a las 5pm",
                 {
                     "nombre": "informe de ventas",
                     "descripcion": None,
                     "responsable": "Carlos",
                     "fecha_entrega": "el viernes",
+                    "hora_entrega": "a las 5 de la tarde",
                     "proyecto": "",
                     "sensible": False,
                 },
@@ -2550,6 +2702,17 @@ TOOLS: dict[str, ToolSpec] = {
                     "descripcion": None,
                     "responsable": "",
                     "fecha_entrega": "mañana",
+                    "proyecto": "",
+                    "sensible": False,
+                },
+            ),
+            (
+                "quiero asignarle una tarea a David",
+                {
+                    "nombre": "",
+                    "descripcion": None,
+                    "responsable": "David",
+                    "fecha_entrega": "",
                     "proyecto": "",
                     "sensible": False,
                 },
@@ -2589,6 +2752,45 @@ TOOLS: dict[str, ToolSpec] = {
         ],
         resolver=_resolver_actualizar_avance,
         ejecutar=_ejecutar_actualizar_avance,
+    ),
+    "aprobar_entregable": ToolSpec(
+        nombre="aprobar_entregable",
+        descripcion=(
+            "Dar el visto bueno a una tarea que alguien marcó al 100% y quedó en espera de "
+            "aprobación -- la confirma como completada de verdad. Solo la puede usar quien creó "
+            "la tarea o el líder (N1/N2) del tema, NUNCA el propio responsable. Úsala para "
+            "'aprueba la tarea de...', 'dale el visto bueno a...', 'confirma que sí terminó...'."
+        ),
+        parametros_llm={
+            "entregable": "nombre de la tarea tal como se mencionó",
+        },
+        ejemplos=[
+            ("aprueba la tarea del reporte de ventas", {"entregable": "reporte de ventas"}),
+            ("dale el visto bueno a lo que hizo Juan del inventario", {"entregable": "inventario"}),
+        ],
+        resolver=_resolver_aprobar_entregable,
+        ejecutar=_ejecutar_aprobar_entregable,
+    ),
+    "rechazar_entregable": ToolSpec(
+        nombre="rechazar_entregable",
+        descripcion=(
+            "Rechazar una tarea que alguien marcó al 100% y quedó en espera de aprobación -- "
+            "regresa al avance que tenía antes, con un motivo obligatorio que le llega al "
+            "responsable. Solo quien creó la tarea o el líder (N1/N2) del tema, NUNCA el propio "
+            "responsable. Úsala para 'rechaza la tarea de...', 'esto no está bien, regrésasela a...'."
+        ),
+        parametros_llm={
+            "entregable": "nombre de la tarea tal como se mencionó",
+            "nota": "el motivo del rechazo, qué hay que corregir -- vacío si no se dijo",
+        },
+        ejemplos=[
+            (
+                "rechaza el reporte de ventas, le faltan las cifras de mayo",
+                {"entregable": "reporte de ventas", "nota": "le faltan las cifras de mayo"},
+            ),
+        ],
+        resolver=_resolver_rechazar_entregable,
+        ejecutar=_ejecutar_rechazar_entregable,
     ),
     "crear_proyecto": ToolSpec(
         nombre="crear_proyecto",
@@ -2760,12 +2962,16 @@ TOOLS: dict[str, ToolSpec] = {
     ),
     "agregar_nota": ToolSpec(
         nombre="agregar_nota",
-        descripcion="Agregar una nota/comentario a una reunión o a un entregable que ya existen.",
+        descripcion="Agregar una nota/comentario a una reunión, a un entregable, o a un tema/proyecto "
+        "en sí (un aviso/recordatorio suelto sobre el tema, no sobre una reunión o tarea puntual "
+        "dentro de él) que ya existen.",
         parametros_llm={
             "reunion": "título de la reunión, si la nota es sobre una reunión; vacío si no",
             "entregable": "nombre del entregable, si la nota es sobre un entregable; vacío si no",
             "contenido": "el texto de la nota",
-            "proyecto": "nombre del proyecto si se mencionó, si no dejar vacío",
+            "proyecto": "nombre del proyecto/tema -- si NO se mencionó reunión ni entregable, la "
+            "nota es sobre este tema directamente; si se mencionó reunión o entregable, este campo "
+            "es solo contexto para ubicarlos (ej. \"en el tema Marketing\")",
         },
         ejemplos=[
             (
@@ -2775,6 +2981,10 @@ TOOLS: dict[str, ToolSpec] = {
             (
                 "pon una nota en el entregable maqueta: falta la aprobación de Carlos",
                 {"reunion": "", "entregable": "maqueta", "contenido": "falta la aprobación de Carlos", "proyecto": ""},
+            ),
+            (
+                "agrega una nota al tema Marketing: recordar renovar el contrato con la imprenta",
+                {"reunion": "", "entregable": "", "contenido": "recordar renovar el contrato con la imprenta", "proyecto": "Marketing"},
             ),
         ],
         resolver=_resolver_agregar_nota,
@@ -2839,19 +3049,20 @@ TOOLS: dict[str, ToolSpec] = {
     ),
     "editar_entregable": ToolSpec(
         nombre="editar_entregable",
-        descripcion="Cambiar el nombre, descripción, fecha límite o responsable de un entregable que ya existe (no el avance — para eso usa actualizar_avance_entregable). Requiere ser dirección o líder del proyecto.",
+        descripcion="Cambiar el nombre, descripción, fecha límite, hora límite o responsable de un entregable que ya existe (no el avance — para eso usa actualizar_avance_entregable). Requiere ser dirección o líder del proyecto.",
         parametros_llm={
             "entregable": "nombre del entregable a editar, tal como se mencionó",
             "nombre_nuevo": "nuevo nombre, si se pidió cambiarlo; vacío si no",
             "descripcion_nueva": "nueva descripción, si se pidió cambiarla; vacío si no",
             "fecha_entrega": "nueva fecha límite tal como se dijo, si se pidió cambiarla; vacío si no",
+            "hora_entrega": "nueva hora límite tal como se dijo (ej. 'a las 3 de la tarde'), si se pidió cambiarla; vacío si no",
             "responsable_nuevo": "nombre de la nueva persona responsable, si se pidió reasignar; vacío si no",
             "proyecto": "nombre del proyecto si se mencionó, si no dejar vacío",
         },
         ejemplos=[
             (
-                "cambia la fecha límite del informe de ventas al 30 de agosto",
-                {"entregable": "informe de ventas", "nombre_nuevo": "", "descripcion_nueva": "", "fecha_entrega": "el 30 de agosto", "responsable_nuevo": "", "proyecto": ""},
+                "cambia la fecha límite del informe de ventas al 30 de agosto a las 5pm",
+                {"entregable": "informe de ventas", "nombre_nuevo": "", "descripcion_nueva": "", "fecha_entrega": "el 30 de agosto", "hora_entrega": "a las 5 de la tarde", "responsable_nuevo": "", "proyecto": ""},
             ),
             (
                 "reasigna la maqueta a Sofía",
@@ -3095,7 +3306,10 @@ TOOLS: dict[str, ToolSpec] = {
             "Responder preguntas sobre el estado de proyectos, entregables, avances, pendientes, "
             "vencidos o reuniones/agenda de hoy o esta semana — consulta de SOLO LECTURA, no ejecuta "
             "ninguna acción ni cambia nada. Úsala para cualquier pregunta que empiece con "
-            "qué/cuál/cuántos/cómo va/dime, no para órdenes."
+            "qué/cuál/cuántos/cómo va/dime, no para órdenes. TAMBIÉN úsala para preguntas sobre EL "
+            "ASISTENTE MISMO -- 'qué puedes hacer', 'en qué me ayudas', 'cómo te uso', 'ayuda', 'cómo "
+            "creo una tarea/reunión' -- no las trates como 'no_entendido', el asistente sí sabe "
+            "responder eso."
         ),
         parametros_llm={
             "pregunta": "la pregunta tal como la dijo el usuario, completa",
@@ -3112,6 +3326,14 @@ TOOLS: dict[str, ToolSpec] = {
             (
                 "¿qué reuniones tengo hoy?",
                 {"pregunta": "¿qué reuniones tengo hoy?"},
+            ),
+            (
+                "¿qué puedes hacer? ¿en qué me puedes ayudar?",
+                {"pregunta": "¿qué puedes hacer? ¿en qué me puedes ayudar?"},
+            ),
+            (
+                "¿cómo le hago para crear una tarea hablando contigo?",
+                {"pregunta": "¿cómo le hago para crear una tarea hablando contigo?"},
             ),
         ],
         resolver=_resolver_consultar_agenda,
@@ -3284,12 +3506,22 @@ TOOLS: dict[str, ToolSpec] = {
         parametros_llm={
             "contenido": "qué es lo que hay que recordar/hacer, tal como se dijo",
             "fecha_limite": "fecha límite si se mencionó (ej. 'para el viernes'), o vacío si no se dijo ninguna",
+            "hora_limite": "hora límite si se mencionó (ej. 'a las 6 de la tarde'), o vacío si no se dijo ninguna",
+            "recurrencia": (
+                "si el usuario dijo que se repite (ej. 'cada mes', 'todas las semanas', 'cada año'), "
+                "escribe 'mensual'/'semanal'/'anual'; vacío si no mencionó que se repite. Solo aplica "
+                "si también se dio fecha_limite -- el día/mes que se repite se toma de esa fecha."
+            ),
         },
         ejemplos=[
-            ("recuérdame pasar por leche en el camino a casa", {"contenido": "pasar por leche", "fecha_limite": ""}),
+            ("recuérdame pasar por leche en el camino a casa", {"contenido": "pasar por leche", "fecha_limite": "", "hora_limite": "", "recurrencia": ""}),
             (
-                "anota que tengo que pagar la colegiatura de los niños antes del día 5",
-                {"contenido": "pagar la colegiatura de los niños", "fecha_limite": "el día 5"},
+                "anota que tengo que pagar la colegiatura de los niños antes del día 5 a las 6pm",
+                {"contenido": "pagar la colegiatura de los niños", "fecha_limite": "el día 5", "hora_limite": "a las 6 de la tarde", "recurrencia": ""},
+            ),
+            (
+                "recuérdame que cada día 5 de cada mes tengo que pagar la colegiatura",
+                {"contenido": "pagar la colegiatura", "fecha_limite": "el día 5", "hora_limite": "", "recurrencia": "mensual"},
             ),
         ],
         resolver=_resolver_crear_pendiente_personal,

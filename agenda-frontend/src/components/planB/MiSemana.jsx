@@ -136,6 +136,8 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
   const [pendientesPersonales, setPendientesPersonales] = useState([]);
   const [nuevoPendiente, setNuevoPendiente] = useState("");
   const [nuevaFechaPendiente, setNuevaFechaPendiente] = useState("");
+  const [nuevaHoraPendiente, setNuevaHoraPendiente] = useState("");
+  const [nuevaRecurrenciaPendiente, setNuevaRecurrenciaPendiente] = useState("ninguna");
 
   const cargarPendientesPersonales = () => {
     pendientesPersonalesApi.listar().then(setPendientesPersonales).catch(() => {});
@@ -204,10 +206,17 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
     const contenido = nuevoPendiente.trim();
     if (!contenido) return;
     pendientesPersonalesApi
-      .crear({ contenido, fecha_limite: nuevaFechaPendiente || null })
+      .crear({
+        contenido,
+        fecha_limite: nuevaFechaPendiente || null,
+        hora_limite: nuevaHoraPendiente || null,
+        recurrencia: nuevaFechaPendiente ? nuevaRecurrenciaPendiente : "ninguna",
+      })
       .then(() => {
         setNuevoPendiente("");
         setNuevaFechaPendiente("");
+        setNuevaHoraPendiente("");
+        setNuevaRecurrenciaPendiente("ninguna");
         cargarPendientesPersonales();
       })
       .catch(() => {});
@@ -462,7 +471,7 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
           alternar={alternarSeccion}
           className="planb__misemana-subtitulo"
         >
-          Mis pendientes
+          Mis pendientes personales
         </EncabezadoSeccion>
         {!seccionesColapsadas.pendientes && (
         <>
@@ -493,6 +502,26 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
             value={nuevaFechaPendiente}
             onChange={(e) => setNuevaFechaPendiente(e.target.value)}
           />
+          <input
+            className="input"
+            type="time"
+            aria-label="Hora límite (opcional)"
+            value={nuevaHoraPendiente}
+            onChange={(e) => setNuevaHoraPendiente(e.target.value)}
+          />
+          {nuevaFechaPendiente && (
+            <select
+              className="input"
+              aria-label="Repetir"
+              value={nuevaRecurrenciaPendiente}
+              onChange={(e) => setNuevaRecurrenciaPendiente(e.target.value)}
+            >
+              <option value="ninguna">No se repite</option>
+              <option value="semanal">Cada semana</option>
+              <option value="mensual">Cada mes</option>
+              <option value="anual">Cada año</option>
+            </select>
+          )}
           <button type="submit" className="btn btn--ghost">
             +
           </button>
@@ -522,6 +551,12 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
                       day: "numeric",
                       month: "short",
                     })}
+                    {p.hora_limite && ` ${p.hora_limite.slice(0, 5)}`}
+                    {p.recurrencia !== "ninguna" && (
+                      <span title={`Se repite cada ${{ semanal: "semana", mensual: "mes", anual: "año" }[p.recurrencia]}`}>
+                        {" "}🔁
+                      </span>
+                    )}
                   </span>
                 )}
                 <button

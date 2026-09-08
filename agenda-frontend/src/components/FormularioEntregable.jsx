@@ -1,9 +1,11 @@
 ﻿import { useEffect, useState } from "react";
 import { entregablesApi, proyectosApi } from "../api/endpoints";
+import { esFinDeSemana } from "../utils/finDeSemana";
 import { etiquetaRol } from "../utils/rolLabels";
 import ConfirmDialog from "./ConfirmDialog";
 import HistorialAvance from "./HistorialAvance";
 import Modal from "./Modal";
+import ModalFinDeSemana from "./ModalFinDeSemana";
 import SeccionNotas from "./SeccionNotas";
 
 // Miniatura del comprobante adjunto a un entregable -- mismo patrón blob-url
@@ -38,6 +40,76 @@ function ImagenComprobante({ entregableId }) {
       alt="Comprobante adjunto"
       style={{ maxWidth: 160, maxHeight: 120, borderRadius: 6, marginTop: 6, display: "block" }}
     />
+  );
+}
+
+// Botones Aprobar/Rechazar de "Visto bueno" (2026-09-03, a petición de
+// Yue) -- reusado en la vista de solo supervisión y en el formulario
+// completo, ambos lugares donde puede caer quien SÍ puede dar el visto
+// bueno (quien creó la tarea, o N1/N2 del tema -- nunca el responsable).
+function SeccionVistoBueno({
+  procesando,
+  error,
+  mostrarRechazar,
+  setMostrarRechazar,
+  notaRechazo,
+  setNotaRechazo,
+  onAprobar,
+  onRechazar,
+}) {
+  return (
+    <div className="stack" style={{ gap: 8, marginTop: 8 }}>
+      {!mostrarRechazar ? (
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            type="button"
+            className="btn btn--primary"
+            onClick={onAprobar}
+            disabled={procesando}
+          >
+            {procesando ? "Aprobando..." : "Aprobar"}
+          </button>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={() => setMostrarRechazar(true)}
+            disabled={procesando}
+          >
+            Rechazar
+          </button>
+        </div>
+      ) : (
+        <div className="stack" style={{ gap: 4 }}>
+          <textarea
+            className="input"
+            placeholder="¿Qué hay que corregir? (obligatorio)"
+            value={notaRechazo}
+            onChange={(e) => setNotaRechazo(e.target.value)}
+            rows={2}
+          />
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              type="button"
+              className="btn btn--primary"
+              onClick={onRechazar}
+              disabled={procesando || !notaRechazo.trim()}
+              style={{ background: "var(--color-danger)", borderColor: "var(--color-danger)" }}
+            >
+              {procesando ? "Rechazando..." : "Confirmar rechazo"}
+            </button>
+            <button
+              type="button"
+              className="btn btn--ghost"
+              onClick={() => setMostrarRechazar(false)}
+              disabled={procesando}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+      {error && <p className="error-text">{error}</p>}
+    </div>
   );
 }
 
@@ -87,6 +159,11 @@ export default function FormularioEntregable({
     entregable?.responsable_id || (puedeAsignarAOtros ? "" : usuarioActualId)
   );
   const [fechaEntrega, setFechaEntrega] = useState(entregable?.fecha_entrega || "");
+  // Hora opcional (2026-09-01, a petición de Yue) -- el backend manda
+  // "HH:MM:SS", el input type="time" solo acepta "HH:MM".
+  const [horaEntrega, setHoraEntrega] = useState(
+    entregable?.hora_entrega ? entregable.hora_entrega.slice(0, 5) : ""
+  );
   const [sensible, setSensible] = useState(entregable?.sensible || false);
   const [urgenteManual, setUrgenteManual] = useState(entregable?.urgente_manual || false);
   // Comprobante (2026-08-21, a petición de Yue): si se activa, el
@@ -169,6 +246,40 @@ export default function FormularioEntregable({
     }
   };
 
+  // "Visto bueno" (2026-09-03, a petición de Yue) -- aprobar/rechazar un
+  // entregable marcado al 100% (estatus "pendiente_aprobacion"). Rechazar
+  // exige una nota con el motivo, el responsable necesita saber qué
+  // corregir.
+  const [procesandoVisto, setProcesandoVisto] = useState(false);
+  const [mostrarRechazar, setMostrarRechazar] = useState(false);
+  const [notaRechazo, setNotaRechazo] = useState("");
+  const [errorVisto, setErrorVisto] = useState("");
+
+  const handleAprobar = async () => {
+    setErrorVisto("");
+    setProcesandoVisto(true);
+    try {
+      await entregablesApi.aprobar(entregable.id);
+      onGuardado();
+    } catch (err) {
+      setErrorVisto(err.response?.data?.detail || "No se pudo aprobar la tarea.");
+      setProcesandoVisto(false);
+    }
+  };
+
+  const handleRechazar = async () => {
+    if (!notaRechazo.trim()) return;
+    setErrorVisto("");
+    setProcesandoVisto(true);
+    try {
+      await entregablesApi.rechazar(entregable.id, notaRechazo.trim());
+      onGuardado();
+    } catch (err) {
+      setErrorVisto(err.response?.data?.detail || "No se pudo rechazar la tarea.");
+      setProcesandoVisto(false);
+    }
+  };
+
   const handleEliminar = async () => {
     setConfirmandoEliminar(false);
     setEliminando(true);
@@ -181,15 +292,21 @@ export default function FormularioEntregable({
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  // Aviso de fin de semana (2026-09-02, a petición de Yue) -- se dispara al
+  // enviar el formulario, antes de guardar nada; `guardar` es la lógica real
+  // y se llama de nuevo con la fecha ya decidida (tal cual o movida) una vez
+  // resuelto el aviso.
+  const [confirmandoFinDeSemana, setConfirmandoFinDeSemana] = useState(false);
+
+  const guardar = async (fechaFinal) => {
     setError("");
     setGuardando(true);
     const datos = {
       nombre,
       descripcion: descripcion || null,
       responsable_id: Number(responsableId),
-      fecha_entrega: fechaEntrega,
+      fecha_entrega: fechaFinal,
+      hora_entrega: horaEntrega || null,
       sensible,
       urgente_manual: urgenteManual,
       requiere_comprobante: requiereComprobante,
@@ -210,6 +327,21 @@ export default function FormularioEntregable({
     }
   };
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (esFinDeSemana(fechaEntrega)) {
+      setConfirmandoFinDeSemana(true);
+      return;
+    }
+    await guardar(fechaEntrega);
+  };
+
+  const handleElegirFinDeSemana = async (fechaFinal) => {
+    setConfirmandoFinDeSemana(false);
+    if (fechaFinal !== fechaEntrega) setFechaEntrega(fechaFinal);
+    await guardar(fechaFinal);
+  };
+
   // "Asignado por" (2026-08-21, a petición de Yue): solo lectura, busca al
   // creador dentro del equipo ya cargado -- si no está (ej. ya no
   // pertenece al equipo visible), simplemente no se muestra.
@@ -218,7 +350,8 @@ export default function FormularioEntregable({
     : null;
 
   if (esVistaSimpleResponsable) {
-    const yaConcluida = entregable.porcentaje_avance >= 100;
+    const yaConcluida = entregable.estatus === "cumplido";
+    const enEsperaDeVisto = entregable.estatus === "pendiente_aprobacion";
     return (
       <Modal titulo={entregable.nombre} onCerrar={onCerrar}>
         <div className="stack" style={{ gap: 12 }}>
@@ -241,6 +374,7 @@ export default function FormularioEntregable({
               {new Date(`${entregable.fecha_entrega}T00:00:00`).toLocaleDateString("es-MX", {
                 dateStyle: "long",
               })}
+              {entregable.hora_entrega && ` a las ${entregable.hora_entrega.slice(0, 5)}`}
             </p>
             <p style={{ margin: 0, fontSize: "0.85rem" }}>
               <strong>Urgente:</strong> {entregable.urgente ? "Sí" : "No"}
@@ -281,6 +415,10 @@ export default function FormularioEntregable({
             <p style={{ margin: 0, color: "var(--color-success)", fontWeight: 600 }}>
               ✓ Ya está marcada como concluida.
             </p>
+          ) : enEsperaDeVisto ? (
+            <p style={{ margin: 0, color: "var(--color-text-muted)", fontWeight: 600 }}>
+              ⏳ Marcada al 100% -- en espera de que te den el visto bueno.
+            </p>
           ) : (
             <button
               type="button"
@@ -308,7 +446,8 @@ export default function FormularioEntregable({
   }
 
   if (esVistaSoloSupervision) {
-    const yaConcluida = entregable.porcentaje_avance >= 100;
+    const yaConcluida = entregable.estatus === "cumplido";
+    const enEsperaDeVisto = entregable.estatus === "pendiente_aprobacion";
     const responsable = miembros.find((m) => m.usuario_id === entregable.responsable_id);
     return (
       <Modal titulo={entregable.nombre} onCerrar={onCerrar}>
@@ -337,6 +476,7 @@ export default function FormularioEntregable({
               {new Date(`${entregable.fecha_entrega}T00:00:00`).toLocaleDateString("es-MX", {
                 dateStyle: "long",
               })}
+              {entregable.hora_entrega && ` a las ${entregable.hora_entrega.slice(0, 5)}`}
             </p>
             <p style={{ margin: 0, fontSize: "0.85rem" }}>
               <strong>Urgente:</strong> {entregable.urgente ? "Sí" : "No"}
@@ -350,11 +490,32 @@ export default function FormularioEntregable({
             style={{
               margin: 0,
               fontWeight: 600,
-              color: yaConcluida ? "var(--color-success)" : "var(--color-text-muted)",
+              color: yaConcluida
+                ? "var(--color-success)"
+                : enEsperaDeVisto
+                ? "var(--color-warning, #b45309)"
+                : "var(--color-text-muted)",
             }}
           >
-            {yaConcluida ? "✓ Ya está marcada como concluida." : "Estatus: pendiente de concluir."}
+            {yaConcluida
+              ? "✓ Ya está marcada como concluida."
+              : enEsperaDeVisto
+              ? "⏳ Marcada al 100% -- en espera de visto bueno."
+              : "Estatus: pendiente de concluir."}
           </p>
+
+          {enEsperaDeVisto && entregable.puede_aprobar && (
+            <SeccionVistoBueno
+              procesando={procesandoVisto}
+              error={errorVisto}
+              mostrarRechazar={mostrarRechazar}
+              setMostrarRechazar={setMostrarRechazar}
+              notaRechazo={notaRechazo}
+              setNotaRechazo={setNotaRechazo}
+              onAprobar={handleAprobar}
+              onRechazar={handleRechazar}
+            />
+          )}
         </div>
 
         <div style={{ marginTop: 16, borderTop: "1px solid var(--color-border)", paddingTop: 16 }}>
@@ -382,6 +543,36 @@ export default function FormularioEntregable({
           Asignado por: {creador.nombre}
         </p>
       )}
+
+      {esEdicion && entregable.estatus === "pendiente_aprobacion" && (
+        <div
+          className="stack"
+          style={{
+            gap: 4,
+            marginBottom: 12,
+            padding: 10,
+            borderRadius: 8,
+            background: "var(--color-warning-bg, rgba(180, 83, 9, 0.1))",
+          }}
+        >
+          <p style={{ margin: 0, fontWeight: 600, color: "var(--color-warning, #b45309)" }}>
+            ⏳ Marcada al 100% -- en espera de visto bueno.
+          </p>
+          {entregable.puede_aprobar && (
+            <SeccionVistoBueno
+              procesando={procesandoVisto}
+              error={errorVisto}
+              mostrarRechazar={mostrarRechazar}
+              setMostrarRechazar={setMostrarRechazar}
+              notaRechazo={notaRechazo}
+              setNotaRechazo={setNotaRechazo}
+              onAprobar={handleAprobar}
+              onRechazar={handleRechazar}
+            />
+          )}
+        </div>
+      )}
+
       <form id="form-entregable" className="stack" onSubmit={handleSubmit}>
         <label className="stack" style={{ gap: 4 }}>
           <span style={{ fontSize: "0.85rem" }}>Nombre</span>
@@ -501,6 +692,16 @@ export default function FormularioEntregable({
           />
         </label>
 
+        <label className="stack" style={{ gap: 4 }}>
+          <span style={{ fontSize: "0.85rem" }}>Hora (opcional)</span>
+          <input
+            className="input"
+            type="time"
+            value={horaEntrega}
+            onChange={(e) => setHoraEntrega(e.target.value)}
+          />
+        </label>
+
         <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <input
             type="checkbox"
@@ -567,6 +768,15 @@ export default function FormularioEntregable({
           mensaje={`¿Eliminar "${nombre}"? Esta acción no se puede deshacer.`}
           onConfirmar={handleEliminar}
           onCancelar={() => setConfirmandoEliminar(false)}
+        />
+      )}
+
+      {confirmandoFinDeSemana && (
+        <ModalFinDeSemana
+          fecha={fechaEntrega}
+          onDejar={() => handleElegirFinDeSemana(fechaEntrega)}
+          onMover={handleElegirFinDeSemana}
+          onCancelar={() => setConfirmandoFinDeSemana(false)}
         />
       )}
 

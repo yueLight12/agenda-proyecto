@@ -79,6 +79,11 @@ export const entregablesApi = {
         nota,
       })
     ).data,
+  // "Visto bueno" (2026-09-03) -- aprobar/rechazar un entregable marcado
+  // al 100%. Rechazar exige una nota con el motivo.
+  aprobar: async (entregableId) => (await api.patch(`/entregables/${entregableId}/aprobar`)).data,
+  rechazar: async (entregableId, nota) =>
+    (await api.patch(`/entregables/${entregableId}/rechazar`, { nota })).data,
   // Comprobante (imagen) requerido antes de poder marcar 100% de avance
   // (2026-08-21, a petición de Yue) -- mismo patrón que notasApi.subirImagen
   // / notasApi.imagenBlobUrl.
@@ -145,6 +150,18 @@ export const usuariosApi = {
   perfil: async (usuarioId) => (await api.get(`/usuarios/${usuarioId}/perfil`)).data,
   actualizarMiTelefono: async (telefonoWhatsapp) =>
     (await api.patch("/usuarios/me", { telefono_whatsapp: telefonoWhatsapp })).data,
+  crear: async (datos) => (await api.post("/usuarios", datos)).data,
+  actualizar: async (usuarioId, datos) => (await api.patch(`/usuarios/${usuarioId}`, datos)).data,
+  eliminar: async (usuarioId) => api.delete(`/usuarios/${usuarioId}`),
+};
+
+export const adminApi = {
+  reasignarTodo: async (origenId, destinoId) =>
+    (await api.post("/admin/reasignar", { origen_id: origenId, destino_id: destinoId })).data,
+  obtenerConfiguracion: async () => (await api.get("/admin/configuracion")).data,
+  actualizarConfiguracion: async (clave, valor) =>
+    (await api.put("/admin/configuracion", { clave, valor })).data,
+  obtenerAuditoria: async () => (await api.get("/admin/auditoria")).data,
 };
 
 export const preferenciasApi = {
@@ -167,6 +184,19 @@ export const rendimientoApi = {
     (await api.get("/rendimiento", { params: { periodo, proyecto_id: proyectoId } })).data,
   obtenerResumen: async (proyectoId) =>
     (await api.get("/rendimiento/resumen", { params: { proyecto_id: proyectoId } })).data,
+  obtenerAprobacion: async (periodo, proyectoId) =>
+    (await api.get("/rendimiento/aprobacion", { params: { periodo, proyecto_id: proyectoId } }))
+      .data,
+  obtenerActividad: async (periodo, proyectoId) =>
+    (await api.get("/rendimiento/actividad", { params: { periodo, proyecto_id: proyectoId } }))
+      .data,
+  descargarReportePdf: async (periodo, proyectoId) =>
+    (
+      await api.get("/rendimiento/reporte-pdf", {
+        params: { periodo, proyecto_id: proyectoId },
+        responseType: "blob",
+      })
+    ).data,
 };
 
 export const minutasApi = {

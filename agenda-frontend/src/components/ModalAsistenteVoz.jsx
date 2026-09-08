@@ -22,7 +22,7 @@ const FASES = {
 
 const LIMITE_REINTENTOS_CONFIRMACION = 2;
 
-export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
+export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar, activadoPorPalabraClave = false }) {
   const { error: errorMic, iniciar, detener } = useGrabadorAudio();
   const [fase, setFase] = useState(FASES.INICIO);
   const [textoManual, setTextoManual] = useState("");
@@ -194,6 +194,16 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
         setFase(FASES.ERROR);
         return;
       }
+      // Relleno de silencio (2026-09-04, a petición de Yue: la espera de
+      // PROCESANDO se sentía más larga de lo que era, por quedar en
+      // silencio total) -- repite lo que entendió mientras de verdad se
+      // procesa la instrucción en el servidor. No lleva onFin -- si la
+      // respuesta real llega antes de que termine de leer esto, el
+      // siguiente hablar() (del efecto de mensajes) la interrumpe solo
+      // (hablar() siempre cancela lo anterior, ver useSintesisVoz.js).
+      if (vozSoportada) {
+        hablar(`Escuché: ${texto}. Dame un momento.`);
+      }
       await alTranscribir(texto);
     } catch (err) {
       if (err.message !== "sin_permiso_microfono") {
@@ -244,6 +254,24 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
     grabar(alTranscribir);
   };
 
+  // "Chambeador" (2026-09-04, a petición de Yue) -- si el modal se abrió
+  // porque se detectó la palabra clave (ver FabAsistenteVoz.jsx), saluda
+  // por voz y arranca a escuchar solo, sin que el usuario toque nada --
+  // mismo espíritu que el modo manos-libres, pero como primer paso en vez
+  // de tras una respuesta. Se dispara UNA sola vez al montar (por eso el
+  // array de dependencias vacío) -- si se activó por palabra clave, ya no
+  // vuelve a saludar aunque `fase` cambie.
+  useEffect(() => {
+    if (!activadoPorPalabraClave) return;
+    desbloquearInteraccion();
+    if (vozSoportada) {
+      hablar("Hola, ¿en qué puedo ayudarte?", { onFin: () => escucharConVoz(enviarTexto) });
+    } else {
+      escucharConVoz(enviarTexto);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const manejarTranscripcionConfirmacion = (texto) => {
     const intencion = clasificarIntencionVoz(texto);
     if (intencion === "confirmar") return confirmar();
@@ -269,12 +297,45 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
     return enviarTexto(texto);
   };
 
+  // "¿Necesitas algo más?" (2026-09-04, a petición de Yue) -- tras
+  // terminar una acción/respuesta (fase RESULTADO), en vez de quedarse
+  // callado esperando a que toquen "Hacer otra cosa", pregunta por voz y
+  // sigue la conversación sin manos: "sí" reinicia y arranca a escuchar
+  // una instrucción nueva (mismo `enviarTexto` de siempre); "no" cierra
+  // el asistente, dando la conversación por terminada.
+  const manejarRespuestaContinuar = (texto) => {
+    const intencion = clasificarIntencionVoz(texto);
+    if (intencion === "confirmar") {
+      reiniciar();
+      hablar("¿En qué más te ayudo?", { onFin: () => escucharConVoz(enviarTexto) });
+      return;
+    }
+    if (intencion === "cancelar") {
+      onCerrar();
+      return;
+    }
+    reintentosRef.current += 1;
+    if (reintentosRef.current > LIMITE_REINTENTOS_CONFIRMACION) {
+      hablar('Puedes usar el botón "Hacer otra cosa" o cerrar el asistente.');
+      return;
+    }
+    hablar("¿Necesitas algo más? Di sí o no.", { onFin: () => escucharConVoz(manejarRespuestaContinuar) });
+  };
+
   // Corta cualquier lectura en curso al entrar a una fase sin mensaje que
   // leer (grabando/procesando/ejecutando) — cubre tanto el caso de que el
   // usuario grabe manualmente mientras el asistente habla, como el de que
   // una acción se ejecute justo después de leer el resumen.
+  // PROCESANDO ya NO está en esta lista (2026-09-04, a petición de Yue --
+  // ver el "relleno de silencio" en grabar() más abajo): antes se cortaba
+  // cualquier voz al entrar a PROCESANDO, dejando la espera de la
+  // respuesta del servidor en silencio total, lo que hacía sentir la
+  // espera más larga de lo que en realidad es. GRABANDO sigue aquí
+  // (nunca se debe hablar mientras el micrófono está escuchando, se
+  // grabaría a sí mismo) y EJECUTANDO también (es rápido, no vale la pena
+  // rellenar).
   useEffect(() => {
-    if ([FASES.GRABANDO, FASES.PROCESANDO, FASES.EJECUTANDO].includes(fase)) {
+    if ([FASES.GRABANDO, FASES.EJECUTANDO].includes(fase)) {
       detenerVoz();
     }
   }, [fase]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -295,6 +356,11 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
       texto = mensaje;
     } else if (fase === FASES.RESULTADO) {
       texto = mensajesAcumulados.length > 1 ? mensajesAcumulados.join(". ") : respuestaTexto;
+      // "¿Necesitas algo más?" (2026-09-04) -- se agrega a la MISMA
+      // lectura en vez de una segunda llamada a hablar() aparte, para no
+      // pelear con el resto de la lógica de dedup/onFin de este efecto
+      // (una sola fase = un solo hablar()).
+      if (texto) texto += " ¿Necesitas algo más?";
     }
 
     // Si de verdad se acaba de ENTRAR a esta fase (pasando por otra fase en
@@ -321,6 +387,8 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar }) {
           escucharConVoz(manejarRespuestaError);
         } else if (faseAlHablar === FASES.ACLARANDO && aclaracionAlHablar?.tipo_entrada !== "opciones") {
           escucharConVoz(responderAclaracion);
+        } else if (faseAlHablar === FASES.RESULTADO) {
+          escucharConVoz(manejarRespuestaContinuar);
         }
       },
     });

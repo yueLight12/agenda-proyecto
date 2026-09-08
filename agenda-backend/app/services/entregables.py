@@ -15,6 +15,7 @@ from app.core.permissions import (
     obtener_rol_local_en_proyecto,
     puede_actualizar_avance_entregable,
     puede_administrar_entregable,
+    puede_aprobar_rechazar_entregable,
     puede_editar_entregable,
     puede_reasignar_entregable,
     requerir_participacion_en_proyecto,
@@ -74,6 +75,7 @@ def entregable_a_out(db: Session, usuario: Usuario, entregable: Entregable) -> E
         puede_administrar=puede_administrar_entregable(db, usuario, entregable),
         urgente=es_urgente(entregable),
         puede_reasignar=puede_reasignar_entregable(db, usuario, entregable),
+        puede_aprobar=puede_aprobar_rechazar_entregable(db, usuario, entregable),
         requiere_comprobante=entregable.requiere_comprobante,
         tiene_comprobante=entregable.comprobante_path is not None,
         responsable_nombre=entregable.responsable.nombre if entregable.responsable else "",
@@ -103,15 +105,31 @@ def _texto_urgencia(urgente: bool) -> str:
     return "de carácter urgente" if urgente else "de carácter no urgente"
 
 
-def _sufijo_link_app() -> str:
-    """Línea con el link de la app para el mensaje de WhatsApp (2026-08-24,
-    a petición de Yue: mismo espíritu que el correo de "nunca has
-    entrado" -- ver avisos_acceso.py). Vacío si URL_APP no está
-    configurada, para no mandar un mensaje con "Entra aquí: " sin nada
-    después."""
-    if not settings.url_app:
-        return ""
-    return f"\nEntra aquí: {settings.url_app}"
+def mensaje_whatsapp_asignacion(asignador_nombre: str, entregable: "Entregable") -> str:
+    """Texto único de "te asignaron una tarea" por WhatsApp (2026-09-03, a
+    petición de Yue: que el mensaje traiga quién asigna, tarea, fecha,
+    hora, si es urgente, si requiere comprobante, el link a la app, y la
+    forma de marcarla como concluida sin abrir la app). Compartido entre
+    TODOS los caminos que asignan una tarea -- crear_entregable, reasignar
+    (ambos en este archivo) y el webhook de WhatsApp (asignar por
+    WhatsApp, ver app/routers/whatsapp_webhook.py) -- para que el mensaje
+    se vea igual sin importar desde dónde se creó la tarea."""
+    urgente = es_urgente(entregable)
+    lineas = [
+        f'📌 {asignador_nombre} te asignó una tarea nueva:',
+        f'"{entregable.nombre}"',
+        (
+            f"Fecha límite: {entregable.fecha_entrega.strftime('%d/%m/%Y')}"
+            + (f" a las {entregable.hora_entrega.strftime('%H:%M')}" if entregable.hora_entrega else "")
+        ),
+        f'Urgente: {"Sí" if urgente else "No"}',
+    ]
+    if entregable.requiere_comprobante:
+        lineas.append("Requiere comprobante: Sí")
+    lineas.append(f"Cuando la termines, respóndeme aquí: LISTO #{entregable.id}")
+    if settings.url_app:
+        lineas.append(f"Revísala en la app: {settings.url_app}")
+    return "\n".join(lineas)
 
 
 def _notificar_supervisor_de_asignacion(
@@ -204,6 +222,7 @@ def crear_entregable(
     sensible: bool,
     urgente_manual: bool = False,
     requiere_comprobante: bool = False,
+    hora_entrega=None,
 ) -> Entregable:
     """
     N1/N2 pueden crear y asignar a cualquiera de su equipo. N3/N4 solo pueden
@@ -223,6 +242,7 @@ def crear_entregable(
         descripcion=descripcion,
         responsable_id=responsable_id,
         fecha_entrega=fecha_entrega,
+        hora_entrega=hora_entrega,
         sensible=sensible,
         urgente_manual=urgente_manual,
         requiere_comprobante=requiere_comprobante,
@@ -261,14 +281,11 @@ def crear_entregable(
             "Tarea urgente asignada" if urgencia_combinada else "Nueva tarea asignada",
             f'{usuario.nombre} te asignó "{nuevo.nombre}" ({_texto_dias_restantes(nuevo.fecha_entrega)}).',
         )
-        if urgencia_combinada:
-            enviar_whatsapp(
-                db,
-                responsable_id,
-                f'📌 {usuario.nombre} te asignó "{nuevo.nombre}" '
-                f"({_texto_dias_restantes(nuevo.fecha_entrega)}), {_texto_urgencia(True)}."
-                + _sufijo_link_app(),
-            )
+        # WhatsApp SIEMPRE al asignar (2026-09-02, a petición de Yue --
+        # antes solo se mandaba si era urgente; ahora es un aviso normal de
+        # cualquier asignación desde la app, mismo criterio que ya usa
+        # asignar por WhatsApp -- ver app/routers/whatsapp_webhook.py).
+        enviar_whatsapp(db, responsable_id, mensaje_whatsapp_asignacion(usuario.nombre, nuevo))
         responsable = db.query(Usuario).filter(Usuario.id == responsable_id).first()
         if responsable:
             avisar_si_nunca_ha_entrado(db, responsable, usuario, nuevo.nombre)
@@ -406,8 +423,22 @@ def actualizar_avance(
             ),
         )
 
+    # "Visto bueno" (2026-09-03, aprobado por Yue el 2026-08-26): llegar a
+    # 100% ya NO completa directo -- pasa a pendiente_aprobacion hasta que
+    # quien creó la tarea (o un N1/N2 del tema) lo apruebe, SALVO
+    # autoasignación (creado_por == responsable_id: no tiene sentido pedir
+    # que alguien más apruebe que te autoasignaste algo y lo terminaste).
+    # avance_previo_aprobacion guarda el % ANTERIOR (antes de sobreescribirlo
+    # abajo) para poder regresar a él si se rechaza, en vez de a 0.
+    avance_anterior = entregable.porcentaje_avance
+    autoasignacion = entregable.creado_por == entregable.responsable_id
+    entra_a_aprobacion = porcentaje_avance >= 100 and not autoasignacion
+
     entregable.porcentaje_avance = porcentaje_avance
-    if porcentaje_avance >= 100:
+    if entra_a_aprobacion:
+        entregable.estatus = EstatusEntregable.pendiente_aprobacion
+        entregable.avance_previo_aprobacion = avance_anterior
+    elif porcentaje_avance >= 100:
         entregable.estatus = EstatusEntregable.cumplido
     elif porcentaje_avance > 0:
         entregable.estatus = EstatusEntregable.en_progreso
@@ -427,7 +458,12 @@ def actualizar_avance(
 
     notificados = set()
     if supervisor_id and supervisor_id != usuario.id:
-        if entregable.estatus == EstatusEntregable.cumplido:
+        if entra_a_aprobacion:
+            mensaje = (
+                f'{usuario.nombre} marcó "{entregable.nombre}" al 100% -- '
+                f"está en espera de visto bueno."
+            )
+        elif entregable.estatus == EstatusEntregable.cumplido:
             mensaje = f'{usuario.nombre} marcó como completada la tarea "{entregable.nombre}".'
         else:
             mensaje = (
@@ -443,7 +479,15 @@ def actualizar_avance(
         )
         notificados.add(supervisor_id)
 
-    if (
+    if entra_a_aprobacion and entregable.creado_por not in notificados:
+        crear_notificacion(
+            db,
+            entregable.creado_por,
+            TipoNotificacion.otro,
+            f'{usuario.nombre} marcó "{entregable.nombre}" al 100% -- necesita tu visto bueno.',
+            entregable_id=entregable.id,
+        )
+    elif (
         entregable.estatus == EstatusEntregable.cumplido
         and entregable.creado_por != usuario.id
         and entregable.creado_por not in notificados
@@ -453,6 +497,87 @@ def actualizar_avance(
             entregable.creado_por,
             TipoNotificacion.otro,
             f'{usuario.nombre} marcó como completada la tarea "{entregable.nombre}".',
+            entregable_id=entregable.id,
+        )
+
+    return entregable
+
+
+def aprobar_entregable(db: Session, usuario: Usuario, entregable_id: int) -> Entregable:
+    """"Visto bueno": confirma que el trabajo marcado al 100% de verdad se
+    completó -- pasa de pendiente_aprobacion a cumplido. Solo quien creó
+    la tarea o un N1/N2 del tema (ver puede_aprobar_rechazar_entregable)."""
+    entregable = obtener_entregable_o_404(db, entregable_id)
+
+    if not puede_aprobar_rechazar_entregable(db, usuario, entregable):
+        raise HTTPException(status_code=403, detail="No tienes permiso para aprobar esta tarea")
+    if entregable.estatus != EstatusEntregable.pendiente_aprobacion:
+        raise HTTPException(status_code=400, detail="Esta tarea no está en espera de visto bueno")
+
+    entregable.estatus = EstatusEntregable.cumplido
+    entregable.avance_previo_aprobacion = None
+
+    if entregable.responsable_id != usuario.id:
+        crear_notificacion(
+            db,
+            entregable.responsable_id,
+            TipoNotificacion.otro,
+            f'{usuario.nombre} le dio visto bueno a "{entregable.nombre}". ¡Quedó completada!',
+            entregable_id=entregable.id,
+        )
+
+    return entregable
+
+
+def rechazar_entregable(db: Session, usuario: Usuario, entregable_id: int, nota: str) -> Entregable:
+    """"Visto bueno": rechaza el 100% marcado -- regresa al % que tenía
+    ANTES de llegar a 100 (no a 0, ver avance_previo_aprobacion) y deja
+    registrado el motivo como nota, visible en el hilo del entregable. La
+    nota es obligatoria -- el responsable necesita saber qué corregir."""
+    nota = (nota or "").strip()
+    if not nota:
+        raise HTTPException(status_code=400, detail="Escribe el motivo del rechazo")
+
+    entregable = obtener_entregable_o_404(db, entregable_id)
+
+    if not puede_aprobar_rechazar_entregable(db, usuario, entregable):
+        raise HTTPException(status_code=403, detail="No tienes permiso para rechazar esta tarea")
+    if entregable.estatus != EstatusEntregable.pendiente_aprobacion:
+        raise HTTPException(status_code=400, detail="Esta tarea no está en espera de visto bueno")
+
+    avance_recuperado = entregable.avance_previo_aprobacion or 0
+    entregable.porcentaje_avance = avance_recuperado
+    entregable.estatus = (
+        EstatusEntregable.en_progreso if avance_recuperado > 0 else EstatusEntregable.pendiente
+    )
+    entregable.avance_previo_aprobacion = None
+
+    db.add(
+        HistorialAvance(
+            entregable_id=entregable.id,
+            porcentaje_avance=avance_recuperado,
+            actualizado_por=usuario.id,
+        )
+    )
+
+    # La nota se crea ANTES de comitear el cambio de avance -- mismo
+    # criterio de orden que reasignar_entregable (ver comentario ahí):
+    # crear_nota valida que `usuario` pueda VER el entregable en su estado
+    # actual, y aquí ese estado no cambia con esta acción, así que el
+    # orden no es crítico, pero se mantiene por consistencia.
+    from app.services.notas import crear_nota
+
+    crear_nota(
+        db, usuario,
+        NotaCrear(entregable_id=entregable.id, contenido=f"Rechazado: {nota}"),
+    )
+
+    if entregable.responsable_id != usuario.id:
+        crear_notificacion(
+            db,
+            entregable.responsable_id,
+            TipoNotificacion.otro,
+            f'{usuario.nombre} rechazó "{entregable.nombre}": {nota}',
             entregable_id=entregable.id,
         )
 
@@ -575,14 +700,9 @@ def reasignar_entregable(
             f'{usuario.nombre} te asignó "{entregable.nombre}" '
             f"({_texto_dias_restantes(entregable.fecha_entrega)}).",
         )
-        if urgencia_combinada:
-            enviar_whatsapp(
-                db,
-                nuevo_responsable_id,
-                f'📌 {usuario.nombre} te asignó "{entregable.nombre}" '
-                f"({_texto_dias_restantes(entregable.fecha_entrega)}), {_texto_urgencia(True)}."
-                + _sufijo_link_app(),
-            )
+        # WhatsApp SIEMPRE al (re)asignar (2026-09-02, a petición de Yue --
+        # mismo cambio que en crear_entregable, ver comentario ahí).
+        enviar_whatsapp(db, nuevo_responsable_id, mensaje_whatsapp_asignacion(usuario.nombre, entregable))
         nuevo_responsable = db.query(Usuario).filter(Usuario.id == nuevo_responsable_id).first()
         if nuevo_responsable:
             avisar_si_nunca_ha_entrado(db, nuevo_responsable, usuario, entregable.nombre)

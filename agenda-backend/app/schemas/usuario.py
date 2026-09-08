@@ -25,6 +25,16 @@ class UsuarioActualizar(BaseModel):
     puesto: Optional[str] = None
     activo: Optional[bool] = None
     password: Optional[str] = None
+    # 2026-09-07, a petición de Yue: antes solo la propia persona podía
+    # poner su teléfono (ver MiTelefonoActualizar/PATCH /usuarios/me) --
+    # ahora Dirección (N1) o superadmin también puede ponerlo/corregirlo
+    # desde el panel, sin depender de un script.
+    telefono_whatsapp: Optional[str] = None
+    # Solo un superadmin YA existente puede tocar este campo (2026-09-07,
+    # a petición de Yue: "solo un superadmin puede nombrar a otro" -- ni
+    # siquiera un N1/Dirección normal, que sí puede editar el resto de
+    # estos campos). El router valida esto, no el schema.
+    es_super_admin: Optional[bool] = None
 
 
 class MiTelefonoActualizar(BaseModel):

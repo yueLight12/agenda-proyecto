@@ -18,8 +18,10 @@ paso -- restringido a colaborador interno/externo (N3/N4), nunca
 dirección/líder.
 """
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.permissions import requerir_super_admin
 from app.core.security import hash_password
 from app.database import get_db
 from app.dependencies import obtener_usuario_actual
@@ -33,6 +35,7 @@ from app.schemas.usuario import (
     UsuarioCrear,
     UsuarioOut,
 )
+from app.services import auditoria
 from app.services.preferencias import actualizar_preferencias, obtener_o_crear_preferencias
 from app.services.usuarios import (
     obtener_usuario_o_404,
@@ -93,6 +96,7 @@ def crear_usuario(
     db.add(nuevo)
     db.commit()
     db.refresh(nuevo)
+    auditoria.registrar(db, usuario, "crear_usuario", nuevo.id, {"nombre": nuevo.nombre, "email": nuevo.email})
     return nuevo
 
 
@@ -167,15 +171,78 @@ def actualizar_usuario(
     if not objetivo:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
+    cambios = {}
     if datos.nombre is not None:
         objetivo.nombre = datos.nombre
+        cambios["nombre"] = datos.nombre
     if datos.puesto is not None:
         objetivo.puesto = datos.puesto
+        cambios["puesto"] = datos.puesto
     if datos.activo is not None:
         objetivo.activo = datos.activo
+        cambios["activo"] = datos.activo
     if datos.password is not None:
         objetivo.password_hash = hash_password(datos.password)
+        cambios["password"] = "(cambiada)"
+    if datos.telefono_whatsapp is not None:
+        objetivo.telefono_whatsapp = datos.telefono_whatsapp or None
+        cambios["telefono_whatsapp"] = objetivo.telefono_whatsapp
+    if datos.es_super_admin is not None:
+        requerir_super_admin(usuario)
+        objetivo.es_super_admin = datos.es_super_admin
+        cambios["es_super_admin"] = datos.es_super_admin
 
     db.commit()
     db.refresh(objetivo)
+    if cambios:
+        auditoria.registrar(db, usuario, "editar_usuario", objetivo.id, cambios)
     return objetivo
+
+
+@router.delete("/{usuario_id}", status_code=status.HTTP_204_NO_CONTENT)
+def eliminar_usuario(
+    usuario_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Eliminar de verdad (no desactivar) -- reservado a superadmin, más
+    estricto que crear/editar (2026-09-07, a petición de Yue). No hay
+    borrado en cascada: si el usuario ya tiene entregables, reuniones,
+    notas, roles u otro historial asociado, la base de datos rechaza el
+    DELETE por las llaves foráneas (ninguna tiene ON DELETE CASCADE hacia
+    usuarios, salvo datos 100% privados como preferencias/pendientes
+    personales/suscripciones push, que sí se van con él) -- se traduce en
+    un 400 claro pidiendo desactivar en su lugar, en vez de un 500 crudo
+    o, peor, borrar en cascada el trabajo de otras personas."""
+    requerir_super_admin(usuario)
+
+    if usuario_id == usuario.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No puedes eliminar tu propia cuenta",
+        )
+
+    objetivo = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    if not objetivo:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    # Se guardan nombre/email ANTES de borrar -- el registro de auditoría
+    # de abajo necesita poder decir quién era, y tras el commit del
+    # DELETE ya no hay fila en `usuarios` de donde leerlos.
+    nombre_borrado, email_borrado = objetivo.nombre, objetivo.email
+
+    try:
+        db.delete(objetivo)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "No se puede eliminar: este usuario ya tiene tareas, reuniones, notas u otro "
+                "historial asociado. Desactívalo en su lugar para conservar ese historial."
+            ),
+        )
+    auditoria.registrar(
+        db, usuario, "eliminar_usuario", usuario_id, {"nombre": nombre_borrado, "email": email_borrado}
+    )

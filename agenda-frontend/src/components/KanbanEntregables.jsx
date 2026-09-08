@@ -18,6 +18,11 @@ import BadgeUrgente from "./BadgeUrgente";
 const COLUMNAS_DEFAULT = [
   { estatus: "pendiente", titulo: "Pendiente", porcentajeObjetivo: 0 },
   { estatus: "en_progreso", titulo: "En progreso", porcentajeObjetivo: 50 },
+  // "Visto bueno" (2026-09-03) -- estatus intermedio al llegar a 100% (ver
+  // app/models/entregable.py::EstatusEntregable), no llega por drag & drop
+  // (soloLectura: true) porque no hay un % que lo dispare directamente,
+  // solo pasa por ahí Aprobar/Rechazar desde el detalle de la tarea.
+  { estatus: "pendiente_aprobacion", titulo: "Visto bueno", soloLectura: true },
   { estatus: "cumplido", titulo: "Cumplido", porcentajeObjetivo: 100 },
 ];
 

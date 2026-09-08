@@ -13,7 +13,7 @@ ver app/services/pendientes_personales.py, el chequeo vive ahí directo.
 """
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, String, Time
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -30,7 +30,18 @@ class PendientePersonal(Base):
     # recordatorio con hora como una reunión, es solo una fecha límite para
     # poder ordenar/resaltar, sin disparar notificación propia.
     fecha_limite = Column(Date, nullable=True)
+    # Hora opcional dentro de fecha_limite (2026-09-01, a petición de Yue),
+    # mismo espíritu que Entregable.hora_entrega -- puramente informativa.
+    hora_limite = Column(Time, nullable=True)
     hecho = Column(Boolean, default=False, nullable=False)
+    # Recurrencia (2026-09-02, a petición de Yue: "cada mes tengo que pagar
+    # la colegiatula" o similar). "ninguna"/"semanal"/"mensual"/"anual" --
+    # el día/mes que se repite se toma de `fecha_limite` de este mismo
+    # registro, no hay un campo aparte. Al marcarse `hecho` con una
+    # recurrencia activa, el servicio crea la siguiente instancia con la
+    # fecha ya avanzada (ver app/services/pendientes_personales.py); este
+    # registro se queda como está, marcado hecho, como historial.
+    recurrencia = Column(String(10), default="ninguna", nullable=False)
     fecha_creacion = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     usuario = relationship("Usuario", foreign_keys=[usuario_id])

@@ -398,6 +398,33 @@ def puede_actualizar_avance_entregable(db: Session, usuario: Usuario, entregable
     return entregable.creado_por == usuario.id or entregable.responsable_id == usuario.id
 
 
+def puede_aprobar_rechazar_entregable(db: Session, usuario: Usuario, entregable: Entregable) -> bool:
+    """"Visto bueno" (2026-09-03, aprobado por Yue el 2026-08-26): quién
+    puede aprobar o rechazar una tarea que llegó a 100% -- quien la creó,
+    o N1/N2 del tema. A propósito NO incluye al responsable actual (no
+    tiene sentido que apruebe su propio trabajo) ni es un alias de
+    puede_editar_entregable (esa restringió "editar" a solo el creador,
+    aquí el N1/N2 del tema sigue teniendo voz aunque no haya creado la
+    tarea él mismo -- mismo criterio que puede_reasignar_entregable).
+
+    Bug real encontrado probando esto (2026-09-03): el tema personal
+    "Tareas sueltas" de cada quien lo crea `obtener_o_crear_tema_tareas_
+    sueltas` con el propio RESPONSABLE como N1 de ese tema (dueño de su
+    propio bucket) -- sin este chequeo explícito, el responsable terminaba
+    aprobando su propia tarea vía su rol N1 ahí, exactamente lo que esta
+    función existe para evitar. Se excluye al responsable SIEMPRE,
+    incluso si por cualquier motivo también fuera el creador o tuviera
+    rol N1/N2 en el tema."""
+    if usuario.id == entregable.responsable_id:
+        return False
+    if usuario.es_super_admin:
+        return True
+    if entregable.creado_por == usuario.id:
+        return True
+    rol = obtener_rol_en_proyecto(db, usuario.id, entregable.proyecto_id)
+    return rol is not None and rol.rol in (RolEnum.N1, RolEnum.N2)
+
+
 # Reasignar sigue siendo una EXCEPCIÓN explícita a "solo el creador edita"
 # (2026-08-22, confirmado con Yue al restringir puede_editar_entregable):
 # "si te asignaron algo que no te pertenece, poder reasignarlo" ya era una
@@ -532,3 +559,16 @@ def puede_editar_minuta(db: Session, usuario: Usuario, reunion: Reunion) -> bool
     if puede_editar_reunion(db, usuario, reunion):
         return True
     return any(p.usuario_id == usuario.id for p in reunion.participantes)
+
+
+def requerir_super_admin(usuario: Usuario) -> None:
+    """Gate más estricto que "N1 o super_admin" -- para acciones que ni
+    siquiera Dirección (N1) normal puede hacer (2026-09-07, a petición de
+    Yue: otorgar superadmin, eliminar cuentas y reasignar todo el
+    historial de una persona quedan reservados a un superadmin YA
+    existente). Usado por app/routers/usuarios.py y app/routers/admin.py."""
+    if not usuario.es_super_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo un superadmin puede realizar esta acción",
+        )

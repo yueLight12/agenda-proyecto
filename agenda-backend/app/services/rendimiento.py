@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from app.core.permissions import query_entregables_visibles
 from app.models.entregable import Entregable, EstatusEntregable
 from app.models.historial_avance import HistorialAvance
+from app.models.nota import Nota
 from app.models.usuario import Usuario
 from app.services.proyectos import listar_raices_visibles
 
@@ -175,7 +176,11 @@ def calcular_resumen_dashboard(
     `proyecto_id`: ver _entregables_visibles."""
     entregables = _entregables_visibles(db, usuario, proyecto_id)
 
-    por_estatus = {"pendiente": 0, "en_progreso": 0, "cumplido": 0}
+    # "pendiente_aprobacion" agregado 2026-09-03 ("Visto bueno") -- sin
+    # esto, KeyError real en cuanto exista una tarea en ese estatus (bug
+    # encontrado revisando el impacto de agregar el estatus nuevo, no
+    # reportado por Yue).
+    por_estatus = {"pendiente": 0, "en_progreso": 0, "pendiente_aprobacion": 0, "cumplido": 0}
     conteo_proyecto: dict[int, int] = defaultdict(int)
     nombre_proyecto: dict[int, str] = {}
 
@@ -213,3 +218,100 @@ def calcular_resumen_dashboard(
     ]
 
     return {"por_estatus": por_estatus, "por_proyecto": por_proyecto, "tendencia": tendencia}
+
+
+_DIAS_SEMANA_ES = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+
+
+def calcular_tasa_aprobacion(
+    db: Session, usuario: Usuario, periodo: Periodo, proyecto_id: int | None = None
+) -> list[dict]:
+    """Tasa de aprobación en "Visto bueno" por persona (2026-09-07, a
+    petición de Yue). No hay un timestamp propio de "cuándo se aprobó" (
+    aprobar_entregable no deja rastro, a diferencia de rechazar_entregable
+    que sí crea una Nota) -- se usa fecha_creacion del entregable como
+    aproximación del periodo, igual que "asignadas_en_periodo" arriba.
+
+    aprobadas = entregables NO autoasignados que ya llegaron a `cumplido`
+    (pasaron por el visto bueno, sea que se hayan rechazado antes o no).
+    rechazadas = veces que a esa persona le rechazaron algo (una Nota
+    "Rechazado: ..." cuenta cada rechazo, no cada entregable -- si le
+    rechazan la misma tarea dos veces antes de aprobarla, cuenta doble,
+    a propósito: mide fricción real, no solo el resultado final)."""
+    inicio, fin = _rango_periodo(periodo)
+    entregables = _entregables_visibles(db, usuario, proyecto_id)
+    if not entregables:
+        return []
+
+    ids = list(entregables.keys())
+    personas: dict[int, dict] = {}
+
+    def _fila(usuario_id: int) -> dict:
+        if usuario_id not in personas:
+            persona = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+            personas[usuario_id] = {
+                "usuario_id": usuario_id,
+                "nombre": persona.nombre if persona else "?",
+                "aprobadas": 0,
+                "rechazadas": 0,
+            }
+        return personas[usuario_id]
+
+    for e in entregables.values():
+        if e.creado_por == e.responsable_id or e.estatus != EstatusEntregable.cumplido:
+            continue
+        if inicio is not None and not (inicio <= e.fecha_creacion.date() <= fin):
+            continue
+        _fila(e.responsable_id)["aprobadas"] += 1
+
+    notas_rechazo = (
+        db.query(Nota, Entregable.responsable_id)
+        .join(Entregable, Nota.entregable_id == Entregable.id)
+        .filter(Entregable.id.in_(ids), Nota.contenido.like("Rechazado:%"))
+        .all()
+    )
+    for nota, responsable_id in notas_rechazo:
+        if inicio is not None and not (inicio <= nota.fecha_creacion.date() <= fin):
+            continue
+        _fila(responsable_id)["rechazadas"] += 1
+
+    resultado = []
+    for fila in personas.values():
+        total = fila["aprobadas"] + fila["rechazadas"]
+        fila["tasa_aprobacion"] = round(fila["aprobadas"] / total * 100, 1) if total else None
+        resultado.append(fila)
+    resultado.sort(key=lambda f: f["aprobadas"] + f["rechazadas"], reverse=True)
+    return resultado
+
+
+def calcular_actividad(
+    db: Session, usuario: Usuario, periodo: Periodo, proyecto_id: int | None = None
+) -> dict:
+    """Actividad (actualizaciones de avance) por hora del día y por día de
+    la semana (2026-09-07, a petición de Yue: "saber cuándo se trabaja
+    más") -- usa HistorialAvance.fecha_registro, acotado a los mismos
+    entregables visibles, sin importar quién hizo cada actualización
+    (es una foto del equipo completo, no por persona)."""
+    inicio, fin = _rango_periodo(periodo)
+    entregables = _entregables_visibles(db, usuario, proyecto_id)
+    if not entregables:
+        return {"por_hora": [{"hora": h, "total": 0} for h in range(24)],
+                "por_dia_semana": [{"dia": d, "total": 0} for d in _DIAS_SEMANA_ES]}
+
+    ids = list(entregables.keys())
+    registros = db.query(HistorialAvance).filter(HistorialAvance.entregable_id.in_(ids)).all()
+
+    por_hora = [0] * 24
+    por_dia = [0] * 7
+    for r in registros:
+        if inicio is not None and not (inicio <= r.fecha_registro.date() <= fin):
+            continue
+        por_hora[r.fecha_registro.hour] += 1
+        por_dia[r.fecha_registro.weekday()] += 1
+
+    return {
+        "por_hora": [{"hora": h, "total": por_hora[h]} for h in range(24)],
+        "por_dia_semana": [
+            {"dia": _DIAS_SEMANA_ES[d], "total": por_dia[d]} for d in range(7)
+        ],
+    }

@@ -126,6 +126,46 @@ def listar_mi_equipo_efectivo(
     ]
     ids_ya = {m.usuario_id for m in plantilla}
 
+    if usuario.es_super_admin:
+        # Superadmin no tiene plantilla propia ni reportes reales (no
+        # participa en ningún tema, ver [[superadmin_credenciales]]) -- sin
+        # esto, "Mi Chamba" le salía vacío pese a que el resto del sistema
+        # (listar_proyectos_visibles, permissions.py) ya le da acceso total.
+        # 2026-09-07, a petición de Yue tras notar la inconsistencia: se
+        # muestra a TODA la organización como su equipo, de solo lectura
+        # (guardado=False, igual que un reporte real -- no crea filas
+        # EquipoMiembro). El `rol` mostrado es el más alto que la persona
+        # tenga en cualquiera de sus temas (N1 > N2 > N3 > N4); alguien sin
+        # ningún tema todavía se muestra como N4 por default.
+        orden_rol = {RolEnum.N1: 0, RolEnum.N2: 1, RolEnum.N3: 2, RolEnum.N4: 3}
+        rol_mas_alto_por_usuario: dict[int, RolEnum] = {}
+        for fila in db.query(UsuarioProyectoRol).all():
+            actual = rol_mas_alto_por_usuario.get(fila.usuario_id)
+            if actual is None or orden_rol[fila.rol] < orden_rol[actual]:
+                rol_mas_alto_por_usuario[fila.usuario_id] = fila.rol
+
+        otros = (
+            db.query(Usuario)
+            .filter(Usuario.id != usuario.id, Usuario.activo.is_(True))
+            .order_by(Usuario.nombre)
+            .all()
+        )
+        for persona in otros:
+            if persona.id in ids_ya:
+                continue
+            resultado.append(
+                EquipoMiembroOut(
+                    usuario_id=persona.id,
+                    nombre=persona.nombre,
+                    puesto=persona.puesto,
+                    email=persona.email,
+                    rol=rol_mas_alto_por_usuario.get(persona.id, RolEnum.N4),
+                    guardado=False,
+                    proyectos=_proyectos_administrables_de(db, viewer, persona.id),
+                )
+            )
+        return resultado
+
     reportes = (
         db.query(UsuarioProyectoRol)
         .filter(UsuarioProyectoRol.supervisor_id == usuario.id)

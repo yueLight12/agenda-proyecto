@@ -43,3 +43,26 @@ class ResumenDashboardOut(BaseModel):
     por_estatus: PorEstatusOut
     por_proyecto: list[ProyectoCargaOut]
     tendencia: list[TendenciaSemanaOut]
+
+
+class TasaAprobacionPersonaOut(BaseModel):
+    usuario_id: int
+    nombre: str
+    aprobadas: int
+    rechazadas: int
+    tasa_aprobacion: Optional[float] = None
+
+
+class ActividadHoraOut(BaseModel):
+    hora: int
+    total: int
+
+
+class ActividadDiaOut(BaseModel):
+    dia: str
+    total: int
+
+
+class ActividadOut(BaseModel):
+    por_hora: list[ActividadHoraOut]
+    por_dia_semana: list[ActividadDiaOut]

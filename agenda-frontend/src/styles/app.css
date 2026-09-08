@@ -1304,6 +1304,25 @@
   z-index: 300;
 }
 
+/* Botón "Activar 'chambeador'" (2026-09-04) -- pastilla chica arriba del
+   FAB del micrófono, mismo criterio de posición fixed + antizoom. */
+.fab-chambeador {
+  position: fixed;
+  right: var(--space-4);
+  bottom: calc(var(--space-4) + 64px);
+  z-index: 300;
+  font-size: 0.78rem;
+  padding: 6px 12px;
+  border-radius: 999px;
+  box-shadow: 0 4px 14px rgba(15, 36, 56, 0.25);
+  background: var(--pb2-surface, var(--color-surface));
+  white-space: nowrap;
+}
+
+body:has(.modal-overlay) .fab-chambeador {
+  display: none;
+}
+
 /* El global se OCULTA mientras haya cualquier modal abierto (2026-08-23,
    a petición de Yue: con el de dentro-del-modal ya visible, el global de
    atrás quedaba duplicado/estorbando) -- vuelve a aparecer solo en la
@@ -1608,6 +1627,87 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
 .planb__rendimiento-filtros .input {
   flex: 1;
   min-width: 160px;
+}
+
+.planb__rendimiento-filtros .selector-proyecto {
+  flex: 1;
+  min-width: 160px;
+}
+
+/* Selector de proyecto con jerarquía (2026-09-07) -- ver
+   src/components/SelectorProyecto.jsx: reemplaza el <select> nativo, que
+   en móvil mostraba una lista plana gigante con la ruta completa repetida
+   en cada renglón. */
+.selector-proyecto {
+  position: relative;
+}
+
+.selector-proyecto__boton {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  text-align: left;
+  cursor: pointer;
+  background: var(--color-surface);
+}
+
+.selector-proyecto__boton-texto {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selector-proyecto__panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 80;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.selector-proyecto__buscador {
+  width: 100%;
+}
+
+.selector-proyecto__lista {
+  max-height: min(50vh, 360px);
+  overflow-y: auto;
+}
+
+.selector-proyecto__opcion {
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.selector-proyecto__opcion:hover {
+  background: var(--color-border);
+}
+
+.selector-proyecto__opcion--activa {
+  background: var(--color-accent, #2b6cb0);
+  color: #fff;
+}
+
+.selector-proyecto__vacio {
+  padding: 9px 12px;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  font-style: italic;
 }
 
 .planb__rendimiento-metricas {
@@ -4728,8 +4828,35 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
 
   .planb__misemana-fila {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
     gap: 2px;
+  }
+
+  /* Bug real visto en celular (2026-09-02): con align-items: flex-start,
+     los hijos de la fila (ej. el label del checkbox de un pendiente
+     personal) se encogen a su contenido en vez de ocupar el ancho de la
+     columna -- el título con white-space: nowrap entonces se salía de la
+     pantalla en vez de truncarse con "...". Forzar ancho completo +
+     permitir que el título envuelva en vez de intentar truncar con
+     ellipsis (que solo funciona con un ancho fijo, que aquí no hay). */
+  .planb__misemana-fila > * {
+    width: 100%;
+  }
+
+  .planb__misemana-fila-titulo {
+    white-space: normal;
+    overflow-wrap: break-word;
+  }
+
+  /* El formulario de "Agregar un pendiente personal..." tiene 4-5 campos
+     (texto, fecha, hora, repetir, botón) -- en una fila sin envolver se
+     salían de la pantalla en un celular angosto. */
+  .planb__misemana-nuevo-pendiente {
+    flex-wrap: wrap;
+  }
+
+  .planb__misemana-nuevo-pendiente input[type="text"] {
+    flex-basis: 100%;
   }
 }
 
@@ -4971,6 +5098,16 @@ button.planb__misemana-fila {
 }
 
 .planb__misemana-nuevo-pendiente input[type="date"] {
+  flex-shrink: 0;
+  width: 130px;
+}
+
+.planb__misemana-nuevo-pendiente input[type="time"] {
+  flex-shrink: 0;
+  width: 100px;
+}
+
+.planb__misemana-nuevo-pendiente select {
   flex-shrink: 0;
   width: 130px;
 }

@@ -16,7 +16,12 @@ from typing import Any, Callable, Optional
 import dateparser
 from sqlalchemy.orm import Session
 
-from app.core.permissions import query_entregables_visibles, query_reuniones_visibles
+from app.core.permissions import (
+    puede_aprobar_rechazar_entregable,
+    query_entregables_visibles,
+    query_reuniones_visibles,
+)
+from app.models.entregable import Entregable, EstatusEntregable
 from app.models.equipo_miembro import EquipoMiembro
 from app.models.minuta import Minuta
 from app.models.pendiente_personal import PendientePersonal
@@ -335,6 +340,46 @@ def resolver_pendiente_personal(
     )
 
 
+def resolver_entregable_pendiente_aprobacion(
+    db: Session, usuario: Usuario, texto_hablado: Optional[str]
+) -> ResolucionResultado:
+    """"Visto bueno" (2026-09-03) -- busca por nombre entre las tareas en
+    estatus pendiente_aprobacion que EL USUARIO PUEDE aprobar/rechazar
+    (quien la creó, o N1/N2 del tema -- nunca el responsable, ver
+    puede_aprobar_rechazar_entregable). Sin proyecto_id: busca en TODOS
+    los temas donde participa, no solo uno -- "aprueba la tarea de Juan"
+    no siempre trae el tema en la misma frase."""
+    if not texto_hablado:
+        return ResolucionResultado(resuelto=False, pregunta="¿Cuál tarea?", tipo_entrada="texto")
+
+    candidatos_todos = (
+        db.query(Entregable).filter(Entregable.estatus == EstatusEntregable.pendiente_aprobacion).all()
+    )
+    candidatos_permitidos = [
+        e for e in candidatos_todos if puede_aprobar_rechazar_entregable(db, usuario, e)
+    ]
+    normalizado = _normalizar(texto_hablado)
+    candidatos = [e for e in candidatos_permitidos if normalizado in _normalizar(e.nombre)]
+
+    if len(candidatos) == 1:
+        return ResolucionResultado(resuelto=True, valor=candidatos[0].id)
+    if not candidatos:
+        return ResolucionResultado(
+            resuelto=False,
+            pregunta=(
+                f'No encontré ninguna tarea en espera de visto bueno parecida a "{texto_hablado}". '
+                "¿Cómo se llama?"
+            ),
+            tipo_entrada="texto",
+        )
+    return ResolucionResultado(
+        resuelto=False,
+        pregunta=f'Encontré varias tareas en espera de visto bueno parecidas a "{texto_hablado}", ¿cuál es?',
+        tipo_entrada="opciones",
+        opciones=[OpcionResolucion(e.id, e.nombre) for e in candidatos],
+    )
+
+
 _PREFIJO_ARTICULO = re.compile(r"^(para\s+)?(el|la|los|las)\s+(d[ií]as?\s*,?\s*)?", flags=re.IGNORECASE)
 
 
@@ -464,6 +509,21 @@ def resolver_fecha_hora(texto: Optional[str]) -> ResolucionResultado:
     return ResolucionResultado(resuelto=True, valor=datetime.combine(fecha_res.valor, time(hour=hora, minute=minuto)))
 
 
+def resolver_hora_opcional(texto: Optional[str]) -> ResolucionResultado:
+    """Para entregables/pendientes personales (2026-09-01, a petición de
+    Yue): a diferencia de resolver_fecha_hora, la hora aquí es OPCIONAL de
+    verdad -- si no se menciona ninguna, resuelto=True con valor=None (no
+    bloquea la conversación preguntando). Reutiliza _extraer_hora, mismo
+    parser que reuniones."""
+    if not texto:
+        return ResolucionResultado(resuelto=True, valor=None)
+    hora_extraida, _ = _extraer_hora(texto)
+    if not hora_extraida:
+        return ResolucionResultado(resuelto=True, valor=None)
+    hora, minuto = hora_extraida
+    return ResolucionResultado(resuelto=True, valor=time(hour=hora, minute=minuto))
+
+
 _DIAS_SEMANA = {
     "lunes": 0,
     "martes": 1,
@@ -529,6 +589,22 @@ def resolver_rol(texto: Optional[str]) -> ResolucionResultado:
     )
 
 
+def _dividir_nombres_por_conectores(db: Session, segmento: str) -> list[str]:
+    """Divide un segmento en nombres individuales por "y"/"e", pero solo si
+    el segmento completo NO coincide ya con una persona real -- así "Juan
+    José e Iván" no rompe el nombre compuesto "Juan José" cuando "e" es el
+    conector español antes de una palabra que empieza con "i" (regla
+    ortográfica: "y" -> "e" ante sonido /i/). Si el segmento completo
+    coincide con alguien, se respeta tal cual y no se parte."""
+    usuarios = db.query(Usuario).all()
+    normalizado = _normalizar(segmento)
+    if any(_coincide_nombre(normalizado, _normalizar(u.nombre)) for u in usuarios):
+        return [segmento]
+
+    partes = [p.strip() for p in re.split(r"\s+(?:y|e)\s+", segmento, flags=re.IGNORECASE) if p.strip()]
+    return partes if len(partes) > 1 else [segmento]
+
+
 def resolver_personas_organizacion(
     db: Session, usuario: Usuario, texto: Optional[str]
 ) -> ResolucionResultado:
@@ -542,7 +618,10 @@ def resolver_personas_organizacion(
     if not texto:
         return ResolucionResultado(resuelto=True, valor=[])
 
-    nombres = [n.strip() for n in re.split(r"\s*(?:,|;|\by\b)\s*", texto, flags=re.IGNORECASE) if n.strip()]
+    segmentos = [s.strip() for s in re.split(r"\s*(?:,|;)\s*", texto) if s.strip()]
+    nombres: list[str] = []
+    for segmento in segmentos:
+        nombres.extend(_dividir_nombres_por_conectores(db, segmento))
     ids: list[int] = []
     no_identificados: list[str] = []
     for nombre in nombres:

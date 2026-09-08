@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { entregablesApi, proyectosApi } from "../api/endpoints";
+import { esFinDeSemana } from "../utils/finDeSemana";
 import Modal from "./Modal";
+import ModalFinDeSemana from "./ModalFinDeSemana";
+import SelectorProyecto from "./SelectorProyecto";
 
 // Acceso rápido para asignar un entregable/tarea a alguien de tu equipo
 // SIN tener que entrar primero a un proyecto/tema específico (2026-08-20,
@@ -31,6 +34,7 @@ export default function ModalAsignarTareaRapida({ equipo, personaInicialId, onCe
   const [proyectoId, setProyectoId] = useState("");
   const [nombre, setNombre] = useState("");
   const [fechaEntrega, setFechaEntrega] = useState("");
+  const [horaEntrega, setHoraEntrega] = useState("");
   const [urgenteManual, setUrgenteManual] = useState(false);
   const [requiereComprobante, setRequiereComprobante] = useState(false);
   const [error, setError] = useState("");
@@ -47,8 +51,12 @@ export default function ModalAsignarTareaRapida({ equipo, personaInicialId, onCe
     setProyectoId("");
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  // Aviso de fin de semana (2026-09-02, a petición de Yue) -- mismo patrón
+  // que FormularioEntregable.jsx: `guardar` es la lógica real, se llama con
+  // la fecha ya decidida tras resolver el aviso si aplica.
+  const [confirmandoFinDeSemana, setConfirmandoFinDeSemana] = useState(false);
+
+  const guardar = async (fechaFinal) => {
     setError("");
     setGuardando(true);
     try {
@@ -61,7 +69,8 @@ export default function ModalAsignarTareaRapida({ equipo, personaInicialId, onCe
         nombre,
         descripcion: null,
         responsable_id: Number(personaId),
-        fecha_entrega: fechaEntrega,
+        fecha_entrega: fechaFinal,
+        hora_entrega: horaEntrega || null,
         sensible: false,
         urgente_manual: urgenteManual,
         requiere_comprobante: requiereComprobante,
@@ -72,6 +81,21 @@ export default function ModalAsignarTareaRapida({ equipo, personaInicialId, onCe
     } finally {
       setGuardando(false);
     }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (esFinDeSemana(fechaEntrega)) {
+      setConfirmandoFinDeSemana(true);
+      return;
+    }
+    await guardar(fechaEntrega);
+  };
+
+  const handleElegirFinDeSemana = async (fechaFinal) => {
+    setConfirmandoFinDeSemana(false);
+    if (fechaFinal !== fechaEntrega) setFechaEntrega(fechaFinal);
+    await guardar(fechaFinal);
   };
 
   return (
@@ -105,18 +129,16 @@ export default function ModalAsignarTareaRapida({ equipo, personaInicialId, onCe
         {personaId && (
           <label className="stack" style={{ gap: 4 }}>
             <span style={{ fontSize: "0.85rem" }}>Proyecto (opcional)</span>
-            <select
-              className="input"
+            <SelectorProyecto
+              proyectos={proyectosDisponibles.map((p) => ({
+                id: p.proyecto_id,
+                nombre: p.proyecto_nombre,
+                parent_id: p.parent_id,
+              }))}
               value={proyectoId}
-              onChange={(e) => setProyectoId(e.target.value)}
-            >
-              <option value="">Sin proyecto (tareas sueltas)</option>
-              {proyectosDisponibles.map((p) => (
-                <option key={p.proyecto_id} value={p.proyecto_id}>
-                  {p.proyecto_nombre}
-                </option>
-              ))}
-            </select>
+              onChange={setProyectoId}
+              placeholder="Sin proyecto (tareas sueltas)"
+            />
           </label>
         )}
 
@@ -138,6 +160,16 @@ export default function ModalAsignarTareaRapida({ equipo, personaInicialId, onCe
             value={fechaEntrega}
             onChange={(e) => setFechaEntrega(e.target.value)}
             required
+          />
+        </label>
+
+        <label className="stack" style={{ gap: 4 }}>
+          <span style={{ fontSize: "0.85rem" }}>Hora (opcional)</span>
+          <input
+            className="input"
+            type="time"
+            value={horaEntrega}
+            onChange={(e) => setHoraEntrega(e.target.value)}
           />
         </label>
 
@@ -171,6 +203,15 @@ export default function ModalAsignarTareaRapida({ equipo, personaInicialId, onCe
           </button>
         </div>
       </form>
+
+      {confirmandoFinDeSemana && (
+        <ModalFinDeSemana
+          fecha={fechaEntrega}
+          onDejar={() => handleElegirFinDeSemana(fechaEntrega)}
+          onMover={handleElegirFinDeSemana}
+          onCancelar={() => setConfirmandoFinDeSemana(false)}
+        />
+      )}
     </Modal>
   );
 }

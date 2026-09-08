@@ -32,11 +32,13 @@ from app.core.permissions import (
 )
 from app.models.entregable import Entregable, EstatusEntregable
 from app.models.historial_avance import HistorialAvance
+from app.models.pendiente_personal import PendientePersonal
 from app.models.reunion import Reunion
 from app.models.usuario import Usuario
 from app.models.usuario_proyecto_rol import UsuarioProyectoRol
 from app.services.llm_cliente import generar_texto
 from app.services.llm_privacidad import construir_mapa
+from app.services.rendimiento import calcular_rendimiento_equipo, calcular_tasa_aprobacion
 from app.services.rol_labels import etiqueta_rol
 
 SYSTEM_PROMPT = """Eres el asistente de consulta de "Agenda Inteligente".
@@ -79,7 +81,40 @@ correspondiente en "DATOS DISPONIBLES" (2026-08-20, a petición del cliente):
 - Si NO está cumplido: menciona cuándo vence en términos relativos --
   "vence en N días", "vence hoy", o "venció hace N días" si ya pasó la
   fecha -- calculado a partir de la fecha de vencimiento y la fecha de hoy
-  que aparecen en los datos."""
+  que aparecen en los datos.
+
+Pregunta sobre TI MISMO (2026-09-02, a petición de Yue: que el usuario
+pueda preguntar "¿qué puedes hacer?" y recibir una respuesta útil en vez
+de "no tengo datos de eso") -- si el usuario pregunta qué puedes hacer, en
+qué le ayudas, cómo te usa, o pide que lo guíes en algo (ej. "¿qué puedes
+hacer?", "ayuda", "¿cómo creo una tarea?"), esto NO se responde con
+"DATOS DISPONIBLES" -- describe tus capacidades reales:
+- Consultar (lo que ya sabes hacer): pendientes, tareas y entregables (qué
+  vence, qué está cumplido), reuniones de hoy o de la semana, avance de un
+  proyecto o tema.
+- Actuar (el usuario también puede pedirte que hagas cosas, no solo
+  preguntar): crear, editar o eliminar tareas/entregables y proyectos;
+  agendar, editar o eliminar reuniones (incluidas recurrentes); asignar
+  roles; registrar acuerdos de una junta; anotar pendientes personales;
+  dar de alta a alguien en su equipo; entre otras. SIEMPRE te muestra un
+  resumen para confirmar antes de ejecutar -- nunca actúas sin que la
+  persona confirme primero.
+Si preguntan CÓMO hacer algo puntual, dales un ejemplo concreto de lo que
+pueden decir en vez de una explicación abstracta -- ej. para "¿cómo creo
+una tarea?": 'dile algo como "asígnale a Juan la tarea de mandar el
+reporte para el viernes" y te muestro un resumen para confirmar antes de
+crearla'.
+
+Preguntas sobre RENDIMIENTO DEL EQUIPO (2026-09-07, a petición de Yue: no
+había forma de preguntarle esto al asistente por voz, solo se veía en el
+dashboard) -- si preguntan cosas como "¿quién tiene más tareas vencidas?",
+"¿cómo va el equipo este mes?", "¿cuál es la tasa de aprobación de
+Fulano?" o "¿quién entrega más rápido?", usa el bloque "Rendimiento del
+equipo (mes actual)" de DATOS DISPONIBLES -- ya trae los números
+agregados por persona (completadas, a tiempo/tarde, vencidas, tasa de
+aprobación), no los calcules tú ni sumes/comparés cifras de otras partes
+del contexto para esto. Si ese bloque no aparece o no incluye a alguien,
+dilo en vez de adivinar."""
 
 
 def _fechas_cumplido(db: Session, entregable_ids: list[int]) -> dict[int, date]:
@@ -123,6 +158,42 @@ def _lineas_reuniones(reuniones, encabezado: str) -> list[str]:
     return lineas
 
 
+def _bloque_rendimiento_equipo(db: Session, usuario: Usuario) -> str | None:
+    """Resumen por persona (mes actual) para que el chatbot pueda contestar
+    preguntas de "rendimiento del equipo" (2026-09-07) -- reusa TAL CUAL
+    los mismos cálculos que ya alimentan el dashboard de Rendimiento (ver
+    app/services/rendimiento.py), sobre el mismo conjunto de entregables
+    visibles para este usuario. Sin esto, el LLM tendría que sumar/comparar
+    cifras él mismo a partir de la lista larga de entregables por tema, que
+    es exactamente el tipo de cálculo que ya sabemos que hace mal (ver el
+    bug de "qué día es hoy" más arriba) -- aquí ya llega precalculado."""
+    personas = calcular_rendimiento_equipo(db, usuario, "mes")
+    if not personas:
+        return None
+    aprobacion_por_id = {
+        p["usuario_id"]: p for p in calcular_tasa_aprobacion(db, usuario, "mes")
+    }
+
+    lineas = ["Rendimiento del equipo (mes actual, resumen por persona):"]
+    for p in personas:
+        linea = (
+            f'    - {p["nombre"]}: {p["completadas"]} completada(s) '
+            f'({p["a_tiempo"]} a tiempo, {p["tarde"]} tarde), '
+            f'{p["pendientes_actuales"]} pendiente(s) activa(s), '
+            f'{p["vencidas"]} vencida(s)'
+        )
+        if p["vencidas"] > 0:
+            linea += f' (hasta {p["dias_atraso_max"]} día(s) de atraso)'
+        aprob = aprobacion_por_id.get(p["usuario_id"])
+        if aprob and aprob["tasa_aprobacion"] is not None:
+            linea += (
+                f', tasa de aprobación en "visto bueno": {aprob["tasa_aprobacion"]}% '
+                f'({aprob["aprobadas"]} aprobada(s), {aprob["rechazadas"]} rechazada(s))'
+            )
+        lineas.append(linea + ".")
+    return "\n".join(lineas)
+
+
 def _construir_contexto(db: Session, usuario: Usuario) -> str:
     """Arma el bloque de datos visibles para este usuario, en todos sus temas."""
     roles = (
@@ -149,7 +220,45 @@ def _construir_contexto(db: Session, usuario: Usuario) -> str:
         .all()
     )
 
-    bloques = [f"Hoy es {hoy}."]
+    # Bug real (2026-09-02, reportado por Yue: el asistente dijo "hoy es
+    # martes" un miércoles) -- antes solo se mandaba la fecha ISO ("Hoy es
+    # 2026-09-02.") y se le dejaba al LLM calcular qué día de la semana es,
+    # cosa que los modelos hacen mal de forma consistente (no es un problema
+    # de qué modelo/proveedor esté configurado). Se calcula aquí con
+    # `date.weekday()`, sin depender del locale del sistema.
+    _dias_es = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+    bloques = [f"Hoy es {_dias_es[hoy.weekday()]}, {hoy}."]
+
+    # Bug real (2026-09-03, reportado por Yue: le pidió al asistente sus
+    # "pendientes personales" y contestó "no tengo datos" a pesar de tener
+    # varios en la app) -- mismo tipo de brecha que las reuniones (ver
+    # comentario arriba): este contexto nunca incluía PendientePersonal,
+    # solo entregables/reuniones. 100% privados de este usuario, sin
+    # ninguna regla de permisos de por medio (ver
+    # app/models/pendiente_personal.py) -- se listan los que aún no están
+    # hechos, más los recientes ya hechos quedan fuera para no inflar el
+    # contexto con historial que no suele preguntarse.
+    pendientes_personales = (
+        db.query(PendientePersonal)
+        .filter(PendientePersonal.usuario_id == usuario.id, PendientePersonal.hecho.is_(False))
+        .order_by(PendientePersonal.fecha_limite.asc().nullslast())
+        .all()
+    )
+    if pendientes_personales:
+        lineas_pp = ["Pendientes personales (privados, solo tuyos, no son tareas de proyecto):"]
+        for p in pendientes_personales:
+            linea = f'    - "{p.contenido}"'
+            if p.fecha_limite:
+                hora_txt = f" {p.hora_limite.strftime('%H:%M')}" if p.hora_limite else ""
+                linea += f" | fecha límite: {p.fecha_limite}{hora_txt}"
+            if p.recurrencia != "ninguna":
+                linea += f" | se repite: {p.recurrencia}"
+            lineas_pp.append(linea)
+        bloques.append("\n".join(lineas_pp))
+
+    bloque_rendimiento = _bloque_rendimiento_equipo(db, usuario)
+    if bloque_rendimiento:
+        bloques.append(bloque_rendimiento)
 
     if not roles:
         bloques.append("El usuario no participa en ningún tema todavía.")
@@ -221,7 +330,8 @@ def _construir_contexto(db: Session, usuario: Usuario) -> str:
                         else " | fecha en que se marcó cumplido: (no disponible)"
                     )
                 else:
-                    linea += f" | vence: {e.fecha_entrega}"
+                    hora_txt = f" {e.hora_entrega.strftime('%H:%M')}" if e.hora_entrega else ""
+                    linea += f" | vence: {e.fecha_entrega}{hora_txt}"
                 lineas.append(linea)
 
         reuniones_tema = (
@@ -245,6 +355,10 @@ def responder_pregunta(db: Session, usuario: Usuario, pregunta: str) -> str:
     """Arma el contexto visible del usuario y le pide al LLM configurado que
     responda."""
     contexto = _construir_contexto(db, usuario)
+    # El nombre de quien pregunta se manda siempre tal cual (2026-09-01, a
+    # petición de Yue) -- es el propio usuario preguntando por sus propios
+    # datos, no hay tercero que proteger, y sin esto el LLM no podía
+    # distinguir "mis tareas" de las de cualquier otro en el mismo tema.
     nombre_para_prompt = usuario.nombre
 
     mapa = None
@@ -252,19 +366,19 @@ def responder_pregunta(db: Session, usuario: Usuario, pregunta: str) -> str:
         mapa = construir_mapa(db, usuario)
         contexto = mapa.redactar(contexto)
         pregunta = mapa.redactar(pregunta)
-        # El nombre de quien pregunta no está cubierto por el mapa de forma
-        # confiable (depende de si aparece como miembro de algún proyecto
-        # visible) — más simple y seguro no mandarlo tal cual a la nube.
-        nombre_para_prompt = "el usuario"
 
+    # SYSTEM_PROMPT se manda aparte, como bloque cacheable (2026-09-03, a
+    # petición de Yue: bajar el tiempo de esta ruta) -- es idéntico en
+    # cada llamada, a diferencia de "DATOS DISPONIBLES" (cambia con cada
+    # usuario/pregunta). Mismo mecanismo que ya usa el intérprete de
+    # comandos, ver app/services/llm_cliente.py::generar_texto/_llamar_claude.
     prompt = (
-        f"{SYSTEM_PROMPT}\n\n"
         f"DATOS DISPONIBLES:\n{contexto}\n\n"
         f"PREGUNTA DE {nombre_para_prompt}:\n{pregunta}\n\n"
         f"RESPUESTA:"
     )
 
-    respuesta = generar_texto(prompt).strip()
+    respuesta = generar_texto(prompt, sistema=SYSTEM_PROMPT).strip()
     if mapa is not None:
         respuesta = mapa.restaurar(respuesta)
     return respuesta

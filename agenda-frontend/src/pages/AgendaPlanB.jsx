@@ -174,7 +174,7 @@ export default function AgendaPlanB() {
     <div className="planb">
       <div className="planb__topbar">
         <div>
-          <h1 style={{ margin: 0, fontSize: "1.4rem" }}>Agenda Plan B</h1>
+          <h1 style={{ margin: 0, fontSize: "1.4rem" }}>Mi Chamba</h1>
           {usuario && (
             <p style={{ margin: "4px 0 0", fontSize: "0.85rem", color: "var(--color-text-muted)" }}>
               {usuario.nombre}
@@ -234,6 +234,11 @@ export default function AgendaPlanB() {
                 {tema === "oscuro" ? "☀️" : "🌙"}
               </button>
             </>
+          )}
+          {usuario?.es_super_admin && (
+            <Link to="/admin/usuarios" className="btn btn--ghost" title="Administración de usuarios">
+              🛡️ Admin
+            </Link>
           )}
           <button type="button" className="btn btn--ghost" onClick={logout}>
             Salir

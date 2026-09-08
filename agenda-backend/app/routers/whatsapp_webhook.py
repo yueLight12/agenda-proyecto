@@ -59,6 +59,7 @@ hacerse pasar por un mensaje entrante de Bernardo.
 """
 import logging
 import re
+from typing import Optional
 
 import requests
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -74,7 +75,6 @@ from app.services.asistente.tools import TOOLS
 from app.services.asistente.whisper_client import transcribir as transcribir_audio
 from app.services.entregables import actualizar_avance
 from app.services.equipos import listar_equipo_de_subordinado, listar_mi_equipo_efectivo
-from app.services.whatsapp import enviar_whatsapp
 
 logger = logging.getLogger(__name__)
 
@@ -143,23 +143,95 @@ def _en_equipo_extendido(db: Session, usuario: Usuario, responsable_id: int) -> 
     return False
 
 
-def _marcar_completada(db: Session, usuario: Usuario, entregable_id: int) -> Response:
+def _marcar_completada_mensaje(db: Session, usuario: Usuario, entregable_id: int) -> str:
     entregable = db.query(Entregable).filter(Entregable.id == entregable_id).first()
     if entregable is None:
-        return _respuesta_twiml(f"No encontré ninguna tarea con el número #{entregable_id}.")
+        return f"No encontré ninguna tarea con el número #{entregable_id}."
     if entregable.responsable_id != usuario.id:
         # No revela si la tarea existe/de quién es -- mismo criterio de
         # discreción que el resto del sistema con lo que no te toca ver.
-        return _respuesta_twiml(f"La tarea #{entregable_id} no está asignada a ti.")
+        return f"La tarea #{entregable_id} no está asignada a ti."
 
     try:
         actualizado = actualizar_avance(db, usuario, entregable_id, 100)
         db.commit()
     except HTTPException as exc:
         db.rollback()
-        return _respuesta_twiml(str(exc.detail))
+        return str(exc.detail)
 
-    return _respuesta_twiml(f'Listo, marqué "{actualizado.nombre}" como completada. ¡Bien hecho!')
+    return f'Listo, marqué "{actualizado.nombre}" como completada. ¡Bien hecho!'
+
+
+def _procesar_asignar_tarea(db: Session, usuario: Usuario, texto: str) -> str:
+    """Núcleo del flujo de "asignar tarea" (crear_entregable), sin nada
+    específico de Twilio -- reusado por el webhook de Ultramsg. El llamador
+    ya validó el allowlist antes de llegar aquí."""
+    interpretado = interpretar_instruccion(db, usuario, texto)
+    primera = interpretado["acciones"][0]
+
+    if primera["tool"] != "crear_entregable":
+        return _MENSAJE_AYUDA
+
+    spec = TOOLS["crear_entregable"]
+    try:
+        resultado = spec.resolver(db, usuario, None, primera["parametros"], {})
+    except HTTPException as exc:
+        return str(exc.detail)
+
+    if not resultado.listo:
+        return f"{resultado.pregunta} Vuelve a escribirme con todo junto en un solo mensaje."
+
+    responsable_id = resultado.parametros["responsable_id"]
+    if not _en_equipo_extendido(db, usuario, responsable_id):
+        return (
+            "Por ahora solo puedo asignar tareas a alguien de tu equipo, o del equipo de "
+            "alguien de tu equipo. Agrégalo primero en \"Mi equipo\" desde la app."
+        )
+
+    try:
+        ejecucion = spec.ejecutar(db, usuario, resultado.parametros)
+    except HTTPException as exc:
+        return str(exc.detail)
+
+    # Nota (2026-09-03): NO se manda WhatsApp aquí -- crear_entregable (el
+    # service que ejecuta spec.ejecutar arriba) ya manda SIEMPRE su propio
+    # aviso de asignación por WhatsApp (ver app/services/entregables.py::
+    # mensaje_whatsapp_asignacion), con el mismo texto unificado
+    # (asignador, tarea, fecha, hora, urgencia, comprobante, "LISTO #id" y
+    # el link a la app) que usa cualquier otro camino de asignación.
+    # Mandarlo también aquí duplicaría el mensaje.
+    return ejecucion["mensaje"]
+
+
+def procesar_mensaje_whatsapp(db: Session, numero: str, texto: str) -> Optional[str]:
+    """Núcleo compartido de "WhatsApp entrante", independiente del proveedor
+    (Twilio/Ultramsg) -- resuelve el usuario por teléfono, aplica el patrón
+    "LISTO #id" (sin allowlist) o el flujo de asignar tarea (con allowlist),
+    y devuelve el texto de respuesta. None = no responder nada (usuario no
+    encontrado, o número no habilitado para asignar -- mismo criterio de
+    discreción que el resto del webhook, no revela nada a quien no le toca)."""
+    usuario = db.query(Usuario).filter(Usuario.telefono_whatsapp == numero).first()
+    if usuario is None:
+        logger.warning("WhatsApp entrante de número sin usuario con ese telefono_whatsapp: %s", numero)
+        return None
+
+    texto = texto.strip()
+
+    # "Completar" no tiene allowlist -- cualquiera con telefono_whatsapp
+    # configurado puede marcar SUS PROPIAS tareas, ver docstring del módulo.
+    coincidencia = _PATRON_COMPLETAR.match(texto)
+    if coincidencia:
+        return _marcar_completada_mensaje(db, usuario, int(coincidencia.group(1)))
+
+    # A partir de aquí, solo "asignar" -- sí tiene allowlist (hoy: Bernardo).
+    if numero not in _telefonos_permitidos():
+        logger.warning("WhatsApp entrante de número no habilitado para asignar tareas: %s", numero)
+        return None
+
+    if not texto:
+        return _MENSAJE_AYUDA
+
+    return _procesar_asignar_tarea(db, usuario, texto)
 
 
 @router.post("")
@@ -167,24 +239,13 @@ async def whatsapp_entrante(request: Request, db: Session = Depends(get_db)):
     datos = await _leer_formulario_validado(request)
 
     numero = _normalizar_numero(datos.get("From", ""))
-    usuario = db.query(Usuario).filter(Usuario.telefono_whatsapp == numero).first()
-    if usuario is None:
-        logger.warning("WhatsApp entrante de número sin usuario con ese telefono_whatsapp: %s", numero)
-        return _respuesta_twiml("")
-
     texto = (datos.get("Body") or "").strip()
 
-    # "Completar" no tiene allowlist -- cualquiera con telefono_whatsapp
-    # configurado puede marcar SUS PROPIAS tareas, ver docstring del módulo.
-    coincidencia = _PATRON_COMPLETAR.match(texto)
-    if coincidencia:
-        return _marcar_completada(db, usuario, int(coincidencia.group(1)))
-
-    # A partir de aquí, solo "asignar" -- sí tiene allowlist (hoy: Bernardo).
-    if numero not in _telefonos_permitidos():
-        logger.warning("WhatsApp entrante de número no habilitado para asignar tareas: %s", numero)
-        return _respuesta_twiml("")
-
+    # Nota de voz (2026-08-27) -- solo aplica al flujo de Twilio, Ultramsg
+    # no maneja audio en este piloto. Se resuelve ANTES de
+    # procesar_mensaje_whatsapp porque necesita transcribirse a texto
+    # primero; el resto de la lógica (allowlist, LISTO, etc.) es la misma
+    # para ambos proveedores.
     num_media = int(datos.get("NumMedia") or 0)
     if num_media > 0 and not texto:
         media_url = datos.get("MediaUrl0")
@@ -203,49 +264,5 @@ async def whatsapp_entrante(request: Request, db: Session = Depends(get_db)):
             logger.exception("Fallo descargando/transcribiendo nota de voz de WhatsApp")
             return _respuesta_twiml("No pude escuchar tu nota de voz -- intenta de nuevo o mándalo por texto.")
 
-    if not texto:
-        return _respuesta_twiml(_MENSAJE_AYUDA)
-
-    interpretado = interpretar_instruccion(db, usuario, texto)
-    primera = interpretado["acciones"][0]
-
-    if primera["tool"] != "crear_entregable":
-        return _respuesta_twiml(_MENSAJE_AYUDA)
-
-    spec = TOOLS["crear_entregable"]
-    try:
-        resultado = spec.resolver(db, usuario, None, primera["parametros"], {})
-    except HTTPException as exc:
-        return _respuesta_twiml(str(exc.detail))
-
-    if not resultado.listo:
-        return _respuesta_twiml(f"{resultado.pregunta} Vuelve a escribirme con todo junto en un solo mensaje.")
-
-    responsable_id = resultado.parametros["responsable_id"]
-    if not _en_equipo_extendido(db, usuario, responsable_id):
-        return _respuesta_twiml(
-            "Por ahora solo puedo asignar tareas a alguien de tu equipo, o del equipo de "
-            "alguien de tu equipo. Agrégalo primero en \"Mi equipo\" desde la app."
-        )
-
-    try:
-        ejecucion = spec.ejecutar(db, usuario, resultado.parametros)
-    except HTTPException as exc:
-        return _respuesta_twiml(str(exc.detail))
-
-    # SIEMPRE por WhatsApp al responsable (2026-08-27, a petición de Yue:
-    # si la tarea se la asignaron por WhatsApp, la confirmación también
-    # debe llegarle por ahí, sin importar si es "urgente" -- a diferencia
-    # de la regla general del resto del sistema, ver docstring del
-    # módulo). Con el código de referencia para poder completarla sin
-    # abrir la app.
-    entregable_id = ejecucion["resultado"]["id"]
-    enviar_whatsapp(
-        db,
-        responsable_id,
-        f'{usuario.nombre} te asignó una tarea nueva: "{resultado.parametros["nombre"]}", '
-        f'vence el {resultado.parametros["fecha_entrega"]}. '
-        f'Cuando la termines, respóndeme aquí: LISTO #{entregable_id}',
-    )
-
-    return _respuesta_twiml(ejecucion["mensaje"])
+    respuesta = procesar_mensaje_whatsapp(db, numero, texto)
+    return _respuesta_twiml(respuesta or "")

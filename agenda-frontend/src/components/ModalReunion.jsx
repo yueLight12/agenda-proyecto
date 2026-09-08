@@ -1,9 +1,11 @@
 import { useRef, useState } from "react";
 import { reunionesApi, seriesReunionApi } from "../api/endpoints";
+import { esFinDeSemana } from "../utils/finDeSemana";
 import BuscadorInvitados from "./BuscadorInvitados";
 import ConfirmDialog from "./ConfirmDialog";
 import Modal from "./Modal";
 import ModalAsignarTareaRapida from "./ModalAsignarTareaRapida";
+import ModalFinDeSemana from "./ModalFinDeSemana";
 import SeccionAgendaChecklist from "./SeccionAgendaChecklist";
 import SeccionNotas from "./SeccionNotas";
 import SelectorTemasChecklist from "./SelectorTemasChecklist";
@@ -201,8 +203,13 @@ export default function ModalReunion({
 
   const toggleParticipante = (ids) => setParticipantesIds(ids);
 
-  const handleGuardar = async (e) => {
-    e.preventDefault();
+  // Aviso de fin de semana (2026-09-02, a petición de Yue) -- solo aplica
+  // cuando hay una fecha puntual de por medio (edición de una reunión o
+  // creación sin repetir); una serie recurrente (semanal/mensual) no tiene
+  // "una fecha", tiene un patrón, así que queda fuera a propósito.
+  const [confirmandoFinDeSemana, setConfirmandoFinDeSemana] = useState(false);
+
+  const guardar = async (fechaFinal) => {
     setError("");
     setGuardando(true);
     const recordatorioAEnviar =
@@ -226,7 +233,7 @@ export default function ModalReunion({
         const actualizada = await reunionesApi.actualizar(reunionActual.id, {
           titulo,
           notas: notas || null,
-          fecha_inicio: `${fecha}T${hora}:00`,
+          fecha_inicio: `${fechaFinal}T${hora}:00`,
           duracion_minutos: Number(duracionMinutos),
           participantes_ids: participantesIds,
           recordatorio_minutos_antes: recordatorioAEnviar,
@@ -236,7 +243,7 @@ export default function ModalReunion({
         const nueva = await reunionesApi.crear(proyectoId, {
           titulo,
           notas: notas || null,
-          fecha_inicio: `${fecha}T${hora}:00`,
+          fecha_inicio: `${fechaFinal}T${hora}:00`,
           duracion_minutos: Number(duracionMinutos),
           participantes_ids: participantesIds,
           recordatorio_minutos_antes: recordatorioAEnviar,
@@ -271,6 +278,22 @@ export default function ModalReunion({
     } finally {
       setGuardando(false);
     }
+  };
+
+  const handleGuardar = async (e) => {
+    e.preventDefault();
+    const requiereFechaPuntual = !esEdicionSerie && (esEdicionReunion || repetir === "no");
+    if (requiereFechaPuntual && esFinDeSemana(fecha)) {
+      setConfirmandoFinDeSemana(true);
+      return;
+    }
+    await guardar(fecha);
+  };
+
+  const handleElegirFinDeSemana = async (fechaFinal) => {
+    setConfirmandoFinDeSemana(false);
+    if (fechaFinal !== fecha) setFecha(fechaFinal);
+    await guardar(fechaFinal);
   };
 
   const handleEliminar = async () => {
@@ -663,6 +686,15 @@ export default function ModalReunion({
           equipo={participantesAsignables}
           onCerrar={() => setMostrarAsignarTarea(false)}
           onCreado={() => setMostrarAsignarTarea(false)}
+        />
+      )}
+
+      {confirmandoFinDeSemana && (
+        <ModalFinDeSemana
+          fecha={fecha}
+          onDejar={() => handleElegirFinDeSemana(fecha)}
+          onMover={handleElegirFinDeSemana}
+          onCancelar={() => setConfirmandoFinDeSemana(false)}
         />
       )}
     </Modal>

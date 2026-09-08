@@ -32,7 +32,12 @@ from app.services.llm_privacidad import construir_mapa
 SIN_ACCION = "no_entendido"
 
 
-def _construir_prompt(texto: str) -> str:
+def _construir_sistema() -> str:
+    """Bloque ESTÁTICO -- catálogo de herramientas + ejemplos + instrucciones,
+    idéntico en cada llamada (solo cambia si tools.py cambia). Separado de
+    `texto` a propósito para que llm_cliente.py lo mande como bloque
+    cacheado con Claude (ver generar_texto/_llamar_claude) en vez de
+    reprocesarlo de cero en cada comando."""
     bloques = []
     for spec in TOOLS.values():
         parametros = "; ".join(f"{campo} ({desc})" for campo, desc in spec.parametros_llm.items())
@@ -90,17 +95,56 @@ después, con esta forma exacta:
 Si solo hay una acción, la lista trae un solo elemento.
 
 EJEMPLOS:
-{ejemplos_txt}
+{ejemplos_txt}"""
 
-TEXTO DEL USUARIO: "{texto}"
-RESPUESTA:"""
+
+def _construir_mensaje_usuario(texto: str) -> str:
+    return f'TEXTO DEL USUARIO: "{texto}"\nRESPUESTA:'
 
 
 def _parsear_json(texto: str):
     try:
         return json.loads(texto)
     except (json.JSONDecodeError, TypeError):
-        return None
+        pass
+    # Algunos modelos (ej. Haiku 4.5, visto 2026-09-02) no respetan "responde
+    # ÚNICAMENTE JSON" -- envuelven el JSON en un bloque de código Markdown,
+    # y a veces AGREGAN texto explicativo después del bloque (visto
+    # 2026-09-04: "```json\n{...}\n```\n\nEl usuario dice que..." -- el
+    # removesuffix("```") de antes no servía porque el string ya no termina
+    # en "```", termina en la prosa). En vez de pelar prefijo/sufijo a
+    # ciegas, se extrae el primer objeto JSON balanceado dentro del texto
+    # (cuenta llaves, respeta strings) -- funciona sin importar qué haya
+    # antes o después.
+    if isinstance(texto, str):
+        inicio = texto.find("{")
+        if inicio != -1:
+            profundidad = 0
+            dentro_string = False
+            escapando = False
+            for i in range(inicio, len(texto)):
+                c = texto[i]
+                if escapando:
+                    escapando = False
+                    continue
+                if c == "\\":
+                    escapando = True
+                    continue
+                if c == '"':
+                    dentro_string = not dentro_string
+                    continue
+                if dentro_string:
+                    continue
+                if c == "{":
+                    profundidad += 1
+                elif c == "}":
+                    profundidad -= 1
+                    if profundidad == 0:
+                        try:
+                            return json.loads(texto[inicio : i + 1])
+                        except json.JSONDecodeError:
+                            break
+    return None
 
 
 def interpretar_instruccion(db: Session, usuario: Usuario, texto: str) -> dict:
@@ -112,12 +156,17 @@ def interpretar_instruccion(db: Session, usuario: Usuario, texto: str) -> dict:
         mapa = construir_mapa(db, usuario)
         texto = mapa.redactar(texto)
 
-    prompt = _construir_prompt(texto)
+    sistema = _construir_sistema()
+    mensaje_usuario = _construir_mensaje_usuario(texto)
 
-    datos = _parsear_json(generar_texto(prompt, json_forzado=True))
+    datos = _parsear_json(generar_texto(mensaje_usuario, json_forzado=True, sistema=sistema))
     if datos is None:
         datos = _parsear_json(
-            generar_texto(prompt + "\n\nResponde SOLO el JSON, una sola línea, nada más.", json_forzado=True)
+            generar_texto(
+                mensaje_usuario + "\n\nResponde SOLO el JSON, una sola línea, nada más.",
+                json_forzado=True,
+                sistema=sistema,
+            )
         )
 
     sin_accion = {"acciones": [{"tool": SIN_ACCION, "parametros": {}}]}

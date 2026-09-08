@@ -1,7 +1,7 @@
 ﻿"""
 Esquemas Pydantic: Entregable e Historial de Avance.
 """
-from datetime import date, datetime
+from datetime import date, datetime, time
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -14,6 +14,9 @@ class EntregableBase(BaseModel):
     descripcion: Optional[str] = None
     responsable_id: int
     fecha_entrega: date
+    # Opcional (2026-09-01, a petición de Yue) -- None = sin hora
+    # específica, mismo comportamiento de siempre.
+    hora_entrega: Optional[time] = None
     sensible: bool = False
     # Urgencia marcada a mano por quien asigna (2026-08-20, a petición del
     # cliente) -- ver Entregable.urgente_manual. Se combina con la
@@ -34,6 +37,7 @@ class EntregableActualizar(BaseModel):
     descripcion: Optional[str] = None
     responsable_id: Optional[int] = None
     fecha_entrega: Optional[date] = None
+    hora_entrega: Optional[time] = None
     sensible: Optional[bool] = None
     estatus: Optional[EstatusEntregable] = None
     urgente_manual: Optional[bool] = None
@@ -56,6 +60,13 @@ class ReasignarEntregableRequest(BaseModel):
 
 class ActualizarAvanceRequest(BaseModel):
     porcentaje_avance: int = Field(ge=0, le=100)
+
+
+class RechazarEntregableRequest(BaseModel):
+    # "Visto bueno" (2026-09-03) -- nota OBLIGATORIA, el responsable
+    # necesita saber qué corregir (ver
+    # app/services/entregables.py::rechazar_entregable).
+    nota: str = Field(min_length=1)
 
 
 class MoverEntregableRequest(BaseModel):
@@ -102,6 +113,11 @@ class EntregableOut(EntregableBase):
     # pertenece, poder reasignarlo"). Ver
     # app/core/permissions.py::puede_reasignar_entregable.
     puede_reasignar: bool = False
+    # "Visto bueno" (2026-09-03) -- si quien ve la pantalla puede aprobar o
+    # rechazar este entregable (relevante solo cuando estatus ==
+    # pendiente_aprobacion). Ver
+    # app/core/permissions.py::puede_aprobar_rechazar_entregable.
+    puede_aprobar: bool = False
     # No expone comprobante_path crudo -- solo si hay o no comprobante,
     # mismo patrón que NotaOut.tiene_imagen. La imagen en sí se pide vía
     # GET /entregables/{id}/comprobante (autenticado, mismo permiso que ver

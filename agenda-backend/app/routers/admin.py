@@ -1,12 +1,32 @@
 """
-Endpoints administrativos de utilidad para el MVP/pruebas.
+Endpoints administrativos.
+
+`/admin/generar-recordatorios` es el original del MVP (sin gate de
+permiso propio, solo requiere sesión -- dispara a mano el barrido de
+recordatorios que normalmente corre solo por scheduler).
+
+El resto (`/admin/reasignar`, `/admin/configuracion`, `/admin/auditoria`)
+es nuevo (2026-09-07, a petición de Yue tras preguntar "qué más debería
+poder hacer un superadmin"): reasignar en bloque, configurar en caliente,
+y ver el registro de auditoría de estas mismas acciones -- todo esto SÍ
+requiere superadmin, más estricto que "N1 o super_admin" (ver
+requerir_super_admin en app.core.permissions).
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.permissions import requerir_super_admin
 from app.database import get_db
 from app.dependencies import obtener_usuario_actual
 from app.models.usuario import Usuario
+from app.schemas.admin import (
+    ConfiguracionActualizar,
+    ReasignarTodoOut,
+    ReasignarTodoRequest,
+    RegistroAuditoriaOut,
+)
+from app.services import auditoria, configuracion
+from app.services.admin import reasignar_todo
 from app.services.materializar_series import materializar_ocurrencias
 from app.services.recordatorios import (
     generar_recordatorios,
@@ -45,3 +65,51 @@ def disparar_generacion_recordatorios(
         "notificaciones_recordatorios_previos": total_recordatorios_previos,
         "ocurrencias_series_creadas": ocurrencias_creadas,
     }
+
+
+@router.post("/reasignar", response_model=ReasignarTodoOut)
+def reasignar(
+    datos: ReasignarTodoRequest,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    requerir_super_admin(usuario)
+    resultado = reasignar_todo(db, datos.origen_id, datos.destino_id)
+    auditoria.registrar(
+        db, usuario, "reasignar_todo", datos.origen_id,
+        {"destino_id": datos.destino_id, **resultado},
+    )
+    return resultado
+
+
+@router.get("/configuracion")
+def obtener_configuracion(
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    requerir_super_admin(usuario)
+    return configuracion.obtener_todas(db)
+
+
+@router.put("/configuracion")
+def actualizar_configuracion(
+    datos: ConfiguracionActualizar,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    requerir_super_admin(usuario)
+    try:
+        valor = configuracion.establecer(db, usuario, datos.clave, datos.valor)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    auditoria.registrar(db, usuario, "cambiar_configuracion", None, {"clave": datos.clave, "valor": valor})
+    return {"clave": datos.clave, "valor": valor}
+
+
+@router.get("/auditoria", response_model=list[RegistroAuditoriaOut])
+def obtener_auditoria(
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    requerir_super_admin(usuario)
+    return auditoria.listar_recientes(db)

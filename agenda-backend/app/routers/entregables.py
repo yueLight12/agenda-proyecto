@@ -24,16 +24,19 @@ from app.schemas.entregable import (
     HistorialAvanceOut,
     MoverEntregableRequest,
     ReasignarEntregableRequest,
+    RechazarEntregableRequest,
 )
 from app.services.almacenamiento import ruta_absoluta
 from app.services.entregables import actualizar_avance as actualizar_avance_servicio
 from app.services.entregables import actualizar_entregable as actualizar_entregable_servicio
 from app.services.entregables import agregar_comprobante as agregar_comprobante_servicio
+from app.services.entregables import aprobar_entregable as aprobar_entregable_servicio
 from app.services.entregables import crear_entregable as crear_entregable_servicio
 from app.services.entregables import eliminar_entregable as eliminar_entregable_servicio
 from app.services.entregables import entregable_a_out
 from app.services.entregables import mover_entregable as mover_entregable_servicio
 from app.services.entregables import reasignar_entregable as reasignar_entregable_servicio
+from app.services.entregables import rechazar_entregable as rechazar_entregable_servicio
 
 router = APIRouter(tags=["Entregables"])
 
@@ -79,6 +82,7 @@ def crear_entregable(
         descripcion=datos.descripcion,
         responsable_id=datos.responsable_id,
         fecha_entrega=datos.fecha_entrega,
+        hora_entrega=datos.hora_entrega,
         sensible=datos.sensible,
         urgente_manual=datos.urgente_manual,
         requiere_comprobante=datos.requiere_comprobante,
@@ -180,6 +184,36 @@ def actualizar_avance(
     entregable = actualizar_avance_servicio(
         db, usuario, entregable_id, datos.porcentaje_avance
     )
+    db.commit()
+    db.refresh(entregable)
+    return entregable_a_out(db, usuario, entregable)
+
+
+@router.patch("/entregables/{entregable_id}/aprobar", response_model=EntregableOut)
+def aprobar_entregable(
+    entregable_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """"Visto bueno" (2026-09-03) -- confirma un entregable marcado al
+    100%, pasa de pendiente_aprobacion a cumplido. Quien lo creó, o N1/N2
+    del tema."""
+    entregable = aprobar_entregable_servicio(db, usuario, entregable_id)
+    db.commit()
+    db.refresh(entregable)
+    return entregable_a_out(db, usuario, entregable)
+
+
+@router.patch("/entregables/{entregable_id}/rechazar", response_model=EntregableOut)
+def rechazar_entregable(
+    entregable_id: int,
+    datos: RechazarEntregableRequest,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """"Visto bueno" (2026-09-03) -- rechaza un entregable marcado al
+    100%, regresa al % que tenía antes. La nota del motivo es obligatoria."""
+    entregable = rechazar_entregable_servicio(db, usuario, entregable_id, datos.nota)
     db.commit()
     db.refresh(entregable)
     return entregable_a_out(db, usuario, entregable)

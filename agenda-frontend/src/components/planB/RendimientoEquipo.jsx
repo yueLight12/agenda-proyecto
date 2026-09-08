@@ -15,6 +15,7 @@ import {
   YAxis,
 } from "recharts";
 import { proyectosApi, rendimientoApi } from "../../api/endpoints";
+import SelectorProyecto from "../SelectorProyecto";
 
 // Dashboard visual de rendimiento (2026-08-26, a petición de Yue: "los
 // usuarios que lo van a utilizar son más de gráficas... se requiere un
@@ -35,6 +36,7 @@ import { proyectosApi, rendimientoApi } from "../../api/endpoints";
 const COLOR_CUMPLIDO = "var(--color-success)";
 const COLOR_EN_PROGRESO = "var(--color-warning)";
 const COLOR_PENDIENTE = "var(--color-text-muted)";
+const COLOR_VISTO_BUENO = "var(--color-warning-strong, #b45309)";
 const COLOR_COMPLETADAS = "var(--color-teal-500)";
 const COLOR_CARGA = "var(--color-warning)";
 const COLOR_VENCIDAS = "var(--color-danger)";
@@ -88,6 +90,8 @@ const METRICAS = [
   { clave: "proyecto", etiqueta: "Carga por proyecto" },
   { clave: "tendencia", etiqueta: "Tendencia" },
   { clave: "vencidas", etiqueta: "Tareas vencidas" },
+  { clave: "aprobacion", etiqueta: "Tasa de aprobación" },
+  { clave: "actividad", etiqueta: "Actividad hora/día" },
   { clave: "tabla", etiqueta: "Tabla" },
 ];
 const METRICAS_DEFAULT = Object.fromEntries(METRICAS.map((m) => [m.clave, true]));
@@ -109,10 +113,13 @@ export default function RendimientoEquipo() {
   const [busquedaPersona, setBusquedaPersona] = useState("");
   const [personas, setPersonas] = useState([]);
   const [resumen, setResumen] = useState(null);
+  const [aprobacion, setAprobacion] = useState([]);
+  const [actividad, setActividad] = useState(null);
   const [orden, setOrden] = useState("completadas");
   const [vistaCarga, setVistaCarga] = useState("pendientes_actuales");
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
+  const [descargandoPdf, setDescargandoPdf] = useState(false);
   const [metricasVisibles, setMetricasVisibles] = useState(cargarMetricasVisibles);
 
   const alternarMetrica = (clave) => {
@@ -144,11 +151,15 @@ export default function RendimientoEquipo() {
     Promise.all([
       rendimientoApi.obtener(periodo, filtro),
       rendimientoApi.obtenerResumen(filtro),
+      rendimientoApi.obtenerAprobacion(periodo, filtro),
+      rendimientoApi.obtenerActividad(periodo, filtro),
     ])
-      .then(([datosPersonas, datosResumen]) => {
+      .then(([datosPersonas, datosResumen, datosAprobacion, datosActividad]) => {
         if (cancelado) return;
         setPersonas(datosPersonas);
         setResumen(datosResumen);
+        setAprobacion(datosAprobacion);
+        setActividad(datosActividad);
       })
       .catch(() => {
         if (!cancelado) setError("No se pudo cargar el rendimiento del equipo.");
@@ -161,6 +172,26 @@ export default function RendimientoEquipo() {
     };
   }, [periodo, proyectoId]);
 
+  const descargarPdf = async () => {
+    setDescargandoPdf(true);
+    try {
+      const filtro = proyectoId ? Number(proyectoId) : undefined;
+      const blob = await rendimientoApi.descargarReportePdf(periodo, filtro);
+      const url = window.URL.createObjectURL(blob);
+      const enlace = document.createElement("a");
+      enlace.href = url;
+      enlace.download = `rendimiento_${periodo}.pdf`;
+      document.body.appendChild(enlace);
+      enlace.click();
+      enlace.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      setError("No se pudo generar el PDF.");
+    } finally {
+      setDescargandoPdf(false);
+    }
+  };
+
   const personasFiltradas = personas.filter((p) =>
     p.nombre.toLowerCase().includes(busquedaPersona.trim().toLowerCase())
   );
@@ -170,6 +201,12 @@ export default function RendimientoEquipo() {
     ? [
         { clave: "cumplido", nombre: "Cumplido", valor: resumen.por_estatus.cumplido, color: COLOR_CUMPLIDO },
         { clave: "en_progreso", nombre: "En progreso", valor: resumen.por_estatus.en_progreso, color: COLOR_EN_PROGRESO },
+        {
+          clave: "pendiente_aprobacion",
+          nombre: "Visto bueno",
+          valor: resumen.por_estatus.pendiente_aprobacion,
+          color: COLOR_VISTO_BUENO,
+        },
         { clave: "pendiente", nombre: "Pendiente", valor: resumen.por_estatus.pendiente, color: COLOR_PENDIENTE },
       ].filter((d) => d.valor > 0)
     : [];
@@ -192,19 +229,7 @@ export default function RendimientoEquipo() {
       </div>
 
       <div className="planb__rendimiento-filtros">
-        <select
-          className="input"
-          value={proyectoId}
-          onChange={(e) => setProyectoId(e.target.value)}
-          aria-label="Filtrar por proyecto"
-        >
-          <option value="">Todos los proyectos</option>
-          {proyectos.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.ruta}
-            </option>
-          ))}
-        </select>
+        <SelectorProyecto proyectos={proyectos} value={proyectoId} onChange={setProyectoId} />
         <input
           className="input"
           type="search"
@@ -213,6 +238,14 @@ export default function RendimientoEquipo() {
           onChange={(e) => setBusquedaPersona(e.target.value)}
           aria-label="Buscar persona"
         />
+        <button
+          type="button"
+          className="btn btn--secondary"
+          onClick={descargarPdf}
+          disabled={descargandoPdf || cargando}
+        >
+          {descargandoPdf ? "Generando..." : "📄 Descargar PDF"}
+        </button>
       </div>
 
       <div className="planb__rendimiento-metricas" role="group" aria-label="Mostrar/ocultar métricas">
@@ -322,6 +355,88 @@ export default function RendimientoEquipo() {
                   </BarChart>
                 </ResponsiveContainer>
               )}
+            </div>
+          )}
+
+          {metricasVisibles.aprobacion && (
+            <div className="planb__rendimiento-grafica-card">
+              <h3 className="planb__rendimiento-grafica-titulo">
+                Tasa de aprobación ("Visto bueno")
+              </h3>
+              {aprobacion.length === 0 ? (
+                <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
+                  Nadie tiene tareas con visto bueno en este periodo.
+                </p>
+              ) : (
+                <ResponsiveContainer width="100%" height={Math.max(180, aprobacion.length * 44)}>
+                  <BarChart data={aprobacion} layout="vertical" margin={{ left: 8, right: 16 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" horizontal={false} />
+                    <XAxis type="number" allowDecimals={false} stroke="var(--color-text-muted)" fontSize={12} />
+                    <YAxis
+                      type="category"
+                      dataKey="nombre"
+                      width={140}
+                      stroke="var(--color-text-muted)"
+                      fontSize={12}
+                    />
+                    <Tooltip
+                      contentStyle={ESTILO_TOOLTIP}
+                      cursor={{ fill: "var(--color-border)", opacity: 0.3 }}
+                      formatter={(valor, nombre, item) =>
+                        nombre === "Aprobadas" && item.payload.tasa_aprobacion != null
+                          ? [`${valor} (${item.payload.tasa_aprobacion}% de aprobación)`, nombre]
+                          : [valor, nombre]
+                      }
+                    />
+                    <Legend wrapperStyle={{ fontSize: "0.8rem" }} />
+                    <Bar dataKey="aprobadas" name="Aprobadas" fill={COLOR_CUMPLIDO} radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="rechazadas" name="Rechazadas" fill={COLOR_VENCIDAS} radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          )}
+
+          {metricasVisibles.actividad && actividad && (
+            <div className="planb__rendimiento-graficas-grid">
+              <div className="planb__rendimiento-grafica-card">
+                <h3 className="planb__rendimiento-grafica-titulo">Actividad por hora del día</h3>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={actividad.por_hora} margin={{ left: -20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+                    <XAxis
+                      dataKey="hora"
+                      tickFormatter={(h) => `${String(h).padStart(2, "0")}h`}
+                      stroke="var(--color-text-muted)"
+                      fontSize={11}
+                    />
+                    <YAxis allowDecimals={false} stroke="var(--color-text-muted)" fontSize={12} />
+                    <Tooltip
+                      contentStyle={ESTILO_TOOLTIP}
+                      cursor={{ fill: "var(--color-border)", opacity: 0.3 }}
+                      labelFormatter={(h) => `${String(h).padStart(2, "0")}:00`}
+                    />
+                    <Bar dataKey="total" name="Actualizaciones" fill={COLOR_COMPLETADAS} radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="planb__rendimiento-grafica-card">
+                <h3 className="planb__rendimiento-grafica-titulo">Actividad por día de la semana</h3>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={actividad.por_dia_semana} margin={{ left: -20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+                    <XAxis
+                      dataKey="dia"
+                      tickFormatter={(d) => d.slice(0, 3)}
+                      stroke="var(--color-text-muted)"
+                      fontSize={11}
+                    />
+                    <YAxis allowDecimals={false} stroke="var(--color-text-muted)" fontSize={12} />
+                    <Tooltip contentStyle={ESTILO_TOOLTIP} cursor={{ fill: "var(--color-border)", opacity: 0.3 }} />
+                    <Bar dataKey="total" name="Actualizaciones" fill={COLOR_CARGA} radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           )}
 

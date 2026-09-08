@@ -5,6 +5,7 @@ import Login from "./pages/Login";
 import AgendaPlanB from "./pages/AgendaPlanB";
 import TableroProyecto from "./pages/TableroProyecto";
 import Perfil from "./pages/Perfil";
+import AdminUsuarios from "./pages/AdminUsuarios";
 
 export default function App() {
   return (
@@ -61,6 +62,17 @@ export default function App() {
             element={
               <RutaProtegida>
                 <Perfil />
+              </RutaProtegida>
+            }
+          />
+          {/* Administración de usuarios (2026-09-07) -- solo superadmin, ver
+              AdminUsuarios.jsx (el gate real vive en el backend, esta
+              pantalla solo se auto-oculta si no aplica). */}
+          <Route
+            path="/admin/usuarios"
+            element={
+              <RutaProtegida>
+                <AdminUsuarios />
               </RutaProtegida>
             }
           />
