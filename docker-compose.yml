@@ -30,6 +30,8 @@ services:
     depends_on:
       - db
       - whisper
+    env_file:
+      - ./agenda-backend/.env
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/agenda_inteligente
       SECRET_KEY: dev-secret-key-cambiar-en-produccion
