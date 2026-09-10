@@ -23,9 +23,9 @@ Idempotente: si el usuario/proyecto/rol ya existen, no los duplica.
 
 Cómo quitarlo cuando ya no se necesite (a mano, por SQL):
     DELETE FROM usuario_proyecto_rol WHERE usuario_id IN (
-        SELECT id FROM usuarios WHERE email = 'demo.publico@demo.local'
+        SELECT id FROM usuarios WHERE email = 'demo@demopublico.mx'
     );
-    DELETE FROM usuarios WHERE email = 'demo.publico@demo.local';
+    DELETE FROM usuarios WHERE email = 'demo@demopublico.mx';
     DELETE FROM proyectos WHERE nombre = 'Demo Pública';
 """
 import sys
@@ -41,7 +41,11 @@ Base.metadata.create_all(bind=engine)
 PASSWORD_DEMO = "Demo1234!"
 PROYECTO_NOMBRE = "Demo Pública"
 USUARIO_NOMBRE = "Usuario Demo"
-USUARIO_EMAIL = "demo@demo.local"
+# OJO: nunca usar un TLD reservado (.local, .example, .test, .invalid) --
+# email-validator lo rechaza al serializar GET /usuarios y tumba el
+# endpoint COMPLETO con 500, no solo el registro de este usuario (bug real
+# encontrado 2026-09-10 con demo@demo.local).
+USUARIO_EMAIL = "demo@demopublico.mx"
 
 
 def _plan(db):
