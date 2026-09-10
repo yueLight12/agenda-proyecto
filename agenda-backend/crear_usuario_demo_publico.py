@@ -23,9 +23,9 @@ Idempotente: si el usuario/proyecto/rol ya existen, no los duplica.
 
 Cómo quitarlo cuando ya no se necesite (a mano, por SQL):
     DELETE FROM usuario_proyecto_rol WHERE usuario_id IN (
-        SELECT id FROM usuarios WHERE email = 'demo@demopublico.mx'
+        SELECT id FROM usuarios WHERE email = 'demo@demo.com'
     );
-    DELETE FROM usuarios WHERE email = 'demo@demopublico.mx';
+    DELETE FROM usuarios WHERE email = 'demo@demo.com';
     DELETE FROM proyectos WHERE nombre = 'Demo Pública';
 """
 import sys
@@ -45,7 +45,7 @@ USUARIO_NOMBRE = "Usuario Demo"
 # email-validator lo rechaza al serializar GET /usuarios y tumba el
 # endpoint COMPLETO con 500, no solo el registro de este usuario (bug real
 # encontrado 2026-09-10 con demo@demo.local).
-USUARIO_EMAIL = "demo@demopublico.mx"
+USUARIO_EMAIL = "demo@demo.com"
 
 
 def _plan(db):
