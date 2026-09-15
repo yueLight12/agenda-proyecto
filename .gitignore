@@ -22,6 +22,11 @@ agenda-backend/uploads/
 /respaldos/
 *.sql
 
+# Llaves privadas y CSR generados para el certificado SAML (ver
+# app/services/saml_sso.py) — el CSR en sí no es secreto, pero vive junto
+# a la llave privada en la misma carpeta; más simple excluir todo.
+/certificados_saml/
+
 # Frontend
 agenda-frontend/node_modules/
 agenda-frontend/dist/
