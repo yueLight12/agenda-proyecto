@@ -80,9 +80,28 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+# CORS (2026-09-15, a petición de Yue) -- antes era allow_origins=["*"]
+# (cualquier sitio web podía llamarle a esta API desde el navegador de
+# alguien con sesión abierta). Ahora es una lista explícita: los puertos
+# de desarrollo local de siempre (docker-compose.yml=5183,
+# docker-compose.dev-local.yml=5184, docker-compose.mysql.yml=5186) +
+# settings.url_app (la URL pública real, ver .env) + cualquier extra en
+# settings.cors_origenes_extra. Un origen vacío (url_app sin configurar)
+# se filtra solo, no rompe nada.
+_ORIGENES_LOCALES = [
+    "http://localhost:5183",
+    "http://localhost:5184",
+    "http://localhost:5186",
+]
+_origenes_cors = _ORIGENES_LOCALES + [
+    origen.strip()
+    for origen in [settings.url_app, *settings.cors_origenes_extra.split(",")]
+    if origen.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Ajustar a dominios específicos antes de producción
+    allow_origins=_origenes_cors,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

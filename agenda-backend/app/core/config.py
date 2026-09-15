@@ -82,6 +82,16 @@ class Settings(BaseSettings):
     # cuando se decida la URL pública definitiva.
     url_app: str = ""
 
+    # CORS (2026-09-15, a petición de Yue): orígenes ADICIONALES a url_app
+    # (arriba) y los puertos de desarrollo local (ver main.py) desde donde
+    # el navegador puede llamar a esta API -- separados por comas, ej.
+    # "https://otro-dominio.mx,https://algo-mas.mx". Antes esto era "*"
+    # (cualquier origen) -- funcionaba, pero es la config más permisiva
+    # posible: cualquier sitio web podía llamar a la API desde el
+    # navegador de alguien con sesión abierta. Vacío = solo url_app + los
+    # puertos locales de siempre.
+    cors_origenes_extra: str = ""
+
     # Notificaciones push del navegador (Web Push, VAPID) para entregables
     # urgentes -- 2026-08-23, a petición de Yue: avisar aunque el celular
     # esté con la pantalla apagada o la app cerrada, no solo con la
