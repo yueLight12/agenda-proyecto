@@ -9,8 +9,11 @@ import asyncio
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from app.core.config import settings
+from app.core.rate_limit import limiter
 from app.database import SessionLocal
 from app.routers import (
     admin,
@@ -36,7 +39,6 @@ from app.routers import (
     series_reunion,
     ultramsg_webhook,
     usuarios,
-    whatsapp_webhook,
 )
 from app.services.eventos_tiempo_real import registrar_hooks_sqlalchemy, registrar_loop
 from app.services.materializar_series import materializar_ocurrencias
@@ -45,6 +47,7 @@ from app.services.recordatorios import (
     generar_recordatorios_cumpleanos,
     generar_recordatorios_previos_reuniones,
     generar_recordatorios_reuniones_hoy,
+    generar_recordatorios_urgentes_hoy,
 )
 
 # Registra el hook de SQLAlchemy que dispara un evento de tiempo real cada
@@ -69,6 +72,12 @@ app = FastAPI(
     description="API del MVP: entregables, roles por proyecto, avance e histórico, notificaciones.",
     version="0.1.0",
 )
+
+# Rate limiting (2026-09-15) -- ver app/core/rate_limit.py. El límite en sí
+# se declara por endpoint con @limiter.limit(...) (hoy solo en
+# /auth/login, ver app/routers/auth.py); esto solo registra el mecanismo.
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -100,7 +109,6 @@ app.include_router(chatbot.router)
 app.include_router(asistente.router)
 app.include_router(series_reunion.router)
 app.include_router(eventos_tiempo_real.router)
-app.include_router(whatsapp_webhook.router)
 app.include_router(ultramsg_webhook.router)
 # app.include_router(integraciones.router)  # INACTIVO 2026-08-24, ver app/routers/integraciones.py
 
@@ -118,6 +126,15 @@ def _ejecutar_barrido_recordatorios():
         db.close()
 
 
+def _ejecutar_barrido_recordatorios_urgentes():
+    """Corre generar_recordatorios_urgentes_hoy con su propia sesión de BD (para el scheduler)."""
+    db = SessionLocal()
+    try:
+        generar_recordatorios_urgentes_hoy(db)
+    finally:
+        db.close()
+
+
 scheduler = BackgroundScheduler()
 scheduler.add_job(
     _ejecutar_barrido_recordatorios,
@@ -125,12 +142,21 @@ scheduler.add_job(
     hours=settings.horas_entre_barridos_recordatorios,
     id="barrido_recordatorios",
 )
+# Refuerzo más frecuente solo para lo que vence HOY (2026-09-14, a
+# petición de Yue) -- ver generar_recordatorios_urgentes_hoy.
+scheduler.add_job(
+    _ejecutar_barrido_recordatorios_urgentes,
+    "interval",
+    hours=settings.horas_entre_recordatorios_urgentes,
+    id="barrido_recordatorios_urgentes",
+)
 
 
 @app.on_event("startup")
 def iniciar_scheduler():
     # Corre un barrido inicial al arrancar y luego cada N horas (ver settings.horas_entre_barridos_recordatorios).
     _ejecutar_barrido_recordatorios()
+    _ejecutar_barrido_recordatorios_urgentes()
     scheduler.start()
 
 

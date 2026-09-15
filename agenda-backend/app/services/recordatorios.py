@@ -33,6 +33,7 @@ from app.models.usuario import Usuario
 from app.models.usuario_proyecto_rol import UsuarioProyectoRol
 from app.services.eventos_empresa import proxima_ocurrencia
 from app.services.notificaciones import crear_notificacion
+from app.services.whatsapp import enviar_whatsapp
 
 
 def _ya_existe_notificacion_hoy(
@@ -60,6 +61,17 @@ def generar_recordatorios(db: Session) -> int:
     entrar al tablero) — mismo criterio de "supervisor_id" que usa
     permissions.py, no una regla de visibilidad nueva. Devuelve el total
     de notificaciones creadas.
+
+    Además de la notificación in-app/push, manda WhatsApp con el mismo
+    mensaje (2026-09-14, a petición de Yue: antes el WhatsApp de un
+    entregable solo se mandaba UNA vez, al crear/reasignar -- si la
+    persona ignoraba esa notificación, nunca más le llegaba nada por
+    WhatsApp aunque la tarea siguiera vencida o por vencer). Se reusa la
+    misma deduplicación por día que ya tiene la notificación in-app
+    (_ya_existe_notificacion_hoy), así que llega como mucho una vez por
+    día por entregable mientras no se marque cumplido -- no es spam por
+    cada barrido de 6h, es un recordatorio diario que SÍ se repite día
+    tras día hasta que se resuelva.
     """
     hoy = date.today()
     limite = hoy + timedelta(days=settings.dias_alerta_entregable)
@@ -108,6 +120,94 @@ def generar_recordatorios(db: Session) -> int:
                 continue
 
             crear_notificacion(db, destinatario_id, tipo, mensaje, entregable_id=entregable.id)
+            enviar_whatsapp(db, destinatario_id, mensaje)
+            creadas += 1
+
+    db.commit()
+    return creadas
+
+
+def _ya_existe_notificacion_reciente(
+    db: Session, usuario_id: int, entregable_id: int, tipo: TipoNotificacion, horas: int
+) -> bool:
+    limite = datetime.utcnow() - timedelta(hours=horas)
+    return (
+        db.query(Notificacion)
+        .filter(
+            Notificacion.usuario_id == usuario_id,
+            Notificacion.entregable_id == entregable_id,
+            Notificacion.tipo == tipo,
+            Notificacion.fecha_creacion >= limite,
+        )
+        .first()
+        is not None
+    )
+
+
+def generar_recordatorios_urgentes_hoy(db: Session) -> int:
+    """
+    Refuerzo de recordatorios (2026-09-14, a petición de Yue) para
+    entregables que vencen HOY y siguen sin cumplirse: a diferencia de
+    generar_recordatorios (una notificación por día, sea cual sea la
+    urgencia), este insiste con MAYOR frecuencia -- cada
+    settings.horas_entre_recordatorios_urgentes horas -- solo mientras
+    quede el mismo día para resolverlo. Deja de insistir solo cuando el
+    entregable se marca cumplido (deja de aparecer en la consulta) o
+    cuando cambia la fecha (ya no "vence hoy"). Mismos destinatarios
+    (responsable + supervisor) y mismos canales (in-app, push, WhatsApp)
+    que generar_recordatorios -- pensado para correr en un job de
+    scheduler aparte y más frecuente (ver app/main.py).
+    """
+    hoy = date.today()
+
+    entregables_hoy = (
+        db.query(Entregable)
+        .filter(
+            Entregable.estatus != EstatusEntregable.cumplido,
+            Entregable.fecha_entrega == hoy,
+        )
+        .all()
+    )
+
+    creadas = 0
+    for entregable in entregables_hoy:
+        mensaje_propio = f'URGENTE: el entregable "{entregable.nombre}" vence HOY ({entregable.fecha_entrega}) y sigue pendiente.'
+        mensaje_supervisor = (
+            f'URGENTE: el entregable "{entregable.nombre}" de {entregable.responsable.nombre} '
+            f"vence HOY ({entregable.fecha_entrega}) y sigue pendiente."
+        )
+        destinatarios = {entregable.responsable_id: mensaje_propio}
+
+        rol_responsable = (
+            db.query(UsuarioProyectoRol)
+            .filter(
+                UsuarioProyectoRol.usuario_id == entregable.responsable_id,
+                UsuarioProyectoRol.proyecto_id == entregable.proyecto_id,
+            )
+            .first()
+        )
+        if rol_responsable and rol_responsable.supervisor_id:
+            destinatarios.setdefault(rol_responsable.supervisor_id, mensaje_supervisor)
+
+        for destinatario_id, mensaje in destinatarios.items():
+            if _ya_existe_notificacion_reciente(
+                db,
+                destinatario_id,
+                entregable.id,
+                TipoNotificacion.recordatorio_vencido,
+                settings.horas_entre_recordatorios_urgentes,
+            ):
+                continue
+
+            crear_notificacion(
+                db,
+                destinatario_id,
+                TipoNotificacion.recordatorio_vencido,
+                mensaje,
+                entregable_id=entregable.id,
+                urgente=True,
+            )
+            enviar_whatsapp(db, destinatario_id, mensaje)
             creadas += 1
 
     db.commit()

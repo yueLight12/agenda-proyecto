@@ -3,10 +3,11 @@ Router de autenticación: login y datos del usuario actual.
 """
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
+from app.core.rate_limit import limiter
 from app.core.security import crear_access_token, hash_password, verificar_password
 from app.database import get_db
 from app.dependencies import obtener_usuario_actual
@@ -18,10 +19,21 @@ router = APIRouter(prefix="/auth", tags=["Autenticación"])
 
 
 @router.post("/login", response_model=Token)
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+def login(
+    request: Request,
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
+):
     """
     Login con email (como username) y password.
     Compatible con el flujo estándar OAuth2PasswordBearer de FastAPI.
+
+    Limitado a 10 intentos por minuto por IP (2026-09-15, a petición de
+    Yue, pensando en el piloto con 20-30 personas expuesto públicamente) --
+    ver app/core/rate_limit.py. `request: Request` es obligatorio para que
+    slowapi pueda leer la IP del cliente; el decorador exige que el
+    parámetro exista aunque el cuerpo de la función no lo use directo.
     """
     usuario = db.query(Usuario).filter(Usuario.email == form_data.username).first()
 

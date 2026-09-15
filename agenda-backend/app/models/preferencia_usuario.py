@@ -7,7 +7,7 @@ botones), theme (claro/oscuro) y card_order (orden de las tarjetas de
 """
 from datetime import datetime
 
-from sqlalchemy import JSON, Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -32,6 +32,12 @@ class PreferenciaUsuario(Base):
     # Ocultar una tarjeta es solo una preferencia de vista: no bloquea la
     # función correspondiente en ningún otro lado (decisión explícita de Yue).
     tarjetas_ocultas = Column(JSON, nullable=True)
+    # FTUE/onboarding (2026-09-15, a petición de Yue, pensando en las
+    # 20-30 personas que van a usar el sistema por primera vez en el
+    # piloto) -- True una vez que alguien completa o cierra el recorrido
+    # guiado (ver OnboardingTour.jsx), para que no se le muestre de nuevo
+    # en su próximo login/dispositivo. Default False = nunca lo ha visto.
+    tour_completado = Column(Boolean, default=False, nullable=False)
     fecha_actualizacion = Column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )

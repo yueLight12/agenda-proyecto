@@ -11,6 +11,7 @@ import ModalReunion from "../components/ModalReunion";
 import CalendarioGlobal from "./CalendarioGlobal";
 import FabAsistenteVoz from "../components/FabAsistenteVoz";
 import BotonNotificacionesPush from "../components/BotonNotificacionesPush";
+import OnboardingTour from "../components/OnboardingTour";
 import SelectorSemanaDestacado from "../components/planB/SelectorSemanaDestacado";
 import TarjetasAsignar from "../components/planB/TarjetasAsignar";
 import SelectorPersona from "../components/planB/SelectorPersona";
@@ -172,6 +173,7 @@ export default function AgendaPlanB() {
 
   return (
     <div className="planb">
+      <OnboardingTour />
       <div className="planb__topbar">
         <div>
           <h1 style={{ margin: 0, fontSize: "1.4rem" }}>Mi Chamba</h1>
@@ -182,7 +184,9 @@ export default function AgendaPlanB() {
           )}
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <BotonNotificacionesPush />
+          <span id="tour-notificaciones">
+            <BotonNotificacionesPush />
+          </span>
           {/* "Modo editor" (2026-08-31) -- único control de personalización
               visible siempre; los otros 3 (apariencia/estilo/tema) solo
               aparecen mientras este está activo, ver estado arriba. */}
@@ -240,11 +244,16 @@ export default function AgendaPlanB() {
               🛡️ Admin
             </Link>
           )}
+          {!usuario?.es_super_admin && (
+            <Link id="tour-mi-equipo" to="/mi-equipo" className="btn btn--ghost" title="Mi equipo">
+              👥 Mi equipo
+            </Link>
+          )}
           <button type="button" className="btn btn--ghost" onClick={logout}>
             Salir
           </button>
           {usuario && (
-            <Link to="/perfil" className="planb__avatar" title="Mi perfil">
+            <Link id="tour-perfil" to="/perfil" className="planb__avatar" title="Mi perfil">
               {iniciales(usuario.nombre)}
             </Link>
           )}
@@ -252,23 +261,27 @@ export default function AgendaPlanB() {
       </div>
 
       <div className="planb__contenido stack">
-        <SelectorSemanaDestacado
-          fechaRef={fechaRef}
-          onCambiarFecha={setFechaRef}
-          onAbrirEntregable={abrirEntregable}
-          onAbrirReunion={abrirReunion}
-        />
+        <div id="tour-semana">
+          <SelectorSemanaDestacado
+            fechaRef={fechaRef}
+            onCambiarFecha={setFechaRef}
+            onAbrirEntregable={abrirEntregable}
+            onAbrirReunion={abrirReunion}
+          />
+        </div>
 
-        <div className="card">
+        <div id="tour-asignar" className="card">
           <h2 style={{ fontSize: "1rem", marginBottom: 12 }}>Quiero asignar</h2>
           <TarjetasAsignar onAbrir={setModalActivo} cardOrder={cardOrder} hiddenCards={hiddenCards} />
         </div>
 
-        <PendientesUrgentes
-          recargarSenal={recargarPendientes}
-          onAbrirEntregable={abrirEntregable}
-          onAbrirReunion={abrirReunion}
-        />
+        <div id="tour-pendientes">
+          <PendientesUrgentes
+            recargarSenal={recargarPendientes}
+            onAbrirEntregable={abrirEntregable}
+            onAbrirReunion={abrirReunion}
+          />
+        </div>
       </div>
 
       {cargandoDetalle && (

@@ -37,6 +37,8 @@ def actualizar_preferencias(
         preferencias.card_order = datos.card_order
     if datos.tarjetas_ocultas is not None:
         preferencias.tarjetas_ocultas = datos.tarjetas_ocultas
+    if datos.tour_completado is not None:
+        preferencias.tour_completado = datos.tour_completado
     db.commit()
     db.refresh(preferencias)
     return preferencias

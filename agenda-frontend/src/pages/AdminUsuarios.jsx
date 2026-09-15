@@ -4,11 +4,6 @@ import { useAuth } from "../context/AuthContext";
 import { adminApi, usuariosApi } from "../api/endpoints";
 import Modal from "../components/Modal";
 
-const ETIQUETAS_PROVEEDOR_WHATSAPP = {
-  sms: "SMS (Twilio, seguro/default)",
-  ultramsg: "WhatsApp real (Ultramsg, demo no oficial)",
-};
-
 function ModalReasignar({ origen, usuarios, onReasignar, onCerrar, error, guardando }) {
   const opciones = usuarios.filter((u) => u.id !== origen.id);
   const [destinoId, setDestinoId] = useState(opciones[0]?.id || "");
@@ -144,8 +139,6 @@ export default function AdminUsuarios() {
   const [modal, setModal] = useState(null); // { modo: "nuevo" | "editar" | "reasignar", usuario? }
   const [errorModal, setErrorModal] = useState("");
   const [guardando, setGuardando] = useState(false);
-  const [configuracion, setConfiguracion] = useState(null);
-  const [guardandoConfig, setGuardandoConfig] = useState(false);
   const [auditoria, setAuditoria] = useState([]);
 
   const cargar = () => {
@@ -158,14 +151,13 @@ export default function AdminUsuarios() {
       .finally(() => setCargando(false));
   };
 
-  const cargarConfigYAuditoria = () => {
-    adminApi.obtenerConfiguracion().then(setConfiguracion).catch(() => {});
+  const cargarAuditoria = () => {
     adminApi.obtenerAuditoria().then(setAuditoria).catch(() => {});
   };
 
   useEffect(() => {
     cargar();
-    cargarConfigYAuditoria();
+    cargarAuditoria();
   }, []);
 
   if (!usuarioActual?.es_super_admin) {
@@ -259,19 +251,6 @@ export default function AdminUsuarios() {
     }
   };
 
-  const cambiarConfiguracion = async (clave, valor) => {
-    setGuardandoConfig(true);
-    setError("");
-    try {
-      await adminApi.actualizarConfiguracion(clave, valor);
-      cargarConfigYAuditoria();
-    } catch (err) {
-      setError(err.response?.data?.detail || "No se pudo cambiar la configuración.");
-    } finally {
-      setGuardandoConfig(false);
-    }
-  };
-
   return (
     <div style={{ padding: 24, maxWidth: 900, margin: "0 auto" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
@@ -357,27 +336,6 @@ export default function AdminUsuarios() {
               ))}
             </tbody>
           </table>
-        </div>
-      )}
-
-      {configuracion && (
-        <div style={{ marginTop: 32 }}>
-          <h2>Configuración global</h2>
-          <label className="stack" style={{ gap: 4, maxWidth: 400 }}>
-            <span style={{ fontSize: "0.85rem" }}>Proveedor de WhatsApp/SMS</span>
-            <select
-              className="input"
-              value={configuracion.whatsapp_proveedor}
-              disabled={guardandoConfig}
-              onChange={(e) => cambiarConfiguracion("whatsapp_proveedor", e.target.value)}
-            >
-              {Object.entries(ETIQUETAS_PROVEEDOR_WHATSAPP).map(([valor, etiqueta]) => (
-                <option key={valor} value={valor}>
-                  {etiqueta}
-                </option>
-              ))}
-            </select>
-          </label>
         </div>
       )}
 

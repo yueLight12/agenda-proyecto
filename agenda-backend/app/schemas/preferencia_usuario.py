@@ -13,6 +13,7 @@ class PreferenciaUsuarioOut(BaseModel):
     theme: Literal["claro", "oscuro"]
     card_order: Optional[list[str]] = None
     tarjetas_ocultas: Optional[list[str]] = None
+    tour_completado: bool = False
 
     class Config:
         from_attributes = True
@@ -23,6 +24,7 @@ class PreferenciaUsuarioActualizar(BaseModel):
     theme: Optional[Literal["claro", "oscuro"]] = None
     card_order: Optional[list[str]] = None
     tarjetas_ocultas: Optional[list[str]] = None
+    tour_completado: Optional[bool] = None
 
     @field_validator("card_order")
     @classmethod

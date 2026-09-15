@@ -33,7 +33,7 @@ export default function Login() {
     <div className="login-screen">
       <form className="login-card stack" onSubmit={handleSubmit}>
         <div>
-          <h1 style={{ fontSize: "1.3rem" }}>Agenda Inteligente</h1>
+          <h1 style={{ fontSize: "1.3rem" }}>Mi Chamba</h1>
           <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem", margin: 0 }}>
             Inicia sesión para ver tus proyectos
           </p>

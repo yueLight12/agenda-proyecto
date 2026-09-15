@@ -1,8 +1,15 @@
 """
-Webhook entrante de Twilio WhatsApp: asignar tareas por WhatsApp sin tener
-que abrir la app (2026-08-27, a petición de Yue -- puente de transición
-para quien hoy vive en WhatsApp; NO reemplaza la app, ver CLAUDE.md sección
-1 "El asistente debe reemplazar la UI").
+Lógica compartida de "WhatsApp entrante": asignar tareas por WhatsApp sin
+tener que abrir la app (2026-08-27, a petición de Yue -- puente de
+transición para quien hoy vive en WhatsApp; NO reemplaza la app, ver
+CLAUDE.md sección 1 "El asistente debe reemplazar la UI").
+
+Hasta el 2026-09-15 esto vivía en un router propio con el webhook entrante
+de Twilio (firma X-Twilio-Signature, notas de voz transcritas con Whisper).
+Al descartar Twilio del todo (Ultramsg ya validado como canal único, ver
+app/services/whatsapp.py), ese endpoint y sus notas de voz por WhatsApp
+desaparecieron -- lo que queda aquí es solo el núcleo reusado por el
+webhook real, que ahora es exclusivamente app/routers/ultramsg_webhook.py.
 
 Piloto DELIBERADAMENTE acotado (confirmado por Yue el 2026-08-27):
 - Solo los números en settings.whatsapp_asignador_tareas_telefonos (hoy:
@@ -51,34 +58,27 @@ se hizo. Si el resolver pide una aclaración (ej. falta la fecha), se le
 pide a la persona que reescriba el mensaje completo -- no se intenta
 sostener una conversación de varios turnos en este piloto.
 
-Este endpoint NO usa JWT (Twilio no manda Bearer token). La identidad se
-resuelve por número de teléfono (Usuario.telefono_whatsapp) y la llamada
-en sí se autentica validando la firma de Twilio (X-Twilio-Signature) con
-TWILIO_AUTH_TOKEN -- sin esto, cualquiera que adivine la URL podría
-hacerse pasar por un mensaje entrante de Bernardo.
+La identidad se resuelve por número de teléfono (Usuario.telefono_whatsapp)
+-- la autenticación del webhook en sí (evitar que cualquiera adivine la
+URL y se haga pasar por un mensaje entrante) es responsabilidad de cada
+router de proveedor (ver ultramsg_webhook.py::ultramsg_webhook_secreto).
 """
 import logging
 import re
 from typing import Optional
 
-import requests
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
-from twilio.request_validator import RequestValidator
 
 from app.core.config import settings
-from app.database import get_db
 from app.models.entregable import Entregable
 from app.models.usuario import Usuario
 from app.services.asistente.interprete import interpretar_instruccion
 from app.services.asistente.tools import TOOLS
-from app.services.asistente.whisper_client import transcribir as transcribir_audio
 from app.services.entregables import actualizar_avance
 from app.services.equipos import listar_equipo_de_subordinado, listar_mi_equipo_efectivo
+from fastapi import HTTPException
 
 logger = logging.getLogger(__name__)
-
-router = APIRouter(prefix="/webhooks/whatsapp", tags=["Webhook WhatsApp"])
 
 _MENSAJE_AYUDA = (
     'Por ahora, desde WhatsApp solo puedo crear tareas nuevas para tu equipo. '
@@ -94,34 +94,6 @@ _PATRON_COMPLETAR = re.compile(r"^\s*listo\s*#?\s*(\d+)\s*$", re.IGNORECASE)
 
 def _telefonos_permitidos() -> set[str]:
     return {t.strip() for t in settings.whatsapp_asignador_tareas_telefonos.split(",") if t.strip()}
-
-
-def _normalizar_numero(numero_twilio: str) -> str:
-    return numero_twilio.removeprefix("whatsapp:").strip()
-
-
-def _respuesta_twiml(mensaje: str) -> Response:
-    # TwiML mínimo a mano -- una sola etiqueta <Message>, no amerita traer
-    # el helper MessagingResponse de Twilio para esto.
-    cuerpo = (
-        mensaje.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-    )
-    xml = f'<?xml version="1.0" encoding="UTF-8"?><Response><Message>{cuerpo}</Message></Response>'
-    return Response(content=xml, media_type="application/xml")
-
-
-async def _leer_formulario_validado(request: Request) -> dict:
-    """Verifica X-Twilio-Signature contra la URL pública + el cuerpo del
-    POST (documentación oficial de Twilio) antes de confiar en nada del
-    payload."""
-    formulario = await request.form()
-    datos = {clave: str(valor) for clave, valor in formulario.items()}
-    firma = request.headers.get("X-Twilio-Signature", "")
-    url = settings.whatsapp_webhook_url_publica or str(request.url)
-    validador = RequestValidator(settings.twilio_auth_token)
-    if not validador.validate(url, datos, firma):
-        raise HTTPException(status_code=403, detail="Firma de Twilio inválida")
-    return datos
 
 
 def _en_equipo_extendido(db: Session, usuario: Usuario, responsable_id: int) -> bool:
@@ -163,9 +135,9 @@ def _marcar_completada_mensaje(db: Session, usuario: Usuario, entregable_id: int
 
 
 def _procesar_asignar_tarea(db: Session, usuario: Usuario, texto: str) -> str:
-    """Núcleo del flujo de "asignar tarea" (crear_entregable), sin nada
-    específico de Twilio -- reusado por el webhook de Ultramsg. El llamador
-    ya validó el allowlist antes de llegar aquí."""
+    """Núcleo del flujo de "asignar tarea" (crear_entregable), reusado por
+    el webhook de Ultramsg. El llamador ya validó el allowlist antes de
+    llegar aquí."""
     interpretado = interpretar_instruccion(db, usuario, texto)
     primera = interpretado["acciones"][0]
 
@@ -204,12 +176,12 @@ def _procesar_asignar_tarea(db: Session, usuario: Usuario, texto: str) -> str:
 
 
 def procesar_mensaje_whatsapp(db: Session, numero: str, texto: str) -> Optional[str]:
-    """Núcleo compartido de "WhatsApp entrante", independiente del proveedor
-    (Twilio/Ultramsg) -- resuelve el usuario por teléfono, aplica el patrón
-    "LISTO #id" (sin allowlist) o el flujo de asignar tarea (con allowlist),
-    y devuelve el texto de respuesta. None = no responder nada (usuario no
-    encontrado, o número no habilitado para asignar -- mismo criterio de
-    discreción que el resto del webhook, no revela nada a quien no le toca)."""
+    """Núcleo compartido de "WhatsApp entrante" -- resuelve el usuario por
+    teléfono, aplica el patrón "LISTO #id" (sin allowlist) o el flujo de
+    asignar tarea (con allowlist), y devuelve el texto de respuesta. None =
+    no responder nada (usuario no encontrado, o número no habilitado para
+    asignar -- mismo criterio de discreción que el resto del webhook, no
+    revela nada a quien no le toca)."""
     usuario = db.query(Usuario).filter(Usuario.telefono_whatsapp == numero).first()
     if usuario is None:
         logger.warning("WhatsApp entrante de número sin usuario con ese telefono_whatsapp: %s", numero)
@@ -232,37 +204,3 @@ def procesar_mensaje_whatsapp(db: Session, numero: str, texto: str) -> Optional[
         return _MENSAJE_AYUDA
 
     return _procesar_asignar_tarea(db, usuario, texto)
-
-
-@router.post("")
-async def whatsapp_entrante(request: Request, db: Session = Depends(get_db)):
-    datos = await _leer_formulario_validado(request)
-
-    numero = _normalizar_numero(datos.get("From", ""))
-    texto = (datos.get("Body") or "").strip()
-
-    # Nota de voz (2026-08-27) -- solo aplica al flujo de Twilio, Ultramsg
-    # no maneja audio en este piloto. Se resuelve ANTES de
-    # procesar_mensaje_whatsapp porque necesita transcribirse a texto
-    # primero; el resto de la lógica (allowlist, LISTO, etc.) es la misma
-    # para ambos proveedores.
-    num_media = int(datos.get("NumMedia") or 0)
-    if num_media > 0 and not texto:
-        media_url = datos.get("MediaUrl0")
-        content_type = datos.get("MediaContentType0", "audio/ogg")
-        if not media_url or not content_type.startswith("audio/"):
-            return _respuesta_twiml(_MENSAJE_AYUDA)
-        try:
-            respuesta_media = requests.get(
-                media_url,
-                auth=(settings.twilio_account_sid, settings.twilio_auth_token),
-                timeout=30,
-            )
-            respuesta_media.raise_for_status()
-            texto = transcribir_audio(respuesta_media.content, "nota_voz.ogg", content_type)
-        except Exception:
-            logger.exception("Fallo descargando/transcribiendo nota de voz de WhatsApp")
-            return _respuesta_twiml("No pude escuchar tu nota de voz -- intenta de nuevo o mándalo por texto.")
-
-    respuesta = procesar_mensaje_whatsapp(db, numero, texto)
-    return _respuesta_twiml(respuesta or "")

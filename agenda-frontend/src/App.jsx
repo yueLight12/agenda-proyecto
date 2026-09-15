@@ -1,16 +1,19 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import RutaProtegida from "./components/RutaProtegida";
+import AvisoInstalarIos from "./components/AvisoInstalarIos";
 import Login from "./pages/Login";
 import AgendaPlanB from "./pages/AgendaPlanB";
 import TableroProyecto from "./pages/TableroProyecto";
 import Perfil from "./pages/Perfil";
 import AdminUsuarios from "./pages/AdminUsuarios";
+import MiEquipo from "./pages/MiEquipo";
 
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <AvisoInstalarIos />
         <Routes>
           <Route path="/login" element={<Login />} />
           {/* Agenda Plan B (2026-08-20, a petición de Yue, a partir de un
@@ -73,6 +76,17 @@ export default function App() {
             element={
               <RutaProtegida>
                 <AdminUsuarios />
+              </RutaProtegida>
+            }
+          />
+          {/* "Mi equipo" (2026-09-15) -- autoservicio para que cualquier
+              líder (N2) dé de alta gente nueva y arme su equipo sin
+              depender de Admin. Ver MiEquipo.jsx. */}
+          <Route
+            path="/mi-equipo"
+            element={
+              <RutaProtegida>
+                <MiEquipo />
               </RutaProtegida>
             }
           />

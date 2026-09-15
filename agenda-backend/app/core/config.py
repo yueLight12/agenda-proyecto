@@ -10,10 +10,22 @@ class Settings(BaseSettings):
 
     secret_key: str = "dev-secret-key-cambiar-en-produccion"
     algorithm: str = "HS256"
-    access_token_expire_minutes: int = 480
+    # Bajado de 480 (8h) a 240 (4h) el 2026-09-15, a petición de Yue --
+    # pensando en el piloto expuesto públicamente a 20-30 personas: si se
+    # pierde/comparte un dispositivo con sesión abierta, la ventana de
+    # riesgo se reduce a la mitad. Sigue alcanzando para media jornada sin
+    # tener que volver a iniciar sesión.
+    access_token_expire_minutes: int = 240
 
     dias_alerta_entregable: int = 2
     horas_entre_barridos_recordatorios: int = 6
+    # Recordatorio de refuerzo para entregables urgentes que vencen HOY
+    # (2026-09-14, a petición de Yue: si a alguien no le funcionó el único
+    # aviso normal -- ignoró la app, el push y el WhatsApp -- y la tarea
+    # sigue sin resolverse el mismo día que vence, hay que insistir con más
+    # frecuencia en vez de esperar al barrido normal del día siguiente). Ver
+    # generar_recordatorios_urgentes_hoy en app/services/recordatorios.py.
+    horas_entre_recordatorios_urgentes: int = 2
 
     # Chatbot de consulta (LLM local vía Ollama, sin salir a internet)
     ollama_url: str = "http://host.docker.internal:11434"
@@ -87,39 +99,16 @@ class Settings(BaseSettings):
 
     # Notificaciones por WhatsApp para entregables urgentes (2026-08-24, a
     # petición de Yue: alcanzar también a quienes hoy usan WhatsApp y no
-    # instalan la app). DEMO vía Twilio WhatsApp Sandbox -- NO es la
-    # WhatsApp Business API definitiva, que requiere permisos de TI
-    # pendientes (ver CLAUDE.md sección 6). Mismo patrón que
-    # SMTP_USUARIO/VAPID_*: si faltan credenciales, el envío se SIMULA
-    # (se registra en el log) en vez de fallar. Ver app/services/whatsapp.py.
-    twilio_account_sid: str = ""
-    twilio_auth_token: str = ""
-    # Número sandbox de Twilio, con el prefijo "whatsapp:" que exige su API,
-    # ej. "whatsapp:+14155238886" (el mismo para todos los clientes en
-    # sandbox -- cada destinatario debe unirse una vez con su código "join").
-    twilio_whatsapp_from: str = ""
-    # Número de Twilio para SMS (2026-09-01, a petición de Yue: para una demo
-    # ante gente de alto perfil, el "join" del sandbox de WhatsApp no es
-    # viable -- SMS con este número no lo requiere). Sin el prefijo
-    # "whatsapp:", ej. "+14155551234". Ver enviar_whatsapp en
-    # app/services/whatsapp.py, que ahora manda por SMS con este número en
-    # vez de WhatsApp con twilio_whatsapp_from. Si la cuenta Twilio sigue en
-    # trial, cada número destino debe verificarse antes en la consola de
-    # Twilio (Verified Caller IDs) -- eso no aplica una vez que la cuenta
-    # tenga saldo pagado.
-    twilio_sms_from: str = ""
-
-    # Ultramsg (2026-09-02, a petición de Yue) -- SOLO para una demo puntual
-    # ante gente de alto perfil que necesita ver el mensaje llegar por
-    # WhatsApp de verdad (no SMS, ver twilio_sms_from arriba), sin pedirle a
-    # nadie que mande "join" antes. Ultramsg NO es la API oficial de
-    # WhatsApp Business -- automatiza WhatsApp Web (login por QR desde un
-    # teléfono), va contra los términos de servicio de WhatsApp y el número
-    # se puede bloquear sin aviso con uso real/sostenido. Aceptado
-    # EXPLÍCITAMENTE por Yue como solución desechable solo para la demo,
-    # con el plan de reemplazarla por WhatsApp Business real (ver CLAUDE.md)
-    # antes de cualquier uso en un entorno de trabajo real. Ver
-    # whatsapp_proveedor abajo para el switch, y app/services/whatsapp.py.
+    # instalan la app), vía Ultramsg (2026-09-02). Twilio (WhatsApp Sandbox,
+    # luego SMS) se usó primero y se descartó del todo el 2026-09-15, ya con
+    # Ultramsg validado como canal único -- ver app/services/whatsapp.py.
+    # Ultramsg NO es la API oficial de WhatsApp Business -- automatiza
+    # WhatsApp Web (login por QR desde un teléfono), va contra los términos
+    # de servicio de WhatsApp y el número se puede bloquear sin aviso con
+    # uso real/sostenido. Aceptado EXPLÍCITAMENTE por Yue mientras se
+    # resuelve WhatsApp Business real (ver CLAUDE.md). Si faltan
+    # credenciales, el envío se SIMULA (se registra en el log) en vez de
+    # fallar, mismo patrón que SMTP_USUARIO/VAPID_*.
     ultramsg_instance_id: str = ""
     ultramsg_token: str = ""
     # Ultramsg NO tiene firma de petición como Twilio (X-Twilio-Signature) --
@@ -130,12 +119,6 @@ class Settings(BaseSettings):
     # en Ultramsg, ej. ".../webhooks/ultramsg/<esto>".
     ultramsg_webhook_secreto: str = ""
 
-    # Switch de canal para enviar_whatsapp (2026-09-02): "sms" (default, el
-    # fix de producción del 2026-09-01, sin fricción y sin riesgo) o
-    # "ultramsg" (WhatsApp real, solo para la demo puntual de arriba --
-    # cambiar de vuelta a "sms" en cuanto termine la demo).
-    whatsapp_proveedor: str = "sms"
-
     # Asignar tareas por WhatsApp (2026-08-27, a petición de Yue: puente de
     # transición para quien ya vive en WhatsApp -- no reemplaza la app,
     # solo evita el salto brusco). Piloto DELIBERADAMENTE acotado a un
@@ -144,15 +127,6 @@ class Settings(BaseSettings):
     # en formato internacional (ej. "+525512345678,+525587654321") -- vacío
     # = nadie puede usar el canal todavía (falla cerrado, no abierto).
     whatsapp_asignador_tareas_telefonos: str = ""
-
-    # URL pública exacta del webhook (ej.
-    # "https://agenda-demo.usw3.devtunnels.ms/webhooks/whatsapp"), tal como
-    # quedó configurada en la consola de Twilio -- la validación de firma
-    # (RequestValidator) exige comparar contra la MISMA URL que Twilio usó
-    # para firmar, y `request.url` dentro del contenedor puede no coincidir
-    # si el túnel no reenvía el Host original. Vacío = usar request.url tal
-    # cual (sirve si el túnel sí preserva el Host).
-    whatsapp_webhook_url_publica: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

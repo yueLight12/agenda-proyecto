@@ -3,17 +3,21 @@ Configuración global editable en caliente (2026-09-07) -- ver
 app/models/configuracion_app.py. Solo expone las claves en
 `CLAVES_PERMITIDAS`: cualquier otra cosa (credenciales, URLs, llaves)
 sigue siendo exclusiva de `.env`/Settings, nunca editable desde aquí.
+
+CLAVES_PERMITIDAS quedó vacío desde el 2026-09-15 al descartar Twilio:
+"whatsapp_proveedor" era el switch sms/ultramsg, y ahora WhatsApp siempre
+es Ultramsg (ver app/services/whatsapp.py) -- no queda nada que elegir en
+caliente. Se deja la función/estructura (obtener/establecer) para el
+próximo ajuste configurable que se necesite, en vez de quitar el
+mecanismo entero por una limpieza puntual.
 """
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
 from app.models.configuracion_app import ConfiguracionApp
 from app.models.usuario import Usuario
 
 # clave -> (valores válidos, valor por default si no hay override en DB)
-CLAVES_PERMITIDAS = {
-    "whatsapp_proveedor": (["sms", "ultramsg"], lambda: settings.whatsapp_proveedor),
-}
+CLAVES_PERMITIDAS: dict[str, tuple[list[str], object]] = {}
 
 
 def obtener(db: Session, clave: str) -> str:
