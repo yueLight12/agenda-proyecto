@@ -35,6 +35,17 @@ export function AuthProvider({ children }) {
     setUsuario(perfil);
   };
 
+  // Login corporativo (SSO/SAML, 2026-09-15) -- a diferencia de login()
+  // de arriba, el token ya viene emitido por el backend (ver
+  // app/routers/saml_sso.py::acs, que redirige aquí con el token en la
+  // URL tras validar la respuesta del IdP) -- este método solo lo guarda
+  // y carga el perfil, mismo patrón que el login normal a partir de ahí.
+  const iniciarSesionConToken = async (token) => {
+    localStorage.setItem("access_token", token);
+    const perfil = await authApi.perfil();
+    setUsuario(perfil);
+  };
+
   const logout = () => {
     localStorage.removeItem("access_token");
     setUsuario(null);
@@ -42,7 +53,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider
-      value={{ usuario, cargando, login, logout, refrescarPerfil: cargarPerfil }}
+      value={{ usuario, cargando, login, iniciarSesionConToken, logout, refrescarPerfil: cargarPerfil }}
     >
       {children}
     </AuthContext.Provider>

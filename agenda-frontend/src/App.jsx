@@ -3,6 +3,7 @@ import { AuthProvider } from "./context/AuthContext";
 import RutaProtegida from "./components/RutaProtegida";
 import AvisoInstalarIos from "./components/AvisoInstalarIos";
 import Login from "./pages/Login";
+import SsoCallback from "./pages/SsoCallback";
 import AgendaPlanB from "./pages/AgendaPlanB";
 import TableroProyecto from "./pages/TableroProyecto";
 import Perfil from "./pages/Perfil";
@@ -16,6 +17,9 @@ export default function App() {
         <AvisoInstalarIos />
         <Routes>
           <Route path="/login" element={<Login />} />
+          {/* Callback de login corporativo (SSO/SAML, 2026-09-15) -- ver
+              SsoCallback.jsx y app/routers/saml_sso.py::acs. */}
+          <Route path="/sso/callback" element={<SsoCallback />} />
           {/* Agenda Plan B (2026-08-20, a petición de Yue, a partir de un
               boceto a mano) -- ES la ventana principal ahora: "/" monta esto
               directo, sin AppLayout (sin sidebar/topbar). "/plan-b" se deja

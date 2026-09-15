@@ -2,6 +2,14 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
+// Login corporativo (SSO/SAML, 2026-09-15) -- oculto por default
+// (VITE_SSO_HABILITADO sin definir o distinto de "true") mientras no esté
+// realmente conectado del lado del IdP; ver app/routers/saml_sso.py. Solo
+// cambia si alguien enciende esa variable a propósito -- nadie del piloto
+// ve nada nuevo hasta entonces.
+const SSO_HABILITADO = import.meta.env.VITE_SSO_HABILITADO === "true";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -86,6 +94,18 @@ export default function Login() {
         <button className="btn btn--primary" type="submit" disabled={cargando}>
           {cargando ? "Entrando..." : "Entrar"}
         </button>
+
+        {SSO_HABILITADO && (
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={() => {
+              window.location.href = `${API_URL}/saml/login`;
+            }}
+          >
+            Entrar con mi trabajo
+          </button>
+        )}
       </form>
     </div>
   );

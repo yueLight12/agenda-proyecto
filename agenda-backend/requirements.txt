@@ -21,3 +21,4 @@ weasyprint==62.3
 pydyf==0.10.0
 pymysql==1.1.1
 slowapi==0.1.9
+python3-saml==1.16.0

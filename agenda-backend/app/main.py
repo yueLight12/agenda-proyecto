@@ -36,6 +36,7 @@ from app.routers import (
     rendimiento,
     resumen,
     reuniones,
+    saml_sso,
     series_reunion,
     ultramsg_webhook,
     usuarios,
@@ -110,6 +111,7 @@ app.include_router(asistente.router)
 app.include_router(series_reunion.router)
 app.include_router(eventos_tiempo_real.router)
 app.include_router(ultramsg_webhook.router)
+app.include_router(saml_sso.router)
 # app.include_router(integraciones.router)  # INACTIVO 2026-08-24, ver app/routers/integraciones.py
 
 

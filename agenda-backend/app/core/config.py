@@ -127,6 +127,35 @@ class Settings(BaseSettings):
     # en formato internacional (ej. "+525512345678,+525587654321") -- vacío
     # = nadie puede usar el canal todavía (falla cerrado, no abierto).
     whatsapp_asignador_tareas_telefonos: str = ""
+    # Login corporativo vía SAML 2.0 (2026-09-15, a petición de Yue) --
+    # NO reemplaza el login por email/contraseña, se agrega como una
+    # segunda puerta de entrada opcional (ver app/routers/saml_sso.py). Se
+    # construyó ANTES de tener el certificado real firmado por el proceso
+    # interno de certificación de la organización (CyAAL/DataSec) -- con
+    # todo vacío (default), el feature completo se desactiva solo (los
+    # endpoints /saml/* devuelven 503 "SSO no configurado") sin afectar en
+    # nada el login normal, mismo patrón que SMTP_USUARIO/VAPID_*/
+    # ULTRAMSG_*. Para pruebas de la mecánica SAML en sí (firma, mapeo de
+    # usuario) sin depender del trámite real, se puede usar un certificado
+    # autofirmado propio o una cuenta gratuita de desarrollador de Okta --
+    # cuando llegue el certificado real, solo se reemplazan estos valores,
+    # el código no cambia.
+    saml_sp_entity_id: str = ""
+    # Debe coincidir exactamente con la URL pública real (ver
+    # WHATSAPP_WEBHOOK_URL_PUBLICA para el mismo tipo de gotcha con
+    # túneles/proxies que no preservan el Host original).
+    saml_sp_acs_url: str = ""
+    # Llave privada y certificado PROPIOS de esta app (el par que arma
+    # okta_prod.key/.pfx en el proceso de certificación) -- rutas a
+    # archivo, NO el contenido inline (son PEM largos). Usados para firmar
+    # las peticiones salientes, si el IdP lo exige.
+    saml_sp_key_path: str = ""
+    saml_sp_cert_path: str = ""
+    # Datos del lado del Identity Provider (Okta), entregados por quien
+    # administra el tenant al dar de alta esta app.
+    saml_idp_entity_id: str = ""
+    saml_idp_sso_url: str = ""
+    saml_idp_cert_path: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
