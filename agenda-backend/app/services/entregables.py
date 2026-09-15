@@ -32,6 +32,7 @@ from app.schemas.entregable import EntregableOut
 from app.schemas.nota import NotaCrear
 from app.services.almacenamiento import eliminar_imagen, guardar_imagen
 from app.services.avisos_acceso import avisar_si_nunca_ha_entrado
+from app.services.contenido_sensible import verificar_contenido
 from app.services.notificaciones import crear_notificacion
 from app.services.proyectos import es_lider_en_algun_tema
 from app.services.push import enviar_push
@@ -236,6 +237,8 @@ def crear_entregable(
             detail="Solo puedes crear entregables asignados a ti mismo",
         )
 
+    verificar_contenido(db, usuario, "entregable", nombre=nombre, descripcion=descripcion)
+
     nuevo = Entregable(
         proyecto_id=proyecto_id,
         nombre=nombre,
@@ -324,6 +327,10 @@ def actualizar_entregable(
         raise HTTPException(
             status_code=403, detail="Solo quien creó este entregable puede editarlo"
         )
+
+    verificar_contenido(
+        db, usuario, "entregable", nombre=campos.get("nombre"), descripcion=campos.get("descripcion")
+    )
 
     for campo, valor in campos.items():
         setattr(entregable, campo, valor)

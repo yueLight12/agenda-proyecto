@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { adminApi, usuariosApi } from "../api/endpoints";
 import Modal from "../components/Modal";
+import PageHeader from "../components/PageHeader";
 
 function ModalReasignar({ origen, usuarios, onReasignar, onCerrar, error, guardando }) {
   const opciones = usuarios.filter((u) => u.id !== origen.id);
@@ -140,6 +140,10 @@ export default function AdminUsuarios() {
   const [errorModal, setErrorModal] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [auditoria, setAuditoria] = useState([]);
+  const [terminos, setTerminos] = useState([]);
+  const [nuevoTermino, setNuevoTermino] = useState("");
+  const [errorTerminos, setErrorTerminos] = useState("");
+  const [guardandoTermino, setGuardandoTermino] = useState(false);
 
   const cargar = () => {
     setCargando(true);
@@ -155,16 +159,48 @@ export default function AdminUsuarios() {
     adminApi.obtenerAuditoria().then(setAuditoria).catch(() => {});
   };
 
+  const cargarTerminos = () => {
+    adminApi.obtenerTerminosSensibles().then(setTerminos).catch(() => {});
+  };
+
   useEffect(() => {
     cargar();
     cargarAuditoria();
+    cargarTerminos();
   }, []);
+
+  const agregarTermino = async (e) => {
+    e.preventDefault();
+    setErrorTerminos("");
+    setGuardandoTermino(true);
+    try {
+      await adminApi.agregarTerminoSensible(nuevoTermino);
+      setNuevoTermino("");
+      cargarTerminos();
+    } catch (err) {
+      setErrorTerminos(err.response?.data?.detail || "No se pudo agregar el término.");
+    } finally {
+      setGuardandoTermino(false);
+    }
+  };
+
+  const quitarTermino = async (id) => {
+    setErrorTerminos("");
+    try {
+      await adminApi.quitarTerminoSensible(id);
+      cargarTerminos();
+    } catch (err) {
+      setErrorTerminos(err.response?.data?.detail || "No se pudo quitar el término.");
+    }
+  };
 
   if (!usuarioActual?.es_super_admin) {
     return (
-      <div style={{ padding: 24 }}>
-        <p>No tienes acceso a esta pantalla.</p>
-        <Link to="/">Volver</Link>
+      <div className="planb">
+        <PageHeader titulo="Administración de usuarios" />
+        <div className="planb__contenido">
+          <p style={{ color: "var(--color-text-muted)" }}>No tienes acceso a esta pantalla.</p>
+        </div>
       </div>
     );
   }
@@ -252,20 +288,16 @@ export default function AdminUsuarios() {
   };
 
   return (
-    <div style={{ padding: 24, maxWidth: 900, margin: "0 auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <div>
-          <h1 style={{ margin: 0 }}>Administración de usuarios</h1>
-          <Link to="/">← Volver a Mi Chamba</Link>
-        </div>
-        <button
-          type="button"
-          className="btn btn--primary"
-          onClick={() => setModal({ modo: "nuevo" })}
-        >
-          + Nuevo usuario
-        </button>
-      </div>
+    <div className="planb">
+      <PageHeader
+        titulo="Administración de usuarios"
+        acciones={
+          <button type="button" className="btn btn--primary" onClick={() => setModal({ modo: "nuevo" })}>
+            + Nuevo usuario
+          </button>
+        }
+      />
+      <div className="planb__contenido stack">
 
       {cargando && <p style={{ color: "var(--color-text-muted)" }}>Cargando...</p>}
       {error && <p className="error-text">{error}</p>}
@@ -339,6 +371,54 @@ export default function AdminUsuarios() {
         </div>
       )}
 
+      <div style={{ marginTop: 32 }}>
+        <h2>Términos sensibles (contenido bloqueado)</h2>
+        <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
+          Si el nombre de una tarea, reunión, proyecto o nota contiene alguna de estas palabras o
+          frases, se rechaza al guardarse y queda registrado abajo, en "Registro de auditoría"
+          (acción <code>contenido_sensible_bloqueado</code>) -- quién lo intentó, cuándo, y el
+          texto exacto.
+        </p>
+        <form onSubmit={agregarTermino} style={{ display: "flex", gap: 8, maxWidth: 500 }}>
+          <input
+            className="input"
+            placeholder='Ej. "nombre de una persona" o "asunto delicado"'
+            value={nuevoTermino}
+            onChange={(e) => setNuevoTermino(e.target.value)}
+            required
+          />
+          <button className="btn btn--primary" type="submit" disabled={guardandoTermino}>
+            {guardandoTermino ? "Agregando..." : "Agregar"}
+          </button>
+        </form>
+        {errorTerminos && <p className="error-text">{errorTerminos}</p>}
+        {terminos.length === 0 ? (
+          <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
+            No hay ningún término bloqueado todavía.
+          </p>
+        ) : (
+          <ul style={{ listStyle: "none", padding: 0, marginTop: 12, maxWidth: 500 }}>
+            {terminos.map((t) => (
+              <li
+                key={t.id}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "6px 0",
+                  borderBottom: "1px solid var(--color-borde, #e5e5e5)",
+                }}
+              >
+                <span>{t.texto}</span>
+                <button type="button" className="btn btn--ghost" onClick={() => quitarTermino(t.id)}>
+                  Quitar
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
       {auditoria.length > 0 && (
         <div style={{ marginTop: 32 }}>
           <h2>Registro de auditoría</h2>
@@ -402,6 +482,7 @@ export default function AdminUsuarios() {
           guardando={guardando}
         />
       )}
+      </div>
     </div>
   );
 }

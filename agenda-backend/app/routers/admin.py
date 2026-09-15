@@ -25,7 +25,8 @@ from app.schemas.admin import (
     ReasignarTodoRequest,
     RegistroAuditoriaOut,
 )
-from app.services import auditoria, configuracion
+from app.schemas.termino_sensible import TerminoSensibleCrear, TerminoSensibleOut
+from app.services import auditoria, configuracion, contenido_sensible
 from app.services.admin import reasignar_todo
 from app.services.materializar_series import materializar_ocurrencias
 from app.services.recordatorios import (
@@ -113,3 +114,39 @@ def obtener_auditoria(
 ):
     requerir_super_admin(usuario)
     return auditoria.listar_recientes(db)
+
+
+@router.get("/terminos-sensibles", response_model=list[TerminoSensibleOut])
+def obtener_terminos_sensibles(
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Diccionario de palabras/frases prohibidas -- ver
+    app/services/contenido_sensible.py."""
+    requerir_super_admin(usuario)
+    return contenido_sensible.listar_terminos(db)
+
+
+@router.post(
+    "/terminos-sensibles", response_model=TerminoSensibleOut, status_code=status.HTTP_201_CREATED
+)
+def agregar_termino_sensible(
+    datos: TerminoSensibleCrear,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    requerir_super_admin(usuario)
+    termino = contenido_sensible.agregar_termino(db, usuario, datos.texto)
+    auditoria.registrar(db, usuario, "agregar_termino_sensible", None, {"texto": termino.texto})
+    return termino
+
+
+@router.delete("/terminos-sensibles/{termino_id}", status_code=status.HTTP_204_NO_CONTENT)
+def quitar_termino_sensible(
+    termino_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    requerir_super_admin(usuario)
+    contenido_sensible.quitar_termino(db, termino_id)
+    auditoria.registrar(db, usuario, "quitar_termino_sensible", termino_id)

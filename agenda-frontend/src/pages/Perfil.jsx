@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
-import { usuariosApi } from "../api/endpoints";
+import { useNavigate, useParams } from "react-router-dom";
+import { preferenciasApi, usuariosApi } from "../api/endpoints";
 import ModalCambiarPassword from "../components/ModalCambiarPassword";
+import PageHeader from "../components/PageHeader";
 import { useAuth } from "../context/AuthContext";
 import { etiquetaRol } from "../utils/rolLabels";
 
@@ -21,6 +22,7 @@ import { etiquetaRol } from "../utils/rolLabels";
 export default function Perfil() {
   const { usuarioId } = useParams();
   const { usuario: usuarioActual, refrescarPerfil } = useAuth();
+  const navigate = useNavigate();
   const esPropio = !usuarioId;
 
   const [perfil, setPerfil] = useState(esPropio ? usuarioActual : null);
@@ -31,6 +33,21 @@ export default function Perfil() {
   const [telefonoInput, setTelefonoInput] = useState("");
   const [guardandoTelefono, setGuardandoTelefono] = useState(false);
   const [errorTelefono, setErrorTelefono] = useState("");
+  const [reiniciandoTour, setReiniciandoTour] = useState(false);
+
+  // Self-servicio (2026-09-15, a petición de Yue: "¿dónde puedo reiniciar
+  // yo la bandera del tutorial?") -- antes solo se podía resetear a mano en
+  // la base de datos. Reinicia PreferenciaUsuario.tour_completado a false
+  // y manda a "/", donde OnboardingTour.jsx lo vuelve a mostrar al montar.
+  const verTutorialDeNuevo = async () => {
+    setReiniciandoTour(true);
+    try {
+      await preferenciasApi.actualizar({ tour_completado: false });
+      navigate("/");
+    } finally {
+      setReiniciandoTour(false);
+    }
+  };
 
   useEffect(() => {
     if (esPropio) {
@@ -53,8 +70,26 @@ export default function Perfil() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [usuarioId]);
 
-  if (cargando) return <p>Cargando perfil...</p>;
-  if (error) return <p className="error-text">{error}</p>;
+  if (cargando) {
+    return (
+      <div className="planb">
+        <PageHeader titulo="Mi perfil" />
+        <div className="planb__contenido">
+          <p style={{ color: "var(--color-text-muted)" }}>Cargando perfil...</p>
+        </div>
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="planb">
+        <PageHeader titulo="Perfil" />
+        <div className="planb__contenido">
+          <p className="error-text">{error}</p>
+        </div>
+      </div>
+    );
+  }
   if (!perfil) return null;
 
   const iniciarEdicionTelefono = () => {
@@ -79,9 +114,9 @@ export default function Perfil() {
   };
 
   return (
-    <div className="stack">
-      <h1>{esPropio ? "Mi perfil" : perfil.nombre}</h1>
-
+    <div className="planb">
+      <PageHeader titulo={esPropio ? "Mi perfil" : perfil.nombre} />
+      <div className="planb__contenido stack">
       <div className="card stack" style={{ maxWidth: 480, gap: 10 }}>
         <div>
           <span style={{ fontSize: "0.8rem", color: "var(--color-text-muted)" }}>Nombre</span>
@@ -140,14 +175,23 @@ export default function Perfil() {
           )}
         </div>
         {esPropio && (
-          <button
-            className="btn btn--ghost"
-            type="button"
-            onClick={() => setMostrarCambiarPassword(true)}
-            style={{ alignSelf: "flex-start" }}
-          >
-            Cambiar contraseña
-          </button>
+          <div className="list-inline" style={{ borderBottom: "none" }}>
+            <button
+              className="btn btn--ghost"
+              type="button"
+              onClick={() => setMostrarCambiarPassword(true)}
+            >
+              Cambiar contraseña
+            </button>
+            <button
+              className="btn btn--ghost"
+              type="button"
+              onClick={verTutorialDeNuevo}
+              disabled={reiniciandoTour}
+            >
+              {reiniciandoTour ? "Abriendo..." : "Ver el tutorial de nuevo"}
+            </button>
+          </div>
         )}
       </div>
 
@@ -175,6 +219,7 @@ export default function Perfil() {
       {mostrarCambiarPassword && (
         <ModalCambiarPassword onCerrar={() => setMostrarCambiarPassword(false)} />
       )}
+      </div>
     </div>
   );
 }

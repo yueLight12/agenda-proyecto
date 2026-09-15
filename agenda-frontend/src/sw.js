@@ -3,7 +3,20 @@
 // vite.config.js), reacciona a notificaciones push del backend
 // (app/services/push.py) para poder avisar de un entregable urgente aunque
 // la app esté cerrada y el celular con la pantalla apagada.
+import { clientsClaim } from "workbox-core";
 import { precacheAndRoute } from "workbox-precaching";
+
+// Sin esto (2026-09-15, bug real encontrado en vivo: una corrección al
+// tour de onboarding no se veía en el navegador aunque el build nuevo ya
+// la tenía) un service worker nuevo se queda "esperando" en segundo plano
+// hasta que se cierren TODAS las pestañas de la app -- el ciclo de vida
+// default de los service workers, pensado para no interrumpir una sesión
+// activa, pero que aquí solo generaba confusión ("¿de verdad ya subiste el
+// cambio?"). skipWaiting + clientsClaim fuerza al nuevo service worker a
+// tomar control de inmediato en la siguiente carga de página, sin esperar
+// a que cierren pestañas.
+self.skipWaiting();
+clientsClaim();
 
 precacheAndRoute(self.__WB_MANIFEST);
 

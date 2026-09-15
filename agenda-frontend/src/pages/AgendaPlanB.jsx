@@ -387,14 +387,17 @@ export default function AgendaPlanB() {
         </Modal>
       )}
 
-      {/* Asistente de voz (2026-08-20, a petición de Yue) -- mismo botón
-          flotante que ya existía en AppLayout.jsx, reusado tal cual: crea/
-          edita/consulta lo que sea sin tener que navegar a ningún proyecto
-          específico primero, encaja con el propósito de Plan B. Sin
-          `proyectoIdContexto` (null) porque aquí no hay un proyecto "actual"
-          como en TableroProyecto.jsx -- el asistente sigue funcionando
-          igual, solo pregunta el tema si la instrucción lo necesita. */}
-      <FabAsistenteVoz proyectoIdContexto={null} />
+      {/* Asistente de voz "Chambeador" DESACTIVADO TEMPORALMENTE (2026-09-15,
+          a petición de Yue): sin crédito en la cuenta de la API de Claude,
+          nadie puede usarlo (cada intento tronaría). En vez de dejarlo
+          visible fallando, se oculta el botón flotante entero hasta que
+          haya crédito de nuevo -- para reactivarlo, descomentar la línea de
+          abajo. Ver también app/core/config.py::claude_api_key -- el mismo
+          problema de crédito afecta el piloto de "asignar tarea por
+          WhatsApp" (whatsapp_webhook.py) y el chatbot de consulta, que
+          usan la misma API key; no se tocaron todavía porque no se pidió
+          explícitamente. */}
+      {/* <FabAsistenteVoz proyectoIdContexto={null} /> */}
     </div>
   );
 }

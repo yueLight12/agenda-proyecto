@@ -15,6 +15,7 @@ from app.core.permissions import (
     requerir_participacion_en_proyecto,
     requerir_rol_minimo,
 )
+from app.services.contenido_sensible import verificar_contenido
 from app.models.entregable import Entregable
 from app.models.equipo_miembro import EquipoMiembro
 from app.models.notificacion import Notificacion
@@ -197,6 +198,8 @@ def crear_proyecto(
     sin equipo). NO hereda automáticamente el supervisor de "Mi equipo" --
     esa regla es específica de proyectos nuevos de cero, no de anidar
     dentro de algo que ya tiene dueño."""
+    verificar_contenido(db, usuario, "proyecto", nombre=nombre, descripcion=descripcion)
+
     if parent_id is not None:
         rol_padre = requerir_participacion_en_proyecto(db, usuario, parent_id)
         requerir_rol_minimo(rol_padre, [RolEnum.N1, RolEnum.N2])
@@ -379,6 +382,11 @@ def actualizar_proyecto(db: Session, usuario: Usuario, proyecto_id: int, campos:
     requerir_rol_minimo(rol, [RolEnum.N1, RolEnum.N2])
 
     proyecto = obtener_proyecto_o_404(db, proyecto_id)
+
+    verificar_contenido(
+        db, usuario, "proyecto", nombre=campos.get("nombre"), descripcion=campos.get("descripcion")
+    )
+
     for campo, valor in campos.items():
         if valor is not None:
             setattr(proyecto, campo, valor)

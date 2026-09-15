@@ -19,6 +19,7 @@ from app.models.usuario import RolEnum, Usuario
 from app.models.usuario_proyecto_rol import UsuarioProyectoRol
 from app.schemas.proyecto import MiembroEquipoOut
 from app.schemas.reunion import ParticipanteOut, ReunionOut
+from app.services.contenido_sensible import verificar_contenido
 from app.services.notificaciones import crear_notificacion
 from app.services.proyectos import listar_equipo_visible
 
@@ -265,6 +266,8 @@ def crear_reunion(
     if proyecto_id is not None:
         requerir_participacion_en_proyecto(db, usuario, proyecto_id)
 
+    verificar_contenido(db, usuario, "reunion", titulo=titulo, notas=notas)
+
     nueva = Reunion(
         proyecto_id=proyecto_id,
         titulo=titulo,
@@ -295,6 +298,8 @@ def actualizar_reunion(db: Session, usuario: Usuario, reunion_id: int, campos: d
     reunion = obtener_reunion_o_404(db, reunion_id)
     if not puede_editar_reunion(db, usuario, reunion):
         raise HTTPException(status_code=403, detail="No tienes permiso para editar esta reunión")
+
+    verificar_contenido(db, usuario, "reunion", titulo=campos.get("titulo"), notas=campos.get("notas"))
 
     participantes_ids = campos.pop("participantes_ids", None)
 

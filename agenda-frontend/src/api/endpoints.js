@@ -162,6 +162,10 @@ export const adminApi = {
   actualizarConfiguracion: async (clave, valor) =>
     (await api.put("/admin/configuracion", { clave, valor })).data,
   obtenerAuditoria: async () => (await api.get("/admin/auditoria")).data,
+  obtenerTerminosSensibles: async () => (await api.get("/admin/terminos-sensibles")).data,
+  agregarTerminoSensible: async (texto) =>
+    (await api.post("/admin/terminos-sensibles", { texto })).data,
+  quitarTerminoSensible: async (id) => api.delete(`/admin/terminos-sensibles/${id}`),
 };
 
 export const preferenciasApi = {

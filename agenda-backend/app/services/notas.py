@@ -32,6 +32,7 @@ from app.core.permissions import (
 )
 from app.models.minuta import Minuta
 from app.models.nota import Nota
+from app.services.contenido_sensible import verificar_contenido
 from app.models.notificacion import TipoNotificacion
 from app.models.pendiente import Pendiente
 from app.models.usuario import RolEnum, Usuario
@@ -248,6 +249,8 @@ def crear_nota(db: Session, usuario: Usuario, datos: NotaCrear) -> Nota:
         datos.nota_padre_id, datos.pendiente_padre_id,
     ):
         raise HTTPException(status_code=403, detail="No tienes acceso a este contenido")
+
+    verificar_contenido(db, usuario, "nota", contenido=datos.contenido)
 
     nota = Nota(
         entregable_id=datos.entregable_id,

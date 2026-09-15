@@ -41,6 +41,7 @@ export default function TarjetasAsignar({ onAbrir, cardOrder, hiddenCards }) {
       {tarjetas.map((t) => (
         <button
           key={t.tipo}
+          id={`tour-tarjeta-${t.tipo}`}
           type="button"
           className="planb__tarjeta"
           onClick={() => onAbrir(t.tipo)}

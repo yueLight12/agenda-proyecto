@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { miEquipoApi } from "../api/endpoints";
 import { ROL_LABELS } from "../utils/rolLabels";
 import ConfirmDialog from "../components/ConfirmDialog";
 import Modal from "../components/Modal";
+import PageHeader from "../components/PageHeader";
 
 const ROLES_ALTA = ["N3", "N4"];
 const CAMPOS_VACIOS = { nombre: "", puesto: "", email: "", rol: "N3" };
@@ -132,21 +132,22 @@ export default function MiEquipo() {
   };
 
   return (
-    <div style={{ padding: 24, maxWidth: 900, margin: "0 auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <div>
-          <h1 style={{ margin: 0 }}>Mi equipo</h1>
-          <Link to="/">← Volver a Mi Chamba</Link>
-        </div>
-        <button type="button" className="btn btn--primary" onClick={() => setModalAbierto(true)}>
-          + Agregar persona nueva
-        </button>
-      </div>
+    <div className="planb">
+      <PageHeader
+        titulo="Mi equipo"
+        acciones={
+          <button type="button" className="btn btn--primary" onClick={() => setModalAbierto(true)}>
+            + Agregar persona nueva
+          </button>
+        }
+      />
+      <div className="planb__contenido stack">
 
       {creado && (
         <p
           style={{
-            background: "var(--color-superficie-alterna, #f0f4f8)",
+            background: "var(--color-success-bg)",
+            color: "var(--color-success)",
             padding: "10px 14px",
             borderRadius: 8,
             fontSize: "0.85rem",
@@ -251,6 +252,7 @@ export default function MiEquipo() {
           onCancelar={() => setConfirmandoQuitar(null)}
         />
       )}
+      </div>
     </div>
   );
 }

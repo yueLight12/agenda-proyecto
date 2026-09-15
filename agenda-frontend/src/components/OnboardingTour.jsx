@@ -32,7 +32,7 @@ function pasosPara(usuario) {
       placement: "center",
       title: "Bienvenido a Mi Chamba 👋",
       content:
-        "Aquí ves tus tareas, tus reuniones y el avance de tu equipo en un solo lugar. Te mostramos rápido dónde está cada cosa.",
+        "Aquí ves tus tareas, tus reuniones y el avance de tu equipo en un solo lugar. Te mostramos rápido dónde está cada cosa -- son unos 10 pasos, puedes omitirlo cuando quieras.",
     },
     {
       target: "#tour-semana",
@@ -40,15 +40,43 @@ function pasosPara(usuario) {
       content: "Aquí ves lo que tienes agendado esta semana -- tareas y reuniones juntas.",
     },
     {
-      target: "#tour-asignar",
-      title: "Quiero asignar",
-      content: "Desde aquí le asignas una tarea, reunión o pendiente a alguien de tu equipo.",
+      target: "#tour-tarjeta-tarea",
+      title: "Asignar una tarea",
+      content: "Crea una tarea y asígnala a alguien de tu equipo, con fecha límite y prioridad.",
+    },
+    {
+      target: "#tour-tarjeta-proyecto",
+      title: "Crear un proyecto",
+      content: "Crea un proyecto o tema nuevo, para ti o para organizar el trabajo de tu equipo.",
+    },
+    {
+      target: "#tour-tarjeta-persona",
+      title: "Elegir a alguien",
+      content: "Elige primero a la persona y luego decide qué asignarle -- útil si ya sabes a quién, pero no qué.",
+    },
+    {
+      target: "#tour-tarjeta-agenda",
+      title: "Calendario y reuniones",
+      content:
+        "Aquí ves tu calendario completo y agendas una reunión nueva -- elige el día, la hora, y a quién invitar.",
+    },
+    {
+      target: "#tour-tarjeta-rendimiento",
+      title: "Rendimiento del equipo",
+      content: "Aquí ves quién de tu equipo entrega más y a tiempo.",
     },
     {
       target: "#tour-pendientes",
       title: "Lo urgente primero",
       content:
         'Esto se actualiza solo: lo que está vencido o a punto de vencer aparece aquí antes que nada.',
+    },
+    {
+      target: "body",
+      placement: "center",
+      title: "Notas",
+      content:
+        'Dentro de cualquier tarea, reunión o proyecto puedes dejar una nota -- se guarda ahí mismo y le llega un aviso a quien corresponda.',
     },
     {
       target: "#tour-notificaciones",
@@ -110,12 +138,23 @@ export default function OnboardingTour() {
       showProgress
       scrollToFirstStep
       disableScrolling={false}
+      // El clic en el elemento resaltado NO debe disparar la acción real de
+      // la app (2026-09-15, bug real: al tocar la tarjeta "Persona" durante
+      // el tour se abría de verdad el modal de asignar tarea, y se quedaba
+      // atorado detrás de los pasos siguientes) -- explícito aunque sea el
+      // default, para no depender de que no cambie en una futura versión.
+      spotlightClicks={false}
       callback={manejarCallback}
       locale={{
         back: "Atrás",
         close: "Cerrar",
         last: "Entendido",
         next: "Siguiente",
+        // Clave APARTE de "next" que usa react-joyride solo cuando
+        // showProgress=true -- sin esto, el botón se queda en inglés
+        // ("Next (Step X of Y)") aunque "next" ya esté traducido (bug real
+        // visto en vivo, 2026-09-15).
+        nextLabelWithProgress: "Siguiente (paso {step} de {steps})",
         skip: "Omitir",
       }}
       styles={{
