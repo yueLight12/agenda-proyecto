@@ -1847,6 +1847,23 @@ body:has(.modal-overlay) .fab-asistente-voz:not(.fab-asistente-voz--en-modal) {
   display: none;
 }
 
+/* "Clásico" nunca tuvo el avatar/acceso a "Mi perfil" que sí ganaron los
+   demás temas al agregarse (2026-09-17, reporte de Yue) -- se activa aquí
+   con el mismo color primario que ya usan sus botones (--color-teal-600),
+   en vez de las variables --pb2-* que solo existen en los temas nuevos. */
+[data-estilo-planb="clasico"] .planb__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: var(--color-teal-600);
+  color: #fff;
+  font-family: var(--font-display);
+  font-weight: 700;
+}
+
 /* ======================================================================
    Agenda Plan B — estilo "grafito" (default)
    ======================================================================
