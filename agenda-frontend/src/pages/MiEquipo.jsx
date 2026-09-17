@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { miEquipoApi } from "../api/endpoints";
 import { ROL_LABELS } from "../utils/rolLabels";
+import { colorAvatar, iniciales } from "../utils/avatarPersona";
 import ConfirmDialog from "../components/ConfirmDialog";
 import Modal from "../components/Modal";
 import PageHeader from "../components/PageHeader";
@@ -20,54 +21,89 @@ const CAMPOS_VACIOS = { nombre: "", puesto: "", email: "", rol: "N3" };
 // simplifica a "quien agrega queda como jefe, a quien agrega SIEMPRE le
 // pone N3" -- no tiene sentido pedirle a alguien que arme su equipo que
 // piense en niveles jerárquicos en este paso).
+//
+// Buscador + filas con avatar (2026-09-17, mismo día, a petición de Yue:
+// "quiero que se vea como el de personas") -- mismo patrón visual que
+// SelectorPersona.jsx ("¿A quién le quieres asignar una tarea?"), sin el
+// despliegue anidado de esa pantalla (no aplica: nadie en esta lista tiene
+// equipo propio todavía, por definición son personas sin rol asignado).
 function ModalAgregarExistente({ usuariosDisponibles, onGuardar, onCerrar, error, guardando }) {
-  const [usuarioId, setUsuarioId] = useState("");
+  const [busqueda, setBusqueda] = useState("");
+
+  const disponiblesFiltrados = usuariosDisponibles.filter((u) =>
+    u.nombre.toLowerCase().includes(busqueda.trim().toLowerCase())
+  );
 
   return (
     <Modal titulo="Agregar persona existente a mi equipo" onCerrar={onCerrar}>
-      <form
-        className="stack"
-        onSubmit={(e) => {
-          e.preventDefault();
-          onGuardar({ usuario_id: Number(usuarioId), rol: "N3" });
-        }}
-      >
+      <div className="stack">
         <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem", margin: 0 }}>
           Personas que ya tienen cuenta pero todavía no son equipo de nadie (no aparecen aquí las
           que ya tienen rol asignado en algún proyecto). Quedará como tu colaboradora/colaborador
           directo.
         </p>
-        <label className="stack" style={{ gap: 4 }}>
-          <span style={{ fontSize: "0.85rem" }}>Usuario</span>
-          <select
-            className="input"
-            value={usuarioId}
-            onChange={(e) => setUsuarioId(e.target.value)}
-            required
-          >
-            <option value="" disabled>
-              Selecciona un usuario
-            </option>
-            {usuariosDisponibles.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.nombre}
-                {u.puesto ? ` — ${u.puesto}` : ""} ({u.email})
-              </option>
-            ))}
-          </select>
-        </label>
 
         {error && <p className="error-text">{error}</p>}
 
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+        {!error && usuariosDisponibles.length === 0 && (
+          <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
+            No hay nadie sin rol asignado por el momento.
+          </p>
+        )}
+
+        {!error && usuariosDisponibles.length > 0 && (
+          <input
+            className="input"
+            type="search"
+            placeholder="Buscar..."
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            aria-label="Buscar persona"
+            disabled={guardando}
+          />
+        )}
+
+        {!error && usuariosDisponibles.length > 0 && disponiblesFiltrados.length === 0 && (
+          <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
+            Nadie coincide con "{busqueda}".
+          </p>
+        )}
+
+        {disponiblesFiltrados.map((u) => (
+          <div key={u.id} className="planb__persona-fila-wrap">
+            <button
+              type="button"
+              className="planb__persona-fila"
+              disabled={guardando}
+              onClick={() => onGuardar({ usuario_id: u.id, rol: "N3" })}
+            >
+              <span
+                className="planb__persona-avatar"
+                style={{ background: colorAvatar(u.nombre) }}
+                aria-hidden="true"
+              >
+                {iniciales(u.nombre)}
+              </span>
+              <span className="planb__persona-datos">
+                <span className="planb__persona-nombre">{u.nombre}</span>
+                <span className="planb__persona-puesto">
+                  {u.puesto ? `${u.puesto} — ` : ""}
+                  {u.email}
+                </span>
+              </span>
+              <span className="planb__persona-elegir" aria-hidden="true">
+                {guardando ? "..." : "Elegir"}
+              </span>
+            </button>
+          </div>
+        ))}
+
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
           <button type="button" className="btn btn--ghost" onClick={onCerrar}>
             Cancelar
           </button>
-          <button className="btn btn--primary" type="submit" disabled={guardando || !usuarioId}>
-            {guardando ? "Agregando..." : "Agregar"}
-          </button>
         </div>
-      </form>
+      </div>
     </Modal>
   );
 }
