@@ -44,6 +44,7 @@ from app.routers import (
 from app.services.eventos_tiempo_real import registrar_hooks_sqlalchemy, registrar_loop
 from app.services.materializar_series import materializar_ocurrencias
 from app.services.recordatorios import (
+    expirar_recordatorios_reuniones_hoy,
     generar_recordatorios,
     generar_recordatorios_cumpleanos,
     generar_recordatorios_previos_reuniones,
@@ -140,6 +141,7 @@ def _ejecutar_barrido_recordatorios():
     try:
         generar_recordatorios(db)
         generar_recordatorios_cumpleanos(db)
+        expirar_recordatorios_reuniones_hoy(db)
         generar_recordatorios_reuniones_hoy(db)
         generar_recordatorios_previos_reuniones(db)
         materializar_ocurrencias(db)

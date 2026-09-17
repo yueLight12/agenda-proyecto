@@ -56,7 +56,13 @@ export default function Modal({ titulo, onCerrar, children, ocultarAsistenteVoz 
             z-index. Se excluye del propio ModalAsistenteVoz vía
             `ocultarAsistenteVoz` -- no tiene sentido un botón para abrir
             el asistente DENTRO del asistente mismo. */}
-        {!ocultarAsistenteVoz && (
+        {/* Asistente de voz "Chambeador" DESACTIVADO TEMPORALMENTE (2026-09-15,
+            a petición de Yue, mismo motivo que en AgendaPlanB.jsx): sin
+            crédito en la cuenta de la API de Claude, cualquier intento de
+            usarlo tronaría -- se oculta también esta copia "dentro del
+            modal" hasta que haya crédito de nuevo. Para reactivarlo,
+            restaurar la condición `!ocultarAsistenteVoz` de abajo. */}
+        {false && !ocultarAsistenteVoz && (
           <FabAsistenteVoz proyectoIdContexto={null} variante="dentro-modal" />
         )}
       </div>

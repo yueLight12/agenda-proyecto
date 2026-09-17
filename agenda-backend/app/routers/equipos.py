@@ -15,12 +15,14 @@ from app.dependencies import obtener_usuario_actual
 from app.models.equipo_miembro import EquipoMiembro
 from app.models.usuario import Usuario
 from app.schemas.equipo import EquipoMiembroCrear, EquipoMiembroOut, PersonaNuevaCrear
+from app.schemas.usuario import UsuarioOut
 from app.services.equipos import (
     agregar_a_mi_equipo as agregar_a_mi_equipo_servicio,
     aplicar_mi_equipo as aplicar_mi_equipo_servicio,
     crear_persona_y_agregar_a_mi_equipo as crear_persona_y_agregar_a_mi_equipo_servicio,
     listar_equipo_de_subordinado,
     listar_mi_equipo_efectivo,
+    listar_usuarios_disponibles as listar_usuarios_disponibles_servicio,
     quitar_de_mi_equipo as quitar_de_mi_equipo_servicio,
 )
 
@@ -56,6 +58,17 @@ def listar_equipo_de(
     (ver listar_equipo_de_subordinado). Para desplegar/anidar en el
     selector "¿A quién le quieres asignar?" (2026-08-25)."""
     return listar_equipo_de_subordinado(db, usuario, usuario_id)
+
+
+@router.get("/mi-equipo/usuarios-disponibles", response_model=list[UsuarioOut])
+def listar_usuarios_disponibles(
+    db: Session = Depends(get_db), usuario: Usuario = Depends(obtener_usuario_actual)
+):
+    """Usuarios sin rol en ningún proyecto todavía -- para elegir en
+    "Agregar existente" (Mi Equipo), abierto a cualquier usuario. Ver
+    listar_usuarios_disponibles en app/services/equipos.py para el porqué
+    esto no necesita ser N1 a diferencia de GET /usuarios."""
+    return listar_usuarios_disponibles_servicio(db)
 
 
 @router.post("/mi-equipo", response_model=EquipoMiembroOut, status_code=status.HTTP_201_CREATED)

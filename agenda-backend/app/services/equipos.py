@@ -213,6 +213,27 @@ def listar_equipo_de_subordinado(
     return listar_mi_equipo_efectivo(db, objetivo, viewer_para_proyectos=viewer)
 
 
+def listar_usuarios_disponibles(db: Session) -> list[Usuario]:
+    """Usuarios que NO tienen rol en NINGÚN proyecto todavía -- para el
+    botón "Agregar existente" de Mi Equipo (2026-09-17, a petición de Yue).
+
+    GET /usuarios (directorio completo) sigue restringido a N1 (decisión
+    del 2026-08-17, ver app/routers/usuarios.py) para no exponerle a un N2
+    la estructura de equipos de otros líderes. Esta lista es distinta a
+    propósito: son personas que TODAVÍA no son equipo de nadie (recién
+    dadas de alta, ej. vía carga masiva desde Excel, sin asignar aún) --
+    mostrárselas a cualquier usuario no revela ninguna estructura ajena,
+    porque no hay ninguna estructura que revelar. Abierto a cualquier
+    usuario autenticado, sin requerir N1.
+    """
+    return (
+        db.query(Usuario)
+        .filter(~Usuario.id.in_(db.query(UsuarioProyectoRol.usuario_id).distinct()))
+        .order_by(Usuario.nombre)
+        .all()
+    )
+
+
 def agregar_a_mi_equipo(db: Session, usuario: Usuario, usuario_id: int, rol: RolEnum) -> EquipoMiembro:
     """Agrega (o reasigna el rol de) una persona en la plantilla personal de
     `usuario` — extraído del router para que el asistente de voz pueda

@@ -8,6 +8,70 @@ import PageHeader from "../components/PageHeader";
 const ROLES_ALTA = ["N3", "N4"];
 const CAMPOS_VACIOS = { nombre: "", puesto: "", email: "", rol: "N3" };
 
+// Agregar a alguien que YA existe en el sistema (2026-09-17, a petición de
+// Yue: "poder elegir desde la lista existente de usuarios" -- sin depender
+// de tener ya un tema en común con esa persona). El backend nunca lo
+// restringió (ver agregar_a_mi_equipo en app/services/equipos.py, POST
+// /mi-equipo) -- lo único que faltaba era esta pantalla; antes la única
+// forma de sumar gente aquí era dar de alta una cuenta nueva desde cero.
+//
+// Sin selector de rol (2026-09-17, mismo día, a petición de Yue -- caso
+// real: Karen y Frida existían sin rol, Karen es la jefa de Frida; se
+// simplifica a "quien agrega queda como jefe, a quien agrega SIEMPRE le
+// pone N3" -- no tiene sentido pedirle a alguien que arme su equipo que
+// piense en niveles jerárquicos en este paso).
+function ModalAgregarExistente({ usuariosDisponibles, onGuardar, onCerrar, error, guardando }) {
+  const [usuarioId, setUsuarioId] = useState("");
+
+  return (
+    <Modal titulo="Agregar persona existente a mi equipo" onCerrar={onCerrar}>
+      <form
+        className="stack"
+        onSubmit={(e) => {
+          e.preventDefault();
+          onGuardar({ usuario_id: Number(usuarioId), rol: "N3" });
+        }}
+      >
+        <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem", margin: 0 }}>
+          Personas que ya tienen cuenta pero todavía no son equipo de nadie (no aparecen aquí las
+          que ya tienen rol asignado en algún proyecto). Quedará como tu colaboradora/colaborador
+          directo.
+        </p>
+        <label className="stack" style={{ gap: 4 }}>
+          <span style={{ fontSize: "0.85rem" }}>Usuario</span>
+          <select
+            className="input"
+            value={usuarioId}
+            onChange={(e) => setUsuarioId(e.target.value)}
+            required
+          >
+            <option value="" disabled>
+              Selecciona un usuario
+            </option>
+            {usuariosDisponibles.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.nombre}
+                {u.puesto ? ` — ${u.puesto}` : ""} ({u.email})
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {error && <p className="error-text">{error}</p>}
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          <button type="button" className="btn btn--ghost" onClick={onCerrar}>
+            Cancelar
+          </button>
+          <button className="btn btn--primary" type="submit" disabled={guardando || !usuarioId}>
+            {guardando ? "Agregando..." : "Agregar"}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 // Pantalla de autoservicio (2026-09-15, a petición de Yue) -- hasta ahora
 // solo Dirección/superadmin podía dar de alta gente nueva (panel Admin) y
 // asignarle jefe (ModalEquipo, dentro de un proyecto). El backend YA tenía
@@ -88,6 +152,12 @@ export default function MiEquipo() {
   const [quitando, setQuitando] = useState(false);
   const [errorQuitar, setErrorQuitar] = useState("");
 
+  const [modalExistenteAbierto, setModalExistenteAbierto] = useState(false);
+  const [usuariosDisponibles, setUsuariosDisponibles] = useState([]);
+  const [errorListaUsuarios, setErrorListaUsuarios] = useState("");
+  const [errorModalExistente, setErrorModalExistente] = useState("");
+  const [guardandoExistente, setGuardandoExistente] = useState(false);
+
   const cargar = () => {
     setCargando(true);
     setError("");
@@ -117,6 +187,34 @@ export default function MiEquipo() {
     }
   };
 
+  const abrirModalExistente = () => {
+    setErrorListaUsuarios("");
+    // Lista de gente SIN rol asignado en ningún proyecto todavía -- no el
+    // directorio completo (ese sigue restringido a N1, ver GET /usuarios).
+    miEquipoApi
+      .listarUsuariosDisponibles()
+      .then((lista) => {
+        const idsYaEnEquipo = new Set(equipo.map((m) => m.usuario_id));
+        setUsuariosDisponibles(lista.filter((u) => !idsYaEnEquipo.has(u.id)));
+      })
+      .catch(() => setErrorListaUsuarios("No se pudo cargar el listado de usuarios."));
+    setModalExistenteAbierto(true);
+  };
+
+  const agregarExistente = async (datos) => {
+    setErrorModalExistente("");
+    setGuardandoExistente(true);
+    try {
+      await miEquipoApi.agregar(datos);
+      setModalExistenteAbierto(false);
+      cargar();
+    } catch (err) {
+      setErrorModalExistente(err.response?.data?.detail || "No se pudo agregar a esta persona.");
+    } finally {
+      setGuardandoExistente(false);
+    }
+  };
+
   const confirmarQuitar = async () => {
     setQuitando(true);
     setErrorQuitar("");
@@ -136,9 +234,14 @@ export default function MiEquipo() {
       <PageHeader
         titulo="Mi equipo"
         acciones={
-          <button type="button" className="btn btn--primary" onClick={() => setModalAbierto(true)}>
-            + Agregar persona nueva
-          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button type="button" className="btn btn--ghost" onClick={abrirModalExistente}>
+              + Agregar existente
+            </button>
+            <button type="button" className="btn btn--primary" onClick={() => setModalAbierto(true)}>
+              + Agregar persona nueva
+            </button>
+          </div>
         }
       />
       <div className="planb__contenido stack">
@@ -240,6 +343,19 @@ export default function MiEquipo() {
           }}
           error={errorModal}
           guardando={guardando}
+        />
+      )}
+
+      {modalExistenteAbierto && (
+        <ModalAgregarExistente
+          usuariosDisponibles={usuariosDisponibles}
+          onGuardar={agregarExistente}
+          onCerrar={() => {
+            setModalExistenteAbierto(false);
+            setErrorModalExistente("");
+          }}
+          error={errorModalExistente || errorListaUsuarios}
+          guardando={guardandoExistente}
         />
       )}
 

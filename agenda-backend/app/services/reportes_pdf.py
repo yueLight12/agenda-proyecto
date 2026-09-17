@@ -23,7 +23,6 @@ from datetime import date
 from html import escape
 
 from sqlalchemy.orm import Session
-from weasyprint import HTML
 
 from app.models.proyecto import Proyecto
 from app.models.usuario import Usuario
@@ -408,5 +407,12 @@ def generar_pdf_rendimiento(
   </dl>
 </body>
 </html>"""
+
+    # Import diferido (no al cargar el módulo): WeasyPrint necesita las
+    # librerías nativas de GTK/Pango/GObject, que no siempre están
+    # disponibles en el entorno (ej. Windows sin el runtime de GTK
+    # instalado) -- así el resto de la API arranca igual, y solo esta
+    # función puntual falla si de verdad faltan esas librerías.
+    from weasyprint import HTML
 
     return HTML(string=html).write_pdf()

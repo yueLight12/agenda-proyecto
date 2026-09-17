@@ -281,6 +281,37 @@ def _ya_existe_notificacion_reunion_hoy(db: Session, usuario_id: int, reunion_id
     )
 
 
+def expirar_recordatorios_reuniones_hoy(db: Session) -> int:
+    """Fix real (2026-09-17, reporte de Yue: en "Pendientes / Por hacer"
+    varias reuniones distintas decían "Hoy a las X" al mismo tiempo, con
+    horas que no correspondían al día real). Causa: el mensaje de
+    reunion_hoy graba "Hoy a las X" como texto fijo al crearse, y esa
+    notificación nunca se marcaba leída sola una vez pasado ese día -- para
+    una reunión recurrente, cada ocurrencia pasada deja su propia
+    notificación pegada con un "Hoy" que ya es falso, acumulándose sin
+    límite. Se marcan leídas aquí las de tipo reunion_hoy cuya
+    fecha_creacion no es de hoy, ANTES de generar las nuevas del día --
+    ver la llamada en app/main.py, mismo barrido. Devuelve cuántas se
+    expiraron."""
+    hoy = date.today()
+    inicio_dia = datetime.combine(hoy, time.min)
+
+    pendientes = (
+        db.query(Notificacion)
+        .filter(
+            Notificacion.tipo == TipoNotificacion.reunion_hoy,
+            Notificacion.leida.is_(False),
+            Notificacion.fecha_creacion < inicio_dia,
+        )
+        .all()
+    )
+    for notificacion in pendientes:
+        notificacion.leida = True
+
+    db.commit()
+    return len(pendientes)
+
+
 def generar_recordatorios_reuniones_hoy(db: Session) -> int:
     """
     Notifica al organizador y a cada invitado de las reuniones cuya
