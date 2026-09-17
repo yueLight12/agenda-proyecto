@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { miEquipoApi } from "../api/endpoints";
 import { ROL_LABELS } from "../utils/rolLabels";
 import { colorAvatar, iniciales } from "../utils/avatarPersona";
