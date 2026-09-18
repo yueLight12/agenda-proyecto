@@ -32,7 +32,7 @@ function pasosPara(usuario) {
       placement: "center",
       title: "Bienvenido a Mi Chamba 👋",
       content:
-        "Aquí ves tus tareas, tus reuniones y el avance de tu equipo en un solo lugar. Te mostramos rápido dónde está cada cosa -- son unos 10 pasos, puedes omitirlo cuando quieras.",
+        "Aquí ves tus tareas, tus reuniones y el avance de tu equipo en un solo lugar. Te mostramos rápido dónde está cada cosa -- son unos 12 pasos, puedes omitirlo cuando quieras.",
     },
     {
       target: "#tour-semana",

@@ -20,6 +20,16 @@ export const authApi = {
       password_actual: passwordActual,
       password_nueva: passwordNueva,
     }),
+  // Ticket de un solo uso (2026-09-19, ver useEventosTiempoReal.js) -- para
+  // no mandar el JWT completo en la URL de la conexión de tiempo real.
+  pedirTicket: async () => {
+    const { data } = await api.post("/auth/ticket");
+    return data.ticket;
+  },
+  canjearTicket: async (ticket) => {
+    const { data } = await api.post("/auth/ticket/canjear", { ticket });
+    return data; // { access_token, token_type }
+  },
 };
 
 export const proyectosApi = {

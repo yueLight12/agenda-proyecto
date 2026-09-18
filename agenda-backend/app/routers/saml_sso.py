@@ -11,9 +11,12 @@ Flujo completo:
    contraseña.
 3. El IdP redirige de vuelta el navegador con un POST a /saml/acs,
    firmado -- se valida esa firma antes de confiar en nada.
-4. Si la persona ya tiene cuenta en el sistema (mismo email), se le emite
-   el MISMO tipo de JWT que usa el login normal (ver crear_access_token
-   en app/core/security.py) y se le redirige al frontend con el token.
+4. Si la persona ya tiene cuenta en el sistema (mismo email), se le redirige
+   al frontend con un TICKET de un solo uso (no el JWT completo -- 2026-09-19,
+   hallazgo de seguridad: un JWT válido por horas quedaba en el historial
+   del navegador y en logs de acceso al viajar en esta URL; el ticket expira
+   en segundos y solo sirve para canjearse una vez por el access_token real
+   vía POST /auth/ticket/canjear, ver app/services/tickets_temporales.py).
    Si no tiene cuenta, se rechaza -- NO se auto-crea una cuenta nueva solo
    porque alguien tenga sesión en el IdP corporativo (decisión deliberada:
    evita que cualquiera con cuenta en el tenant de Okta pueda entrar,
@@ -27,9 +30,9 @@ from fastapi.responses import RedirectResponse, Response
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.security import crear_access_token
 from app.database import get_db
 from app.models.usuario import Usuario
+from app.services import tickets_temporales
 from app.services.saml_sso import (
     configurado,
     construir_url_login,
@@ -82,6 +85,6 @@ async def acs(request: Request, db: Session = Depends(get_db)):
             detail="Tu cuenta de la organización no tiene acceso a esta aplicación.",
         )
 
-    token = crear_access_token(data={"sub": str(usuario.id)})
-    destino = f"{settings.url_app}/sso/callback?token={quote(token)}"
+    ticket = tickets_temporales.crear_ticket(usuario.id)
+    destino = f"{settings.url_app}/sso/callback?ticket={quote(ticket)}"
     return RedirectResponse(destino, status_code=status.HTTP_303_SEE_OTHER)

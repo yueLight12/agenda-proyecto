@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { authApi } from "../api/endpoints";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -21,14 +22,35 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 // los suscriptores reciben el mismo evento.
 let fuenteCompartida = null;
 let suscriptores = new Set();
+let conectando = false;
 
-function asegurarConexion() {
-  if (fuenteCompartida) return;
+// La URL de EventSource ya no lleva el JWT completo (2026-09-19, hallazgo
+// de seguridad: quedaba en logs de acceso del servidor/devtunnel al viajar
+// tal cual en el query string) -- primero se pide un ticket de un solo uso
+// vía POST /auth/ticket (autenticado normal, por header, nunca en una URL)
+// y ESE es el que se manda a /eventos/stream. Ver
+// app/services/tickets_temporales.py en el backend.
+async function asegurarConexion() {
+  if (fuenteCompartida || conectando) return;
   const token = localStorage.getItem("access_token");
   if (!token) return;
 
+  conectando = true;
+  let ticket;
+  try {
+    ticket = await authApi.pedirTicket();
+  } catch {
+    conectando = false;
+    return;
+  }
+  conectando = false;
+
+  // Pudo haberse desuscrito el último componente mientras se pedía el
+  // ticket -- no abrir una conexión que nadie va a usar.
+  if (suscriptores.size === 0) return;
+
   fuenteCompartida = new EventSource(
-    `${API_URL}/eventos/stream?token=${encodeURIComponent(token)}`
+    `${API_URL}/eventos/stream?ticket=${encodeURIComponent(ticket)}`
   );
   fuenteCompartida.onmessage = (mensaje) => {
     let datos;

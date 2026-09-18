@@ -13,8 +13,14 @@ from app.database import get_db
 from app.dependencies import obtener_usuario_actual
 from app.models.correo_alterno import CorreoAlterno
 from app.models.usuario import Usuario
-from app.schemas.usuario import CambiarPasswordRequest, Token, UsuarioConRolesOut
-from app.services import intentos_fallidos
+from app.schemas.usuario import (
+    CambiarPasswordRequest,
+    CanjearTicketRequest,
+    TicketOut,
+    Token,
+    UsuarioConRolesOut,
+)
+from app.services import intentos_fallidos, tickets_temporales
 from app.services.usuarios import usuario_con_roles_a_out
 
 router = APIRouter(prefix="/auth", tags=["Autenticación"])
@@ -83,6 +89,33 @@ def login(
     usuario.ultimo_login = datetime.utcnow()
     db.commit()
 
+    token = crear_access_token(data={"sub": str(usuario.id)})
+    return Token(access_token=token)
+
+
+@router.post("/ticket", response_model=TicketOut)
+def emitir_ticket(usuario: Usuario = Depends(obtener_usuario_actual)):
+    """Emite un ticket de un solo uso (60s) para canjear por una conexión de
+    tiempo real (/eventos/stream) sin mandar el JWT completo en la URL --
+    ver app/services/tickets_temporales.py. Requiere ya estar autenticado
+    con el JWT normal (header Authorization, no la URL)."""
+    return TicketOut(ticket=tickets_temporales.crear_ticket(usuario.id))
+
+
+@router.post("/ticket/canjear", response_model=Token)
+def canjear_ticket(datos: CanjearTicketRequest, db: Session = Depends(get_db)):
+    """Canjea un ticket de un solo uso (emitido por /auth/ticket o por el
+    callback de SAML) por un access_token real. Sin autenticación previa --
+    el ticket ES la credencial, por eso es de un solo uso y expira rápido."""
+    usuario_id = tickets_temporales.canjear_ticket(datos.ticket)
+    if usuario_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Ticket inválido o expirado -- intenta iniciar sesión de nuevo.",
+        )
+    usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    if usuario is None or not usuario.activo:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Ticket inválido")
     token = crear_access_token(data={"sub": str(usuario.id)})
     return Token(access_token=token)
 

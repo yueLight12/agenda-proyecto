@@ -75,6 +75,16 @@ class Token(BaseModel):
     token_type: str = "bearer"
 
 
+class TicketOut(BaseModel):
+    """Ticket de un solo uso -- ver app/services/tickets_temporales.py."""
+
+    ticket: str
+
+
+class CanjearTicketRequest(BaseModel):
+    ticket: str
+
+
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
