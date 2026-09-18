@@ -26,3 +26,4 @@ from app.models.configuracion_app import ConfiguracionApp  # noqa: F401
 from app.models.termino_sensible import TerminoSensible  # noqa: F401
 from app.models.correo_alterno import CorreoAlterno  # noqa: F401
 from app.models.intento_fallido import IntentoFallido  # noqa: F401
+from app.models.mensaje_directo import MensajeDirecto  # noqa: F401

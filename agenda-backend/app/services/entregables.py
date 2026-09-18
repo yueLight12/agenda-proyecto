@@ -446,6 +446,17 @@ def actualizar_avance(
             status_code=403, detail="No tienes permiso para actualizar este entregable"
         )
 
+    # Una tarea ya concluida no se puede volver a marcar (2026-09-18, a
+    # petición de Yue) -- sin este guard, un botón de "Marcar como
+    # concluido" que quedó desactualizado en el frontend (ej. una fila de
+    # notificación vieja, ver PendientesUrgentes.jsx) podía disparar un
+    # PATCH de avance sobre un entregable ya "cumplido", generando
+    # HistorialAvance e notificaciones duplicadas sin sentido.
+    if entregable.estatus == EstatusEntregable.cumplido:
+        raise HTTPException(
+            status_code=400, detail="Esta tarea ya fue concluida, no se puede modificar."
+        )
+
     if (
         porcentaje_avance >= 100
         and entregable.requiere_comprobante

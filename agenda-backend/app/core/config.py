@@ -27,6 +27,14 @@ class Settings(BaseSettings):
     # generar_recordatorios_urgentes_hoy en app/services/recordatorios.py.
     horas_entre_recordatorios_urgentes: int = 2
 
+    # Barrido aparte, mucho más frecuente, solo para
+    # generar_recordatorios_previos_reuniones (2026-09-18, a petición de
+    # Yue: "un avísame 15 min antes no es preciso" con el barrido general
+    # de hasta 6h -- ver el OJO en esa función, app/services/recordatorios.py).
+    # En minutos, no horas, porque las opciones más cortas del selector
+    # (ModalReunion.jsx) son justamente 15/30 min.
+    minutos_entre_barridos_recordatorios_reuniones: int = 5
+
     # Chatbot de consulta (LLM local vía Ollama, sin salir a internet)
     ollama_url: str = "http://host.docker.internal:11434"
     ollama_modelo: str = "mistral:7b-instruct-q4_0"

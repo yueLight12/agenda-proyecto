@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -15,6 +15,7 @@ import {
   YAxis,
 } from "recharts";
 import { proyectosApi, rendimientoApi } from "../../api/endpoints";
+import { useEventosTiempoReal } from "../../hooks/useEventosTiempoReal";
 import SelectorProyecto from "../SelectorProyecto";
 
 // Dashboard visual de rendimiento (2026-08-26, a petición de Yue: "los
@@ -143,34 +144,51 @@ export default function RendimientoEquipo() {
       .catch(() => setProyectos([]));
   }, []);
 
+  // Token monotónico (2026-09-18) -- al llegar una respuesta, solo se
+  // aplica si sigue siendo la petición MÁS RECIENTE. Reemplaza al
+  // `cancelado`/cleanup de un solo useEffect de antes: ahora `cargar` se
+  // dispara desde dos lugares distintos (el efecto normal y el hook de
+  // tiempo real), así que un cambio rápido de filtro + un evento en vivo
+  // casi simultáneo podían llegar en desorden y pisar el resultado bueno
+  // con uno viejo.
+  const tokenCarga = useRef(0);
+
+  const cargar = useCallback(
+    ({ silencioso = false } = {}) => {
+      if (!silencioso) setCargando(true);
+      setError("");
+      const miToken = ++tokenCarga.current;
+      const filtro = proyectoId ? Number(proyectoId) : undefined;
+      return Promise.all([
+        rendimientoApi.obtener(periodo, filtro),
+        rendimientoApi.obtenerResumen(filtro),
+        rendimientoApi.obtenerAprobacion(periodo, filtro),
+        rendimientoApi.obtenerActividad(periodo, filtro),
+      ])
+        .then(([datosPersonas, datosResumen, datosAprobacion, datosActividad]) => {
+          if (tokenCarga.current !== miToken) return;
+          setPersonas(datosPersonas);
+          setResumen(datosResumen);
+          setAprobacion(datosAprobacion);
+          setActividad(datosActividad);
+        })
+        .catch(() => {
+          if (tokenCarga.current === miToken) setError("No se pudo cargar el rendimiento del equipo.");
+        })
+        .finally(() => {
+          if (!silencioso && tokenCarga.current === miToken) setCargando(false);
+        });
+    },
+    [periodo, proyectoId]
+  );
+
   useEffect(() => {
-    let cancelado = false;
-    setCargando(true);
-    setError("");
-    const filtro = proyectoId ? Number(proyectoId) : undefined;
-    Promise.all([
-      rendimientoApi.obtener(periodo, filtro),
-      rendimientoApi.obtenerResumen(filtro),
-      rendimientoApi.obtenerAprobacion(periodo, filtro),
-      rendimientoApi.obtenerActividad(periodo, filtro),
-    ])
-      .then(([datosPersonas, datosResumen, datosAprobacion, datosActividad]) => {
-        if (cancelado) return;
-        setPersonas(datosPersonas);
-        setResumen(datosResumen);
-        setAprobacion(datosAprobacion);
-        setActividad(datosActividad);
-      })
-      .catch(() => {
-        if (!cancelado) setError("No se pudo cargar el rendimiento del equipo.");
-      })
-      .finally(() => {
-        if (!cancelado) setCargando(false);
-      });
-    return () => {
-      cancelado = true;
-    };
-  }, [periodo, proyectoId]);
+    cargar();
+  }, [cargar]);
+
+  // Tiempo real (2026-09-18, a petición de Yue: "que todo sea
+  // instantáneo") -- mismo mecanismo que ya usaba solo PendientesUrgentes.jsx.
+  useEventosTiempoReal(() => cargar({ silencioso: true }));
 
   const descargarPdf = async () => {
     setDescargandoPdf(true);

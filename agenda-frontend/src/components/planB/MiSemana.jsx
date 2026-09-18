@@ -1,6 +1,7 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { entregablesApi, eventosEmpresaApi, pendientesPersonalesApi, proyectosApi, reunionesApi } from "../../api/endpoints";
 import { useAuth } from "../../context/AuthContext";
+import { useEventosTiempoReal } from "../../hooks/useEventosTiempoReal";
 import { fechaLocal } from "../../utils/fechas";
 import BadgeUrgente from "../BadgeUrgente";
 
@@ -130,9 +131,15 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
 
   // Pendientes personales (2026-08-27, a petición de Yue: "pasar por
   // leche", "pagar colegiatura" -- cosas privadas que no son ni reuniones
-  // ni tareas de proyecto). A diferencia de reuniones/entregables, NO se
-  // filtran por `semana` -- es un checklist que persiste hasta marcarse
-  // como hecho, no algo agendado a un rango de fechas puntual.
+  // ni tareas de proyecto). El backend regresa TODOS los del usuario, sin
+  // importar fecha -- el filtro por `semana` se aplica aquí abajo (mismo
+  // patrón que entregablesDeLaSemana), ver `pendientesPersonalesDeLaSemana`.
+  // Corregido 2026-09-18, a petición de Yue: antes se mostraban todos
+  // juntos sin filtrar, así que al completar uno que se repite, la
+  // siguiente instancia (con fecha de la próxima semana/mes/año, ver
+  // services/pendientes_personales.py) aparecía de inmediato mezclada en
+  // la vista de "esta semana", dando la impresión de que el pendiente
+  // "saltaba" en vez de solo tacharse donde estaba.
   const [pendientesPersonales, setPendientesPersonales] = useState([]);
   const [nuevoPendiente, setNuevoPendiente] = useState("");
   const [nuevaFechaPendiente, setNuevaFechaPendiente] = useState("");
@@ -170,34 +177,35 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
       .catch(() => {});
   }, []);
 
-  useEffect(() => {
-    let cancelado = false;
-    setCargando(true);
+  const cargar = useCallback(async ({ silencioso = false } = {}) => {
+    if (!silencioso) setCargando(true);
     setError("");
-    (async () => {
-      try {
-        const raices = await proyectosApi.listar();
-        const listasEntregables = await Promise.all(
-          raices.map((p) => entregablesApi.listarPorProyecto(p.id))
-        );
-        const listasReuniones = await Promise.all(
-          raices.map((p) => reunionesApi.listarPorProyecto(p.id))
-        );
-        const reunionesGenerales = await reunionesApi.listarGenerales();
-        if (cancelado) return;
-        setEntregables(listasEntregables.flat());
-        setReuniones([...listasReuniones.flat(), ...reunionesGenerales]);
-      } catch {
-        if (!cancelado) setError("No se pudo cargar tu semana.");
-      } finally {
-        if (!cancelado) setCargando(false);
-      }
-    })();
-    return () => {
-      cancelado = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    try {
+      const raices = await proyectosApi.listar();
+      const listasEntregables = await Promise.all(
+        raices.map((p) => entregablesApi.listarPorProyecto(p.id))
+      );
+      const listasReuniones = await Promise.all(
+        raices.map((p) => reunionesApi.listarPorProyecto(p.id))
+      );
+      const reunionesGenerales = await reunionesApi.listarGenerales();
+      setEntregables(listasEntregables.flat());
+      setReuniones([...listasReuniones.flat(), ...reunionesGenerales]);
+    } catch {
+      setError("No se pudo cargar tu semana.");
+    } finally {
+      if (!silencioso) setCargando(false);
+    }
   }, []);
+
+  useEffect(() => {
+    cargar();
+  }, [cargar]);
+
+  // Tiempo real (2026-09-18, a petición de Yue: "que todo sea
+  // instantáneo") -- recarga en silencio sin el parpadeo de "Cargando tu
+  // semana...", mismo mecanismo que ya usaba solo PendientesUrgentes.jsx.
+  useEventosTiempoReal(() => cargar({ silencioso: true }));
 
   useEffect(cargarPendientesPersonales, []);
 
@@ -255,6 +263,14 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
 
   const entregablesDeLaSemana = entregables.filter((e) => {
     const f = fechaLocal(e.fecha_entrega);
+    return f >= semana.inicio && f <= finInclusive;
+  });
+
+  // Sin fecha límite -- siempre visibles, en cualquier semana (a petición
+  // de Yue). Con fecha, solo si cae dentro de la semana seleccionada.
+  const pendientesPersonalesDeLaSemana = pendientesPersonales.filter((p) => {
+    if (!p.fecha_limite) return true;
+    const f = fechaLocal(p.fecha_limite);
     return f >= semana.inicio && f <= finInclusive;
   });
 
@@ -514,11 +530,11 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
             +
           </button>
         </form>
-        {pendientesPersonales.length === 0 ? (
+        {pendientesPersonalesDeLaSemana.length === 0 ? (
           <p className="planb__misemana-vacio">Sin pendientes personales.</p>
         ) : (
           <div className="stack" style={{ gap: 6 }}>
-            {pendientesPersonales.map((p) => (
+            {pendientesPersonalesDeLaSemana.map((p) => (
               <div key={p.id} className="planb__misemana-fila planb__misemana-pendiente-personal">
                 <label className="planb__misemana-pendiente-personal-check">
                   <input

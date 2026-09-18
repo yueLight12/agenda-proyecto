@@ -31,6 +31,7 @@ agenda-backend/uploads/
 agenda-frontend/node_modules/
 agenda-frontend/dist/
 agenda-frontend/dist-local/
+agenda-frontend/dist-pruebas/
 agenda-frontend/.env
 agenda-frontend/.env.local
 

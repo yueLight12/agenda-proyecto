@@ -18,6 +18,9 @@ class TipoNotificacion(str, enum.Enum):
     # Recordatorio con antelación configurable (2026-08-25), distinto de
     # reunion_hoy (ese es fijo, "el mismo día") -- ver Reunion.recordatorio_minutos_antes.
     recordatorio_reunion = "recordatorio_reunion"
+    # Mensaje directo persona-a-persona (2026-09-19) -- ver
+    # app/models/mensaje_directo.py y app/services/mensajes_directos.py.
+    mensaje_directo = "mensaje_directo"
     otro = "otro"
 
 

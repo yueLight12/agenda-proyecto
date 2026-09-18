@@ -370,14 +370,14 @@ def generar_recordatorios_previos_reuniones(db: Session) -> int:
     organizador y a cada invitado UNA sola vez, cuando `ahora` entra a la
     ventana [fecha_inicio - recordatorio_minutos_antes, fecha_inicio).
 
-    OJO -- precisión limitada por el barrido del scheduler
-    (settings.horas_entre_barridos_recordatorios, hasta 6 horas hoy, ver
-    app/main.py): un recordatorio de "15 min antes" puede llegar tarde
-    (hasta ~6h después de la hora pedida) si la reunión ya pasó para
-    cuando corre el siguiente barrido. Antes de producción, acortar ese
-    intervalo (ej. cada 5-10 min) si se necesita precisión real para
-    opciones cortas -- decisión pendiente, confirmada con Yue el 2026-08-25
-    (por ahora se deja el barrido como está).
+    Precisión (2026-09-18, resuelto): corre en su PROPIO barrido del
+    scheduler, cada settings.minutos_entre_barridos_recordatorios_reuniones
+    (5 min por default) -- ver _ejecutar_barrido_recordatorios_previos_reuniones
+    en app/main.py, separado del barrido general de
+    settings.horas_entre_barridos_recordatorios (ese sigue en horas, no
+    necesita ser preciso al minuto). Antes ambos corrían juntos en el
+    barrido general de hasta 6h, así que un "15 min antes" podía llegar
+    tarde o nunca a tiempo.
     """
     ahora = datetime.utcnow()
 

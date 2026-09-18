@@ -84,7 +84,16 @@ export default function PendientesUrgentes({ recargarSenal, onAbrirEntregable, o
       );
       await cargar();
     } catch (err) {
-      setError(err.response?.data?.detail || "No se pudo marcar como concluido.");
+      // Fila desactualizada (2026-09-18) -- si el backend dice que ya
+      // estaba concluida (ver el guard nuevo en actualizar_avance), no es
+      // un error real que mostrar: solo hay que refrescar para que la fila
+      // vieja desaparezca, en vez de asustar con un mensaje rojo por algo
+      // que ya estaba bien.
+      if (err.response?.status === 400 && err.response?.data?.detail?.includes("ya fue concluida")) {
+        await cargar();
+      } else {
+        setError(err.response?.data?.detail || "No se pudo marcar como concluido.");
+      }
     } finally {
       setMarcandoId(null);
     }

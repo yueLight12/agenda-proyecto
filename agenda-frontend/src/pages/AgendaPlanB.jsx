@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { entregablesApi, miEquipoApi, proyectosApi, reunionesApi } from "../api/endpoints";
+import { entregablesApi, mensajesDirectosApi, miEquipoApi, proyectosApi, reunionesApi } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
 import Modal from "../components/Modal";
 import AppearanceSettings from "../components/AppearanceSettings";
 import ModalAsignarTareaRapida from "../components/ModalAsignarTareaRapida";
-import ModalEditarProyecto from "../components/ModalEditarProyecto";
+import ModalMensajesDirectos from "../components/ModalMensajesDirectos";
+import ListaProyectos from "../components/planB/ListaProyectos";
 import FormularioEntregable from "../components/FormularioEntregable";
 import ModalReunion from "../components/ModalReunion";
 import CalendarioGlobal from "./CalendarioGlobal";
@@ -19,6 +20,7 @@ import PendientesUrgentes from "../components/planB/PendientesUrgentes";
 import RendimientoEquipo from "../components/planB/RendimientoEquipo";
 import { ESTILOS_PLANB, useEstiloPlanB } from "../hooks/useEstiloPlanB";
 import { useTema } from "../hooks/useTema";
+import { useEventosTiempoReal } from "../hooks/useEventosTiempoReal";
 import { usePreferenciasApariencia } from "../hooks/usePreferenciasApariencia";
 import { iniciales } from "../utils/avatarPersona";
 
@@ -72,6 +74,23 @@ export default function AgendaPlanB() {
   const [detalle, setDetalle] = useState(null); // { tipo: 'entregable'|'reunion', item, miembros, proyectoNombre }
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
   const [errorDetalle, setErrorDetalle] = useState("");
+
+  // "Mensajes directos" (2026-09-19) -- badge de no leídos en el topbar,
+  // igual de espíritu que BotonNotificacionesPush pero para
+  // ModalMensajesDirectos.jsx. Se recarga con el mismo mecanismo de tiempo
+  // real que ya usa el resto de la pantalla.
+  const [mostrarMensajes, setMostrarMensajes] = useState(false);
+  const [mensajesNoLeidos, setMensajesNoLeidos] = useState(0);
+  const cargarMensajesNoLeidos = useCallback(() => {
+    mensajesDirectosApi
+      .resumen()
+      .then((conversaciones) =>
+        setMensajesNoLeidos(conversaciones.reduce((total, c) => total + c.no_leidos, 0))
+      )
+      .catch(() => {});
+  }, []);
+  useEffect(cargarMensajesNoLeidos, [cargarMensajesNoLeidos]);
+  useEventosTiempoReal(cargarMensajesNoLeidos);
 
   const abrirEntregable = useCallback(async (proyectoId, entregableId) => {
     setErrorDetalle("");
@@ -190,6 +209,30 @@ export default function AgendaPlanB() {
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <span id="tour-notificaciones">
             <BotonNotificacionesPush />
+          </span>
+          <span id="tour-mensajes">
+            <button
+              type="button"
+              className="btn btn--ghost"
+              onClick={() => setMostrarMensajes(true)}
+              title="Mensajes"
+            >
+              💬 Mensajes
+              {mensajesNoLeidos > 0 && (
+                <span
+                  style={{
+                    marginLeft: 6,
+                    background: "var(--color-danger)",
+                    color: "#fff",
+                    borderRadius: 999,
+                    fontSize: "0.7rem",
+                    padding: "1px 7px",
+                  }}
+                >
+                  {mensajesNoLeidos}
+                </span>
+              )}
+            </button>
           </span>
           {/* "Modo editor" (2026-08-31) -- único control de personalización
               visible siempre; los otros 3 (apariencia/estilo/tema) solo
@@ -363,7 +406,18 @@ export default function AgendaPlanB() {
       )}
 
       {modalActivo === "proyecto" && (
-        <ModalEditarProyecto onCerrar={cerrarModal} onGuardado={alTerminarAsignacion} />
+        <Modal titulo="Mis proyectos" onCerrar={cerrarModal}>
+          <ListaProyectos />
+        </Modal>
+      )}
+
+      {mostrarMensajes && (
+        <ModalMensajesDirectos
+          onCerrar={() => {
+            setMostrarMensajes(false);
+            cargarMensajesNoLeidos();
+          }}
+        />
       )}
 
       {modalActivo === "agenda" && (

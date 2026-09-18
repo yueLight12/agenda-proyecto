@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { adminApi, usuariosApi } from "../api/endpoints";
 import Modal from "../components/Modal";
@@ -133,7 +133,9 @@ function FormularioUsuario({ inicial, esNuevo, onGuardar, onCerrar, error, guard
 }
 
 export default function AdminUsuarios() {
-  const { usuario: usuarioActual } = useAuth();
+  const { usuario: usuarioActual, entrarComoOtraPersona } = useAuth();
+  const navigate = useNavigate();
+  const [errorVerComo, setErrorVerComo] = useState("");
   const [usuarios, setUsuarios] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
@@ -277,6 +279,17 @@ export default function AdminUsuarios() {
     }
   };
 
+  const verComo = async (u) => {
+    setErrorVerComo("");
+    try {
+      const { access_token } = await adminApi.verComo(u.id);
+      await entrarComoOtraPersona(access_token);
+      navigate("/");
+    } catch (err) {
+      setErrorVerComo(err.response?.data?.detail || "No se pudo entrar como esa persona.");
+    }
+  };
+
   const eliminar = async (u) => {
     if (!window.confirm(`¿Eliminar a "${u.nombre}"? Esto no se puede deshacer.`)) return;
     try {
@@ -321,6 +334,7 @@ export default function AdminUsuarios() {
 
       {cargando && <p style={{ color: "var(--color-text-muted)" }}>Cargando...</p>}
       {error && <p className="error-text">{error}</p>}
+      {errorVerComo && <p className="error-text">{errorVerComo}</p>}
 
       {!cargando && !error && (
         <div style={{ overflowX: "auto" }}>
@@ -360,6 +374,21 @@ export default function AdminUsuarios() {
                     </button>
                   </td>
                   <td style={{ display: "flex", gap: 6 }}>
+                    <button
+                      type="button"
+                      className="btn btn--ghost"
+                      onClick={() => verComo(u)}
+                      disabled={u.id === usuarioActual.id || u.es_super_admin}
+                      title={
+                        u.id === usuarioActual.id
+                          ? "Ya eres tú mismo"
+                          : u.es_super_admin
+                          ? "No se puede 'ver como' otro superadmin"
+                          : ""
+                      }
+                    >
+                      👁️ Ver como
+                    </button>
                     <button
                       type="button"
                       className="btn btn--ghost"

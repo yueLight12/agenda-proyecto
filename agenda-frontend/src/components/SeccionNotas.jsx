@@ -268,15 +268,20 @@ export default function SeccionNotas({
           value={contenido}
           onChange={(e) => setContenido(e.target.value)}
         />
-        <label style={{ fontSize: "0.78rem", color: "var(--color-text-muted)" }}>
-          Adjuntar captura de pantalla (opcional)
-          <input
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            onChange={(e) => setImagen(e.target.files?.[0] || null)}
-            style={{ display: "block", marginTop: 4, fontSize: "0.78rem" }}
-          />
-        </label>
+        {/* Deshabilitado (2026-09-18, a petición de Yue) -- mismo criterio de
+            "ocultar, no eliminar" ya usado en FormularioEntregable.jsx con el
+            comprobante de imagen. */}
+        {false && (
+          <label style={{ fontSize: "0.78rem", color: "var(--color-text-muted)" }}>
+            Adjuntar captura de pantalla (opcional)
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={(e) => setImagen(e.target.files?.[0] || null)}
+              style={{ display: "block", marginTop: 4, fontSize: "0.78rem" }}
+            />
+          </label>
+        )}
         <button
           className="btn btn--ghost"
           type="submit"

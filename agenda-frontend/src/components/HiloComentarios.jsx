@@ -153,15 +153,20 @@ export default function HiloComentarios({ padreParams, nivel = 0 }) {
               value={contenido}
               onChange={(e) => setContenido(e.target.value)}
             />
-            <label style={{ fontSize: "0.7rem", color: "var(--color-text-muted)" }}>
-              Adjuntar imagen (opcional)
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                onChange={(e) => setImagen(e.target.files?.[0] || null)}
-                style={{ display: "block", marginTop: 2, fontSize: "0.72rem" }}
-              />
-            </label>
+            {/* Deshabilitado (2026-09-18, a petición de Yue) -- mismo criterio de
+                "ocultar, no eliminar" ya usado en FormularioEntregable.jsx con el
+                comprobante de imagen. */}
+            {false && (
+              <label style={{ fontSize: "0.7rem", color: "var(--color-text-muted)" }}>
+                Adjuntar imagen (opcional)
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={(e) => setImagen(e.target.files?.[0] || null)}
+                  style={{ display: "block", marginTop: 2, fontSize: "0.72rem" }}
+                />
+              </label>
+            )}
             <button
               className="btn btn--ghost"
               type="submit"

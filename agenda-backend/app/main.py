@@ -27,6 +27,7 @@ from app.routers import (
     equipos,
     eventos_empresa,
     eventos_tiempo_real,
+    mensajes_directos,
     minutas,
     notas,
     notificaciones,
@@ -193,6 +194,7 @@ app.include_router(rendimiento.router)
 app.include_router(reuniones.router)
 app.include_router(equipos.router)
 app.include_router(equipo_resumen.router)
+app.include_router(mensajes_directos.router)
 app.include_router(minutas.router)
 app.include_router(notas.router)
 app.include_router(pendientes.router)
@@ -217,7 +219,6 @@ def _ejecutar_barrido_recordatorios():
         generar_recordatorios_cumpleanos(db)
         expirar_recordatorios_reuniones_hoy(db)
         generar_recordatorios_reuniones_hoy(db)
-        generar_recordatorios_previos_reuniones(db)
         materializar_ocurrencias(db)
     finally:
         db.close()
@@ -228,6 +229,19 @@ def _ejecutar_barrido_recordatorios_urgentes():
     db = SessionLocal()
     try:
         generar_recordatorios_urgentes_hoy(db)
+    finally:
+        db.close()
+
+
+def _ejecutar_barrido_recordatorios_previos_reuniones():
+    """Barrido APARTE, mucho más frecuente que el general (2026-09-18, a
+    petición de Yue) -- solo para generar_recordatorios_previos_reuniones
+    (el "avísame 15/30 min antes" configurable por reunión), que con el
+    barrido general de hasta 6h podía llegar tarde o nunca para esas
+    opciones cortas. Ver settings.minutos_entre_barridos_recordatorios_reuniones."""
+    db = SessionLocal()
+    try:
+        generar_recordatorios_previos_reuniones(db)
     finally:
         db.close()
 
@@ -247,6 +261,12 @@ scheduler.add_job(
     hours=settings.horas_entre_recordatorios_urgentes,
     id="barrido_recordatorios_urgentes",
 )
+scheduler.add_job(
+    _ejecutar_barrido_recordatorios_previos_reuniones,
+    "interval",
+    minutes=settings.minutos_entre_barridos_recordatorios_reuniones,
+    id="barrido_recordatorios_previos_reuniones",
+)
 
 
 @app.on_event("startup")
@@ -254,6 +274,7 @@ def iniciar_scheduler():
     # Corre un barrido inicial al arrancar y luego cada N horas (ver settings.horas_entre_barridos_recordatorios).
     _ejecutar_barrido_recordatorios()
     _ejecutar_barrido_recordatorios_urgentes()
+    _ejecutar_barrido_recordatorios_previos_reuniones()
     scheduler.start()
 
 

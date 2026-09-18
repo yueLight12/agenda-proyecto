@@ -84,6 +84,12 @@ function pasosPara(usuario) {
       content:
         "Actívalas aquí para recibir avisos aunque tengas la app cerrada. Si diste tu WhatsApp, también te avisamos ahí.",
     },
+    {
+      target: "#tour-mensajes",
+      title: "Mensajes",
+      content:
+        "Escríbele directo a alguien de tu equipo o de tu misma área -- para algo que no es una tarea ni tiene que ver con un proyecto en concreto.",
+    },
   ];
 
   if (esLider) {

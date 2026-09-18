@@ -81,6 +81,14 @@ class OrganigramaAsignarRequest(BaseModel):
     rol: RolEnum
 
 
+class VerComoOut(BaseModel):
+    """"Ver como" (2026-09-17) -- ver app/services/admin.py::generar_token_ver_como."""
+
+    access_token: str
+    token_type: str = "bearer"
+    usuario_nombre: str
+
+
 class IntentoFallidoOut(BaseModel):
     """'Opción B' (2026-09-17) -- ver app/models/intento_fallido.py."""
 

@@ -3,6 +3,13 @@ import { authApi } from "../api/endpoints";
 
 const AuthContext = createContext(null);
 
+// "Ver como" (2026-09-17) -- mientras se está viendo como otra persona, el
+// token real del superadmin se guarda aparte (localStorage, no
+// sessionStorage: sobrevive un refresh de la página) para poder volver
+// después. Su sola presencia es la señal de "estoy impersonando a
+// alguien" -- ver AvisoVerComo.jsx.
+const CLAVE_TOKEN_ORIGINAL = "access_token_antes_de_ver_como";
+
 export function AuthProvider({ children }) {
   const [usuario, setUsuario] = useState(null);
   const [cargando, setCargando] = useState(true);
@@ -48,12 +55,41 @@ export function AuthProvider({ children }) {
 
   const logout = () => {
     localStorage.removeItem("access_token");
+    localStorage.removeItem(CLAVE_TOKEN_ORIGINAL);
     setUsuario(null);
   };
 
+  // "Ver como" (2026-09-17, a petición de Yue) -- entra con el token de
+  // otra persona (emitido por el superadmin vía POST /admin/ver-como/{id},
+  // sin necesitar su contraseña) guardando el propio para poder volver.
+  const entrarComoOtraPersona = async (tokenNuevo) => {
+    const tokenActual = localStorage.getItem("access_token");
+    if (tokenActual) localStorage.setItem(CLAVE_TOKEN_ORIGINAL, tokenActual);
+    await iniciarSesionConToken(tokenNuevo);
+  };
+
+  const volverAMiCuenta = async () => {
+    const tokenOriginal = localStorage.getItem(CLAVE_TOKEN_ORIGINAL);
+    if (!tokenOriginal) return;
+    localStorage.removeItem(CLAVE_TOKEN_ORIGINAL);
+    await iniciarSesionConToken(tokenOriginal);
+  };
+
+  const viendoComoOtraPersona = Boolean(localStorage.getItem(CLAVE_TOKEN_ORIGINAL));
+
   return (
     <AuthContext.Provider
-      value={{ usuario, cargando, login, iniciarSesionConToken, logout, refrescarPerfil: cargarPerfil }}
+      value={{
+        usuario,
+        cargando,
+        login,
+        iniciarSesionConToken,
+        logout,
+        refrescarPerfil: cargarPerfil,
+        entrarComoOtraPersona,
+        volverAMiCuenta,
+        viendoComoOtraPersona,
+      }}
     >
       {children}
     </AuthContext.Provider>

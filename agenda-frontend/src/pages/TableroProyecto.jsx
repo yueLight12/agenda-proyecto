@@ -16,6 +16,7 @@ import ModalMinuta from "../components/ModalMinuta";
 import SeccionNotas from "../components/SeccionNotas";
 import { etiquetaRol } from "../utils/rolLabels";
 import { useAuth } from "../context/AuthContext";
+import { useEventosTiempoReal } from "../hooks/useEventosTiempoReal";
 
 const DIAS_SEMANA = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
 
@@ -75,7 +76,8 @@ export default function TableroProyecto() {
   // cuyo permiso viene heredado de un nodo padre.
   const puedeAdministrar = Boolean(proyecto?.puede_administrar);
 
-  const cargarTodo = async () => {
+  const cargarTodo = async ({ silencioso = false } = {}) => {
+    if (!silencioso) setCargando(true);
     const [p, r, e, eq, inv, reu, anc, hijos, ser] = await Promise.all([
       proyectosApi.obtener(proyectoId),
       proyectosApi.resumen(proyectoId),
@@ -124,6 +126,12 @@ export default function TableroProyecto() {
       .finally(() => setCargando(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [proyectoId]);
+
+  // Tiempo real (2026-09-18, a petición de Yue: "que todo sea
+  // instantáneo") -- recarga en silencio (sin el parpadeo de "Cargando
+  // proyecto..." ni reabrir el deep-link de ?entregable=/?reunion=, que
+  // solo aplica en la carga inicial de la página).
+  useEventosTiempoReal(() => cargarTodo({ silencioso: true }));
 
   const guardarAvance = async (entregableId) => {
     setErrorAvance("");
@@ -454,7 +462,12 @@ export default function TableroProyecto() {
       </div>
       )}
 
-      {vista === "kanban" && (
+      {/* Kanban de estatus (Pendiente/En progreso/Visto bueno/Cumplido) oculto
+          aquí (2026-09-18, a petición de Yue al construir "Mis proyectos":
+          "vamos a quitar lo de pendientes, en progreso, visto bueno,
+          cumplido") -- código intacto, mismo criterio de "ocultar, no
+          eliminar" que ya usa el toggle Tabla/Calendario de arriba. */}
+      {false && vista === "kanban" && (
         <div className="card">
           <KanbanEntregables
             entregables={entregables}

@@ -6,19 +6,35 @@ import ModalReunion from "../components/ModalReunion";
 import {
   entregablesApi,
   eventosEmpresaApi,
+  miEquipoApi,
   proyectosApi,
   reunionesApi,
 } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
+import { useEventosTiempoReal } from "../hooks/useEventosTiempoReal";
 
 export default function CalendarioGlobal({ altoCalendario } = {}) {
   const { usuario } = useAuth();
   const [entregables, setEntregables] = useState([]);
   const [reuniones, setReuniones] = useState([]);
+  // "Asignar tarea" desde una reunión (2026-09-18) -- ModalReunion solo
+  // muestra ese botón si recibe `equipoDisponible` (ver su docstring);
+  // este calendario nunca lo cargaba, mismo mecanismo que ya usa
+  // AgendaPlanB.jsx (miEquipoApi.listar -- "a quién le puedo asignar").
+  const [equipo, setEquipo] = useState([]);
+  // Cachés por proyecto_id, llenadas BAJO DEMANDA al abrir un entregable o
+  // reunión (2026-09-18, a petición de Yue: "que todo sea instantáneo")
+  // -- antes cargarTodo pedía equipo/invitables de CADA proyecto/subtema
+  // visible por adelantado (una petición en paralelo por cada uno, aunque
+  // nunca se llegara a abrir su modal), lo que volvía la carga inicial
+  // más lenta entre más gente iba creando temas. Mismo patrón ya usado en
+  // AgendaPlanB.jsx (abrirEntregable/abrirReunion) -- pedir solo lo que
+  // hace falta, justo cuando hace falta.
   const [equiposPorProyecto, setEquiposPorProyecto] = useState({});
   const [invitablesPorProyecto, setInvitablesPorProyecto] = useState({});
   const [invitablesGenerales, setInvitablesGenerales] = useState([]);
   const [cargando, setCargando] = useState(true);
+  const [cargandoModal, setCargandoModal] = useState(false);
   const [error, setError] = useState("");
   const [modalEntregable, setModalEntregable] = useState(null);
   const [modalReunion, setModalReunion] = useState(null);
@@ -30,77 +46,110 @@ export default function CalendarioGlobal({ altoCalendario } = {}) {
   // reunión general", ver onSeleccionarFranja en CalendarioEntregables.
   const [franjaSugerida, setFranjaSugerida] = useState(null);
 
-  const cargarTodo = async () => {
-    const raices = await proyectosApi.listar();
-    // Cada raíz trae, en cascada, los entregables/reuniones de todo su
-    // subárbol de subtemas (query generalizada en el backend, ver Fase 1 de
-    // jerarquía 2026-08-16) -- pero cada ítem trae su proyecto_id REAL (el
-    // del subtema exacto, no el de la raíz), así que el nombre y el equipo
-    // se resuelven por ese id propio, no por el de la raíz que disparó el fetch.
-    const listasEntregables = await Promise.all(
-      raices.map((p) => entregablesApi.listarPorProyecto(p.id))
-    );
-    const listasReuniones = await Promise.all(
-      raices.map((p) => reunionesApi.listarPorProyecto(p.id))
-    );
-    const reunionesGenerales = await reunionesApi.listarGenerales();
-    const todosEntregables = listasEntregables.flat();
-    const todosReuniones = [...listasReuniones.flat(), ...reunionesGenerales];
+  const cargarTodo = async ({ silencioso = false } = {}) => {
+    if (!silencioso) setCargando(true);
+    setError("");
+    try {
+      const raices = await proyectosApi.listar();
+      // Cada raíz trae, en cascada, los entregables/reuniones de todo su
+      // subárbol de subtemas (query generalizada en el backend, ver Fase 1
+      // de jerarquía 2026-08-16) -- pero cada ítem trae su proyecto_id REAL
+      // (el del subtema exacto, no el de la raíz), así que el nombre se
+      // resuelve por ese id propio, no por el de la raíz que disparó el fetch.
+      const [listasEntregables, listasReuniones, reunionesGenerales, arbol, eventos] =
+        await Promise.all([
+          Promise.all(raices.map((p) => entregablesApi.listarPorProyecto(p.id))),
+          Promise.all(raices.map((p) => reunionesApi.listarPorProyecto(p.id))),
+          reunionesApi.listarGenerales(),
+          // Nombres de TODO el árbol visible (raíces + subtemas) en UNA sola
+          // petición -- antes era una petición por cada subtema distinto
+          // que apareciera en un entregable/reunión (2026-09-18, a petición
+          // de Yue: "que todo sea instantáneo" -- esto era buena parte de
+          // por qué el calendario tardaba en mostrarse con varios usuarios
+          // creando temas). Ver GET /proyectos/arbol-visible.
+          proyectosApi.arbolVisible(),
+          eventosEmpresaApi.listar(),
+        ]);
+      const todosEntregables = listasEntregables.flat();
+      const todosReuniones = [...listasReuniones.flat(), ...reunionesGenerales];
 
-    const idsProyectos = new Set([
-      ...raices.map((p) => p.id),
-      ...todosEntregables.map((e) => e.proyecto_id),
-      ...todosReuniones.filter((r) => r.proyecto_id).map((r) => r.proyecto_id),
-    ]);
-    const nombresPorId = {};
-    raices.forEach((p) => {
-      nombresPorId[p.id] = p.nombre;
-    });
-    // Para subtemas (proyecto_id distinto de cualquier raíz) hace falta
-    // pedir el nombre propio del nodo -- no viene en la lista de raíces.
-    await Promise.all(
-      [...idsProyectos]
-        .filter((id) => !(id in nombresPorId))
-        .map((id) => proyectosApi.obtener(id).then((p) => (nombresPorId[id] = p.nombre)))
-    );
+      const nombresPorId = Object.fromEntries(arbol.map((p) => [p.id, p.nombre]));
 
-    const equiposEntries = await Promise.all(
-      [...idsProyectos].map((id) => proyectosApi.equipo(id).then((eq) => [id, eq]))
-    );
-    const mapaEquipos = Object.fromEntries(equiposEntries);
-    // A quién se puede invitar a una reunión/junta -- más permisiva que el
-    // equipo del tema (incluye jefe/Dirección, ver
-    // services/reuniones.py::listar_invitables_reunion). No reemplaza
-    // equiposPorProyecto, que se sigue usando para lo demás (entregables).
-    const invitablesEntries = await Promise.all(
-      [...idsProyectos].map((id) => reunionesApi.invitables(id).then((inv) => [id, inv]))
-    );
-    const mapaInvitables = Object.fromEntries(invitablesEntries);
-
-    const eventos = await eventosEmpresaApi.listar();
-    const invitablesGeneral = await reunionesApi.invitables();
-    setInvitablesGenerales(invitablesGeneral);
-    setInvitablesPorProyecto(mapaInvitables);
-    setEntregables(
-      todosEntregables.map((e) => ({ ...e, proyecto_nombre: nombresPorId[e.proyecto_id] }))
-    );
-    setReuniones(
-      todosReuniones.map((r) => ({
-        ...r,
-        proyecto_nombre: r.proyecto_id ? nombresPorId[r.proyecto_id] : "General",
-      }))
-    );
-    setEquiposPorProyecto(mapaEquipos);
-    setEventosEmpresa(eventos);
+      setEntregables(
+        todosEntregables.map((e) => ({ ...e, proyecto_nombre: nombresPorId[e.proyecto_id] }))
+      );
+      setReuniones(
+        todosReuniones.map((r) => ({
+          ...r,
+          proyecto_nombre: r.proyecto_id ? nombresPorId[r.proyecto_id] : "General",
+        }))
+      );
+      setEventosEmpresa(eventos);
+    } catch {
+      setError("No se pudo cargar el calendario. Intenta de nuevo más tarde.");
+    } finally {
+      if (!silencioso) setCargando(false);
+    }
   };
 
   useEffect(() => {
-    setCargando(true);
-    setError("");
-    cargarTodo()
-      .catch(() => setError("No se pudo cargar el calendario. Intenta de nuevo más tarde."))
-      .finally(() => setCargando(false));
+    cargarTodo();
+    miEquipoApi.listar().then(setEquipo).catch(() => {});
+    reunionesApi.invitables().then(setInvitablesGenerales).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Tiempo real (2026-09-18, a petición de Yue: "que todo sea instantáneo,
+  // especialmente ahora que varios usuarios lo están usando") -- cualquier
+  // notificación nueva para este usuario (alguien creó/editó/completó algo
+  // que le compete) recarga el calendario en silencio, sin el parpadeo de
+  // "Cargando calendario..." de una carga manual. Mismo mecanismo que ya
+  // usaba solo PendientesUrgentes.jsx -- ver useEventosTiempoReal.js.
+  useEventosTiempoReal(() => cargarTodo({ silencioso: true }));
+
+  // Trae (y cachea) el equipo de un proyecto solo la primera vez que hace
+  // falta -- ver comentario junto a equiposPorProyecto arriba.
+  const obtenerEquipoDe = async (proyectoId) => {
+    if (equiposPorProyecto[proyectoId]) return equiposPorProyecto[proyectoId];
+    const eq = await proyectosApi.equipo(proyectoId);
+    setEquiposPorProyecto((prev) => ({ ...prev, [proyectoId]: eq }));
+    return eq;
+  };
+
+  // Igual que obtenerEquipoDe pero para "a quién se puede invitar a una
+  // reunión" (más permisivo que el equipo del tema, incluye jefe/Dirección
+  // -- ver services/reuniones.py::listar_invitables_reunion).
+  const obtenerInvitablesDe = async (proyectoId) => {
+    if (!proyectoId) return invitablesGenerales;
+    if (invitablesPorProyecto[proyectoId]) return invitablesPorProyecto[proyectoId];
+    const inv = await reunionesApi.invitables(proyectoId);
+    setInvitablesPorProyecto((prev) => ({ ...prev, [proyectoId]: inv }));
+    return inv;
+  };
+
+  const abrirModalEntregable = async (item) => {
+    setCargandoModal(true);
+    try {
+      await obtenerEquipoDe(item.proyecto_id);
+      setModalEntregable(item);
+    } catch {
+      setError("No se pudo abrir el entregable.");
+    } finally {
+      setCargandoModal(false);
+    }
+  };
+
+  const abrirModalReunion = async (item) => {
+    setCargandoModal(true);
+    try {
+      await obtenerInvitablesDe(item?.proyecto_id ?? null);
+      setModalReunion(item);
+    } catch {
+      setError("No se pudo abrir la reunión.");
+    } finally {
+      setCargandoModal(false);
+    }
+  };
 
   // Calculado en servidor (entregable.puede_editar / reunion.puede_editar) --
   // nunca cruzar usuario.roles_por_proyecto aquí, se rompe con herencia de
@@ -178,8 +227,8 @@ export default function CalendarioGlobal({ altoCalendario } = {}) {
           editable
           puedeEditar={puedeEditar}
           onReprogramar={reprogramarEntregable}
-          onEntregableClick={(e) => setModalEntregable(e)}
-          onReunionClick={(r) => setModalReunion(r)}
+          onEntregableClick={abrirModalEntregable}
+          onReunionClick={abrirModalReunion}
           onEventoEmpresaClick={(ev) => setModalEventoEmpresa(ev)}
           onSeleccionarFranja={(franja) => {
             setFranjaSugerida(franja);
@@ -188,6 +237,10 @@ export default function CalendarioGlobal({ altoCalendario } = {}) {
           {...(altoCalendario ? { alto: altoCalendario } : {})}
         />
       </div>
+
+      {cargandoModal && (
+        <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>Abriendo...</p>
+      )}
 
       {modalEntregable && (
         <FormularioEntregable
@@ -220,6 +273,7 @@ export default function CalendarioGlobal({ altoCalendario } = {}) {
           }
           organizadorId={modalReunion.organizador_id}
           puedeAdministrar={puedeEditar(modalReunion)}
+          equipoDisponible={equipo}
           onGuardado={cargarTodo}
           onCerrar={() => setModalReunion(null)}
         />
@@ -232,6 +286,7 @@ export default function CalendarioGlobal({ altoCalendario } = {}) {
           miembros={invitablesGenerales}
           organizadorId={usuario?.id}
           puedeAdministrar
+          equipoDisponible={equipo}
           fechaHoraSugerida={franjaSugerida}
           onGuardado={cargarTodo}
           onCerrar={() => {

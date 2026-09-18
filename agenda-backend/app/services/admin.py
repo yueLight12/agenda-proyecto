@@ -11,9 +11,12 @@ personales, suscripciones push) -- eso se va con ella si se elimina
 después (tienen ON DELETE CASCADE, ver los modelos), no tiene sentido
 "heredarlo" a alguien más.
 """
+from datetime import timedelta
+
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.security import crear_access_token
 from app.models.agenda_item import AgendaItemRevision
 from app.models.entregable import Entregable
 from app.models.equipo_miembro import EquipoMiembro
@@ -120,6 +123,40 @@ def _fusionar_equipo_miembro(db: Session, columna_mover: str, columna_pareja: st
     if fusionados:
         resultado[f"{etiqueta} (ya existían en destino, descartados)"] = fusionados
     return resultado
+
+
+# Duración corta a propósito (2026-09-17, "Ver como") -- distinta de
+# settings.access_token_expire_minutes (login normal, 4h): esto es para
+# una revisión puntual del superadmin, no una sesión de trabajo.
+MINUTOS_TOKEN_VER_COMO = 30
+
+
+def generar_token_ver_como(db: Session, admin: Usuario, usuario_id: int) -> tuple[str, Usuario]:
+    """"Ver como" (2026-09-17, a petición de Yue: el sistema ya está en uso
+    real, ya no puede simplemente loguearse como cualquiera porque la
+    gente pudo cambiar su contraseña genérica) -- emite un token de
+    acceso para `usuario_id` sin necesitar su contraseña. El caller
+    (router) es responsable de auditar esta acción -- ver
+    app/routers/admin.py, reusa el mismo Registro de auditoría que ya
+    existe para el resto de acciones de superadmin, no hace falta una
+    tabla nueva.
+
+    Restringido a no-superadmins: impersonar a otro superadmin no aporta
+    nada útil aquí (ambos ya tienen control total) y sí abre una confusión
+    de privilegios innecesaria."""
+    objetivo = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    if not objetivo:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Usuario no encontrado")
+    if objetivo.id == admin.id:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Ya eres tú mismo")
+    if objetivo.es_super_admin:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "No se puede 'ver como' otro superadmin")
+
+    token = crear_access_token(
+        data={"sub": str(objetivo.id), "ver_como_admin_id": admin.id},
+        expires_delta=timedelta(minutes=MINUTOS_TOKEN_VER_COMO),
+    )
+    return token, objetivo
 
 
 def reasignar_todo(db: Session, origen_id: int, destino_id: int) -> dict:

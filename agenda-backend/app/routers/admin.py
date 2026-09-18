@@ -28,6 +28,7 @@ from app.schemas.admin import (
     ReasignarTodoOut,
     ReasignarTodoRequest,
     RegistroAuditoriaOut,
+    VerComoOut,
 )
 from app.schemas.termino_sensible import TerminoSensibleCrear, TerminoSensibleOut
 from app.services import (
@@ -38,7 +39,7 @@ from app.services import (
     intentos_fallidos,
     organigrama,
 )
-from app.services.admin import reasignar_todo
+from app.services.admin import generar_token_ver_como, reasignar_todo
 from app.services.materializar_series import materializar_ocurrencias
 from app.services.recordatorios import (
     generar_recordatorios,
@@ -138,6 +139,21 @@ def obtener_actividad(
     por persona, sin registro de intentos fallidos)."""
     requerir_super_admin(usuario)
     return actividad.listar_actividad_reciente(db)
+
+
+@router.post("/ver-como/{usuario_id}", response_model=VerComoOut)
+def ver_como(
+    usuario_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """"Ver como" (2026-09-17) -- entra temporalmente a la vista de otra
+    persona sin necesitar su contraseña. Ver app/services/admin.py::generar_token_ver_como
+    para las restricciones (no uno mismo, no otro superadmin)."""
+    requerir_super_admin(usuario)
+    token, objetivo = generar_token_ver_como(db, usuario, usuario_id)
+    auditoria.registrar(db, usuario, "ver_como", objetivo.id, {"nombre": objetivo.nombre})
+    return VerComoOut(access_token=token, usuario_nombre=objetivo.nombre)
 
 
 @router.get("/organigrama", response_model=OrganigramaOut)

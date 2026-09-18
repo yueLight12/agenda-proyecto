@@ -25,7 +25,14 @@ import Modal from "./Modal";
 // de "verlo como tu equipo" en ese tema (ver listar_equipo_visible), y el
 // selector de Responsable al crear una tarea ni siquiera lo mostraba
 // (bug real, 2026-09-17: "Comprobaciones 2025", Beatriz/Judith).
-export default function ModalEditarProyecto({ proyecto = null, parentId = null, onGuardado, onCerrar }) {
+// `onEliminar` (2026-09-18, solo lo pasa ListaProyectos.jsx) -- cuando
+// viene, y estamos en modo edición de un SUBTEMA (parent_id no nulo, mismo
+// límite que ya existía en TableroProyecto.jsx: no se puede eliminar un
+// proyecto raíz desde aquí), se muestra un botón "Eliminar" junto a
+// "Guardar cambios". La confirmación/aviso de qué se borra vive en quien
+// llama (mismo patrón que ya usaba TableroProyecto con resumen-subarbol),
+// este modal solo dispara el callback con el proyecto actual.
+export default function ModalEditarProyecto({ proyecto = null, parentId = null, onGuardado, onCerrar, onEliminar }) {
   const { usuario: usuarioActual } = useAuth();
   const esEdicion = Boolean(proyecto);
   const [nombre, setNombre] = useState(proyecto?.nombre || "");
@@ -129,9 +136,21 @@ export default function ModalEditarProyecto({ proyecto = null, parentId = null, 
         )}
 
         {error && <p className="error-text">{error}</p>}
-        <button className="btn btn--primary" type="submit" disabled={guardando}>
-          {guardando ? "Guardando..." : esEdicion ? "Guardar cambios" : "Crear y cerrar"}
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn btn--primary" type="submit" disabled={guardando}>
+            {guardando ? "Guardando..." : esEdicion ? "Guardar cambios" : "Crear y cerrar"}
+          </button>
+          {esEdicion && onEliminar && proyecto.parent_id !== null && (
+            <button
+              className="btn btn--ghost"
+              type="button"
+              style={{ color: "var(--color-danger)" }}
+              onClick={() => onEliminar(proyecto)}
+            >
+              Eliminar
+            </button>
+          )}
+        </div>
       </form>
     </Modal>
   );

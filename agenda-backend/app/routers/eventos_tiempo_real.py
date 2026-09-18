@@ -16,6 +16,7 @@ import json
 
 from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
+from starlette.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session as SASession
 
 from app.core.security import decodificar_access_token
@@ -50,7 +51,16 @@ def _usuario_desde_token(token: str) -> Usuario:
 
 @router.get("/stream")
 async def stream(token: str = Query(...)):
-    usuario = _usuario_desde_token(token)
+    # `_usuario_desde_token` abre su propia sesión y hace un SELECT
+    # SÍNCRONO (driver de Postgres bloqueante) -- llamarlo directo aquí
+    # (esta ruta es `async def`, a diferencia del resto del proyecto que
+    # usa rutas `def` normales, que FastAPI ya corre en threadpool solo)
+    # bloqueaba el ÚNICO hilo del event loop en cada conexión nueva
+    # (2026-09-19, bug real: con varias pantallas abriendo esta conexión a
+    # la vez -- ver useEventosTiempoReal.js -- la app entera se sentía
+    # lenta). `run_in_threadpool` lo saca del event loop, igual que ya
+    # pasa automáticamente con las rutas `def`.
+    usuario = await run_in_threadpool(_usuario_desde_token, token)
     cola = suscribir(usuario.id)
 
     async def generador():

@@ -90,32 +90,58 @@ def _fila_a_miembro(fila: UsuarioProyectoRol) -> MiembroEquipoOut:
 
 
 def _companeros_de_jefes(db: Session, jefes_ids: set[int]) -> list[UsuarioProyectoRol]:
-    """Todo N1/N2 en cualquier tema donde alguno de `jefes_ids` es N1
-    LOCAL -- "gente que reporta al mismo jefe", sin importar en qué tema
-    esté cada quien (ej. David, Diana y Jasso son todos N2 en temas
-    distintos, pero Bernardo es N1 en todos -- deben poder invitarse entre
-    sí como oyentes, 2026-08-17, pedido explícito de Yue). Se queda en
-    N1/N2 a propósito (no N3/N4) -- mismo criterio de privacidad de
-    listar_equipo_visible: no exponer el directorio completo de
-    colaboradores, solo pares de nivel Dirección/Líder."""
+    """"Gente que reporta al mismo jefe", sin importar en qué tema esté
+    cada quien -- para poder invitarse entre sí a juntas como oyentes,
+    aunque nunca hayan compartido un tema real. Dos niveles de jefe,
+    cada uno con su propio alcance de "compañeros" (2026-09-19, ampliado a
+    petición de Yue -- originalmente solo cubría el caso N1):
+
+    - Si `jefes_ids` es N1 LOCAL en un tema (Dirección, ej. Bernardo): sus
+      compañeros son los N1/N2 de ESE tema (ej. David, Diana y Jasso son
+      todos N2 en temas distintos, pero Bernardo es N1 en todos -- caso
+      original, 2026-08-17).
+    - Si `jefes_ids` es N2 LOCAL en un tema (Líder, ej. David): sus
+      compañeros son los N2/N3 de ESE tema (ej. Iván y Juan son N3 en
+      temas distintos, pero David es N2 en ambos -- deberían poder
+      invitarse a juntas/coordinar aunque nunca compartan un tema real,
+      igual que ya pasa un nivel arriba con Bernardo).
+
+    Se queda en N1/N2/N3 a propósito (nunca N4) -- mismo criterio de
+    privacidad de listar_equipo_visible: no exponer el directorio completo
+    de colaboradores externos, solo pares de nivel Dirección/Líder/interno."""
     if not jefes_ids:
         return []
-    proyectos_de_jefes = {
-        f.proyecto_id
-        for f in db.query(UsuarioProyectoRol)
-        .filter(UsuarioProyectoRol.usuario_id.in_(jefes_ids), UsuarioProyectoRol.rol == RolEnum.N1)
-        .all()
-    }
-    if not proyectos_de_jefes:
-        return []
-    return (
+    filas_jefes = (
         db.query(UsuarioProyectoRol)
         .filter(
-            UsuarioProyectoRol.proyecto_id.in_(proyectos_de_jefes),
+            UsuarioProyectoRol.usuario_id.in_(jefes_ids),
             UsuarioProyectoRol.rol.in_([RolEnum.N1, RolEnum.N2]),
         )
         .all()
     )
+    proyectos_n1 = {f.proyecto_id for f in filas_jefes if f.rol == RolEnum.N1}
+    proyectos_n2 = {f.proyecto_id for f in filas_jefes if f.rol == RolEnum.N2}
+
+    resultado: list[UsuarioProyectoRol] = []
+    if proyectos_n1:
+        resultado += (
+            db.query(UsuarioProyectoRol)
+            .filter(
+                UsuarioProyectoRol.proyecto_id.in_(proyectos_n1),
+                UsuarioProyectoRol.rol.in_([RolEnum.N1, RolEnum.N2]),
+            )
+            .all()
+        )
+    if proyectos_n2:
+        resultado += (
+            db.query(UsuarioProyectoRol)
+            .filter(
+                UsuarioProyectoRol.proyecto_id.in_(proyectos_n2),
+                UsuarioProyectoRol.rol.in_([RolEnum.N2, RolEnum.N3]),
+            )
+            .all()
+        )
+    return resultado
 
 
 def listar_invitables_reunion(
@@ -207,6 +233,27 @@ def listar_invitables_reunion(
         )
         proyecto_ids = {f.proyecto_id for f in mis_filas}
         supervisor_ids = {f.supervisor_id for f in mis_filas if f.supervisor_id is not None}
+
+        # Bug real encontrado 2026-09-19 (Yue probando mensajes directos):
+        # un N2 (ej. Lider) no podía escribirle/invitar a su PROPIO
+        # subordinado (ej. Interno A) fuera del contexto de un proyecto
+        # puntual -- este bloque solo miraba "hacia arriba" (mi jefe, mis
+        # compañeros de jefe) y nunca "hacia abajo" (a quién superviso yo),
+        # a menos que ya estuviera guardado a mano en "Mi equipo". Se
+        # agrega aquí a TODOS mis subordinados directos (supervisor_id ==
+        # yo) en cualquiera de mis proyectos, generalizando lo que
+        # listar_equipo_visible ya hace para un proyecto puntual.
+        if proyecto_ids:
+            filas_mi_equipo = (
+                db.query(UsuarioProyectoRol)
+                .filter(
+                    UsuarioProyectoRol.proyecto_id.in_(proyecto_ids),
+                    UsuarioProyectoRol.supervisor_id == usuario.id,
+                )
+                .all()
+            )
+            for fila in filas_mi_equipo:
+                agregar(_fila_a_miembro(fila))
 
         if proyecto_ids:
             filas_n1 = (

@@ -554,6 +554,112 @@ export default function FormularioEntregable({
     );
   }
 
+  // Tarea ya concluida (2026-09-18, a petición de Yue): quien administra
+  // (creador/N1/N2 -- el único que llega hasta este punto, ver
+  // esVistaSimpleResponsable/esVistaSoloSupervision arriba, que ya cubren
+  // al responsable y a quien solo supervisa) deja de ver el formulario
+  // editable una vez que el entregable llegó a "cumplido" -- solo
+  // información de solo lectura, el botón "Eliminar" y el histórico de
+  // avance. Evita que alguien edite nombre/fecha/responsable de una tarea
+  // que ya se dio por terminada.
+  if (esEdicion && entregable.estatus === "cumplido") {
+    const responsable = miembros.find((m) => m.usuario_id === entregable.responsable_id);
+    return (
+      <Modal titulo={entregable.nombre} onCerrar={onCerrar}>
+        <div className="stack" style={{ gap: 12 }}>
+          {proyectoNombre && (
+            <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem", margin: 0 }}>
+              Proyecto: {proyectoNombre}
+            </p>
+          )}
+          {creador && (
+            <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem", margin: 0 }}>
+              Asignado por: {creador.nombre}
+            </p>
+          )}
+
+          <p style={{ margin: 0, color: "var(--color-success)", fontWeight: 600 }}>
+            ✓ Esta tarea ya fue concluida -- solo se puede consultar.
+          </p>
+
+          {entregable.descripcion && <p style={{ margin: 0 }}>{entregable.descripcion}</p>}
+
+          <div className="stack" style={{ gap: 4 }}>
+            {responsable && (
+              <p style={{ margin: 0, fontSize: "0.85rem" }}>
+                <strong>Responsable:</strong> {responsable.nombre}
+              </p>
+            )}
+            <p style={{ margin: 0, fontSize: "0.85rem" }}>
+              <strong>Fecha límite:</strong>{" "}
+              {new Date(`${entregable.fecha_entrega}T00:00:00`).toLocaleDateString("es-MX", {
+                dateStyle: "long",
+              })}
+              {entregable.hora_entrega && ` a las ${entregable.hora_entrega.slice(0, 5)}`}
+            </p>
+            <p style={{ margin: 0, fontSize: "0.85rem" }}>
+              <strong>Urgente:</strong> {entregable.urgente ? "Sí" : "No"}
+            </p>
+            <p style={{ margin: 0, fontSize: "0.85rem" }}>
+              <strong>Sensible:</strong> {sensible ? "Sí" : "No"}
+            </p>
+          </div>
+
+          {error && <p className="error-text">{error}</p>}
+        </div>
+
+        {confirmandoEliminar && (
+          <ConfirmDialog
+            titulo="Eliminar entregable"
+            mensaje={`¿Eliminar "${nombre}"? Esta acción no se puede deshacer.`}
+            onConfirmar={handleEliminar}
+            onCancelar={() => setConfirmandoEliminar(false)}
+          />
+        )}
+
+        <div style={{ marginTop: 16, borderTop: "1px solid var(--color-border)", paddingTop: 16 }}>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={() => setHistorialAbierto((v) => !v)}
+            aria-expanded={historialAbierto}
+          >
+            {historialAbierto ? "Ocultar histórico de avance ▲" : "Ver histórico de avance ▼"}
+          </button>
+          {historialAbierto && (
+            <div style={{ marginTop: 12 }}>
+              <HistorialAvance entregableId={entregable.id} miembros={miembros} />
+            </div>
+          )}
+        </div>
+
+        <div style={{ marginTop: 16, borderTop: "1px solid var(--color-border)", paddingTop: 16 }}>
+          <SeccionNotas
+            entregableId={entregable.id}
+            puedeAdministrar={puedeAsignarAOtros}
+            tituloPersonalizado="¿Tienes dudas? Déjalas aquí"
+            textoBoton="Enviar mensaje"
+            placeholderTexto="Escribe tu duda..."
+          />
+        </div>
+
+        {puedeAsignarAOtros && (
+          <div style={{ marginTop: 16, borderTop: "1px solid var(--color-border)", paddingTop: 16 }}>
+            <button
+              type="button"
+              className="btn btn--ghost"
+              onClick={() => setConfirmandoEliminar(true)}
+              disabled={eliminando}
+              style={{ color: "var(--color-danger)" }}
+            >
+              {eliminando ? "Eliminando..." : "Eliminar"}
+            </button>
+          </div>
+        )}
+      </Modal>
+    );
+  }
+
   return (
     <Modal titulo={esEdicion ? "Editar entregable" : "Nuevo entregable"} onCerrar={onCerrar}>
       {esEdicion && proyectoNombre && (

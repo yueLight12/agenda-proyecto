@@ -164,6 +164,7 @@ export const adminApi = {
   obtenerAuditoria: async () => (await api.get("/admin/auditoria")).data,
   obtenerActividad: async () => (await api.get("/admin/actividad")).data,
   obtenerIntentosFallidos: async () => (await api.get("/admin/intentos-fallidos")).data,
+  verComo: async (usuarioId) => (await api.post(`/admin/ver-como/${usuarioId}`)).data,
   obtenerOrganigrama: async () => (await api.get("/admin/organigrama")).data,
   asignarEnOrganigrama: async (jefeId, usuarioId, rol) =>
     api.post("/admin/organigrama/asignar", { jefe_id: jefeId, usuario_id: usuarioId, rol }),
@@ -319,6 +320,17 @@ export const notificacionesApi = {
     (await api.get(`/notificaciones`, { params: { solo_no_leidas: soloNoLeidas } })).data,
   marcarLeida: async (id) => (await api.patch(`/notificaciones/${id}`)).data,
   eliminar: async (id) => api.delete(`/notificaciones/${id}`),
+};
+
+export const mensajesDirectosApi = {
+  // A quién le puedes escribir -- mismo criterio que a quién puedes
+  // invitar a una reunión general (ver reuniones.py::listar_invitables_reunion).
+  contactos: async () => (await api.get("/mensajes-directos/contactos")).data,
+  resumen: async () => (await api.get("/mensajes-directos/resumen")).data,
+  conversacion: async (otroId) => (await api.get(`/mensajes-directos/con/${otroId}`)).data,
+  enviar: async (otroId, contenido) =>
+    (await api.post(`/mensajes-directos/con/${otroId}`, { contenido })).data,
+  marcarLeido: async (otroId) => api.patch(`/mensajes-directos/con/${otroId}/leido`),
 };
 
 export const pushApi = {

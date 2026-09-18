@@ -3,6 +3,7 @@ import { AuthProvider } from "./context/AuthContext";
 import RutaProtegida from "./components/RutaProtegida";
 import AvisoInstalarIos from "./components/AvisoInstalarIos";
 import AvisoNuevaVersion from "./components/AvisoNuevaVersion";
+import AvisoVerComo from "./components/AvisoVerComo";
 import Login from "./pages/Login";
 import SsoCallback from "./pages/SsoCallback";
 import AgendaPlanB from "./pages/AgendaPlanB";
@@ -18,6 +19,7 @@ export default function App() {
       <AuthProvider>
         <AvisoInstalarIos />
         <AvisoNuevaVersion />
+        <AvisoVerComo />
         <Routes>
           <Route path="/login" element={<Login />} />
           {/* Callback de login corporativo (SSO/SAML, 2026-09-15) -- ver
