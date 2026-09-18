@@ -7,13 +7,14 @@ Para correr en desarrollo:
 import asyncio
 
 from apscheduler.schedulers.background import BackgroundScheduler
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from app.core.config import settings
 from app.core.rate_limit import limiter
+from app.core.security import decodificar_access_token
 from app.database import SessionLocal
 from app.routers import (
     admin,
@@ -41,6 +42,7 @@ from app.routers import (
     ultramsg_webhook,
     usuarios,
 )
+from app.services import intentos_fallidos
 from app.services.eventos_tiempo_real import registrar_hooks_sqlalchemy, registrar_loop
 from app.services.materializar_series import materializar_ocurrencias
 from app.services.recordatorios import (
@@ -107,6 +109,78 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def _usuario_id_del_token(request: Request) -> int | None:
+    """Lee el id del usuario directo del JWT (sin tocar la BD) -- usado
+    solo para loguear intentos fallidos, ver registrar_intentos_fallidos
+    abajo. None si no hay token o es inválido (ej. login fallido, donde
+    todavía no existe ningún token)."""
+    encabezado = request.headers.get("authorization", "")
+    if not encabezado.lower().startswith("bearer "):
+        return None
+    payload = decodificar_access_token(encabezado[7:])
+    if not payload:
+        return None
+    try:
+        return int(payload.get("sub"))
+    except (TypeError, ValueError):
+        return None
+
+
+_METODOS_ESCRITURA = {"POST", "PUT", "PATCH", "DELETE"}
+
+
+@app.middleware("http")
+async def registrar_intentos_fallidos(request: Request, call_next):
+    """"Opción B" (2026-09-17, a petición de Yue tras un bug real de
+    asignación de tareas: "quiero que el superadmin pueda ver todo para
+    saber por qué algo falló") -- envuelve TODA petición de escritura
+    (POST/PUT/PATCH/DELETE) del backend completo, sin tocar cada router
+    uno por uno. Se excluyen a propósito los 422 (validación de campos,
+    demasiado ruido, el usuario ya los ve al instante) y /auth/login (se
+    audita aparte en app/routers/auth.py, donde sí se conoce el correo
+    intentado). El logueo en sí NUNCA debe tumbar la respuesta real -- ver
+    app/services/intentos_fallidos.py, que se traga sus propios errores."""
+    if request.method not in _METODOS_ESCRITURA or request.url.path == "/auth/login":
+        return await call_next(request)
+
+    try:
+        response = await call_next(request)
+    except Exception as exc:
+        intentos_fallidos.registrar(
+            usuario_id=_usuario_id_del_token(request),
+            correo_intentado=None,
+            metodo=request.method,
+            ruta=request.url.path,
+            status_code=500,
+            detalle=str(exc),
+        )
+        raise
+
+    if response.status_code >= 400 and response.status_code != 422:
+        cuerpo = b""
+        async for fragmento in response.body_iterator:
+            cuerpo += fragmento
+        intentos_fallidos.registrar(
+            usuario_id=_usuario_id_del_token(request),
+            correo_intentado=None,
+            metodo=request.method,
+            ruta=request.url.path,
+            status_code=response.status_code,
+            detalle=cuerpo.decode("utf-8", errors="ignore"),
+        )
+        encabezados = dict(response.headers)
+        encabezados.pop("content-length", None)
+        response = Response(
+            content=cuerpo,
+            status_code=response.status_code,
+            headers=encabezados,
+            media_type=response.media_type,
+        )
+
+    return response
+
 
 app.include_router(auth.router)
 app.include_router(usuarios.router)

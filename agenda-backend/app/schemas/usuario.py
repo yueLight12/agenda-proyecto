@@ -49,6 +49,7 @@ class UsuarioOut(UsuarioBase):
     id: int
     activo: bool
     es_super_admin: bool = False
+    asistente_voz_habilitado: bool = False
     fecha_creacion: datetime
 
     class Config:

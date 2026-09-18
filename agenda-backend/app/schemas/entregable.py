@@ -128,6 +128,14 @@ class EntregableOut(EntregableBase):
     # tarea sin que el frontend tenga que cruzar responsable_id contra el
     # roster del equipo). Ver app/services/entregables.py::entregable_a_out.
     responsable_nombre: str = ""
+    # "Acuse de vista" (2026-09-17, a petición de Yue) -- si el responsable
+    # ya abrió la notificación de esta asignación en su campanita. None =
+    # quien ve la pantalla no tiene permiso para saber esto (no es el
+    # creador ni N1/N2 del tema, ver puede_aprobar_rechazar_entregable
+    # reusado como filtro) o no hay ninguna notificación de asignación
+    # ligada a este entregable. Ver app/services/entregables.py::entregable_a_out.
+    notificacion_vista: Optional[bool] = None
+    notificacion_vista_fecha: Optional[datetime] = None
 
     class Config:
         from_attributes = True

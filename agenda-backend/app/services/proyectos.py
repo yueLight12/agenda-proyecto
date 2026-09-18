@@ -309,6 +309,17 @@ def _asegurar_acceso_asignador(
     sesión."""
     if asignado_por is None or asignado_por.id == usuario_responsable.id:
         return
+    # La sesión es autoflush=False (ver app/database.py) -- sin este flush,
+    # esta consulta no ve el rol que `crear_proyecto` acaba de agregar (sin
+    # comitear todavía) para el DUEÑO de la plantilla de "Mi equipo" del
+    # responsable (ver rol_default_para_nuevo_proyecto), que es justo
+    # `asignado_por` cuando quien asigna es el jefe guardado de esa
+    # persona. Sin el flush, aquí se creía que `asignado_por` no tenía rol
+    # y se agregaba un segundo `UsuarioProyectoRol` para el mismo par
+    # (usuario_id, proyecto_id) -- UniqueViolation real en producción
+    # (2026-09-17, primer caso real: Beatriz asignándole a Judith, ambas ya
+    # cargadas en la jerarquía del directorio).
+    db.flush()
     ya_tiene_rol = (
         db.query(UsuarioProyectoRol)
         .filter(

@@ -6,6 +6,8 @@ y crear notificaciones) se hace en app/services/recordatorios.py, pensado
 para correr como tarea periódica (cron / scheduler). Este router expone
 lectura, marcado de leídas y eliminación.
 """
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -89,6 +91,7 @@ def marcar_como_leida(
         raise HTTPException(status_code=404, detail="Notificación no encontrada")
 
     notificacion.leida = True
+    notificacion.fecha_leida = datetime.utcnow()
     db.commit()
     db.refresh(notificacion)
     return notificacion

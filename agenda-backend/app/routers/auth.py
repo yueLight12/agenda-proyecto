@@ -11,8 +11,10 @@ from app.core.rate_limit import limiter
 from app.core.security import crear_access_token, hash_password, verificar_password
 from app.database import get_db
 from app.dependencies import obtener_usuario_actual
+from app.models.correo_alterno import CorreoAlterno
 from app.models.usuario import Usuario
 from app.schemas.usuario import CambiarPasswordRequest, Token, UsuarioConRolesOut
+from app.services import intentos_fallidos
 from app.services.usuarios import usuario_con_roles_a_out
 
 router = APIRouter(prefix="/auth", tags=["Autenticación"])
@@ -36,13 +38,41 @@ def login(
     parámetro exista aunque el cuerpo de la función no lo use directo.
     """
     usuario = db.query(Usuario).filter(Usuario.email == form_data.username).first()
+    if not usuario:
+        # Correos alternos (2026-09-17, a petición de Yue) -- varias
+        # personas del directorio real siguen usando dos dominios de
+        # correo vigentes; si no hay match por el correo principal, se
+        # busca si ese correo está registrado como alterno de alguna
+        # cuenta. Ver app/models/correo_alterno.py.
+        alterno = db.query(CorreoAlterno).filter(CorreoAlterno.email == form_data.username).first()
+        if alterno:
+            usuario = alterno.usuario
 
     if not usuario or not verificar_password(form_data.password, usuario.password_hash):
+        # Se audita aparte del middleware genérico (app/main.py) porque
+        # aquí sí se conoce el correo intentado -- en un login fallido
+        # todavía no hay ningún token del que sacar un usuario_id.
+        intentos_fallidos.registrar(
+            usuario_id=usuario.id if usuario else None,
+            correo_intentado=form_data.username,
+            metodo="POST",
+            ruta="/auth/login",
+            status_code=401,
+            detalle="Email o contraseña incorrectos",
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Email o contraseña incorrectos",
         )
     if not usuario.activo:
+        intentos_fallidos.registrar(
+            usuario_id=usuario.id,
+            correo_intentado=form_data.username,
+            metodo="POST",
+            ruta="/auth/login",
+            status_code=403,
+            detalle="Usuario inactivo",
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Usuario inactivo"
         )

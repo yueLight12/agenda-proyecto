@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { miEquipoApi, proyectosApi } from "../api/endpoints";
+import { useAuth } from "../context/AuthContext";
 import Modal from "./Modal";
 
 // `proyecto` es opcional: si no viene, el modal entra en modo creación
@@ -13,11 +14,19 @@ import Modal from "./Modal";
 // (tomada de tu plantilla personal "Mi equipo"), en vez del bloque anterior
 // de agregar varias personas con rol/supervisor cada una -- eso sigue
 // disponible después desde "Administrar equipo" en el tema ya creado. Si se
-// elige a alguien, queda como N2 (líder) del tema nuevo; si se deja en
-// blanco, el backend ya deja como encargado a quien crea el tema (ver
-// rol_default_para_nuevo_proyecto/crear_proyecto en el backend) -- no hace
-// falta ninguna llamada extra para ese caso.
+// deja en blanco, el backend ya deja como encargado a quien crea el tema
+// (ver rol_default_para_nuevo_proyecto/crear_proyecto en el backend) -- no
+// hace falta ninguna llamada extra para ese caso.
+//
+// Si se elige a alguien, hereda el ROL REAL que ya tiene guardado en tu
+// "Mi equipo" (N2, N3 o N4) -- antes SIEMPRE quedaba como N2 sin
+// supervisor sin importar su rol real, lo que rompía la visibilidad si en
+// realidad era tu N3/N4: al no tener supervisor_id apuntándote, dejabas
+// de "verlo como tu equipo" en ese tema (ver listar_equipo_visible), y el
+// selector de Responsable al crear una tarea ni siquiera lo mostraba
+// (bug real, 2026-09-17: "Comprobaciones 2025", Beatriz/Judith).
 export default function ModalEditarProyecto({ proyecto = null, parentId = null, onGuardado, onCerrar }) {
+  const { usuario: usuarioActual } = useAuth();
   const esEdicion = Boolean(proyecto);
   const [nombre, setNombre] = useState(proyecto?.nombre || "");
   const [descripcion, setDescripcion] = useState(proyecto?.descripcion || "");
@@ -48,10 +57,12 @@ export default function ModalEditarProyecto({ proyecto = null, parentId = null, 
       } else {
         const nuevo = await proyectosApi.crear({ nombre, descripcion: descripcion || null, parent_id: parentId });
         if (encargadoId) {
+          const encargado = miEquipo.find((m) => m.usuario_id === Number(encargadoId));
+          const rolEncargado = encargado?.rol || "N2";
           await proyectosApi.asignarRol(nuevo.id, {
             usuario_id: Number(encargadoId),
-            rol: "N2",
-            supervisor_id: null,
+            rol: rolEncargado,
+            supervisor_id: ["N3", "N4"].includes(rolEncargado) ? usuarioActual.id : null,
           });
         }
       }

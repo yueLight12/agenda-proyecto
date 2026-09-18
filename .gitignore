@@ -30,6 +30,7 @@ agenda-backend/uploads/
 # Frontend
 agenda-frontend/node_modules/
 agenda-frontend/dist/
+agenda-frontend/dist-local/
 agenda-frontend/.env
 agenda-frontend/.env.local
 

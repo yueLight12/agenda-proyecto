@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { adminApi, usuariosApi } from "../api/endpoints";
 import Modal from "../components/Modal";
@@ -140,6 +141,10 @@ export default function AdminUsuarios() {
   const [errorModal, setErrorModal] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [auditoria, setAuditoria] = useState([]);
+  const [actividad, setActividad] = useState([]);
+  const [filtroActividad, setFiltroActividad] = useState("");
+  const [intentosFallidos, setIntentosFallidos] = useState([]);
+  const [filtroFallidos, setFiltroFallidos] = useState("");
   const [terminos, setTerminos] = useState([]);
   const [nuevoTermino, setNuevoTermino] = useState("");
   const [errorTerminos, setErrorTerminos] = useState("");
@@ -159,6 +164,14 @@ export default function AdminUsuarios() {
     adminApi.obtenerAuditoria().then(setAuditoria).catch(() => {});
   };
 
+  const cargarActividad = () => {
+    adminApi.obtenerActividad().then(setActividad).catch(() => {});
+  };
+
+  const cargarIntentosFallidos = () => {
+    adminApi.obtenerIntentosFallidos().then(setIntentosFallidos).catch(() => {});
+  };
+
   const cargarTerminos = () => {
     adminApi.obtenerTerminosSensibles().then(setTerminos).catch(() => {});
   };
@@ -166,6 +179,8 @@ export default function AdminUsuarios() {
   useEffect(() => {
     cargar();
     cargarAuditoria();
+    cargarActividad();
+    cargarIntentosFallidos();
     cargarTerminos();
   }, []);
 
@@ -292,9 +307,14 @@ export default function AdminUsuarios() {
       <PageHeader
         titulo="Administración de usuarios"
         acciones={
-          <button type="button" className="btn btn--primary" onClick={() => setModal({ modo: "nuevo" })}>
-            + Nuevo usuario
-          </button>
+          <>
+            <Link to="/admin/organigrama" className="btn btn--ghost">
+              Organigrama
+            </Link>
+            <button type="button" className="btn btn--primary" onClick={() => setModal({ modo: "nuevo" })}>
+              + Nuevo usuario
+            </button>
+          </>
         }
       />
       <div className="planb__contenido stack">
@@ -450,6 +470,103 @@ export default function AdminUsuarios() {
           </div>
         </div>
       )}
+
+      <div style={{ marginTop: 32 }}>
+        <h2>Intentos fallidos</h2>
+        <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
+          Acciones que el sistema RECHAZÓ (crear/editar/borrar algo, o intentos de login) -- quién
+          lo intentó, qué endpoint golpeó, y el motivo real del error. Se excluyen los errores de
+          "llenaste mal un campo", esos ya se ven al instante en el formulario de quien los hizo.
+        </p>
+        <input
+          className="input"
+          placeholder="Filtrar por nombre o correo..."
+          value={filtroFallidos}
+          onChange={(e) => setFiltroFallidos(e.target.value)}
+          style={{ maxWidth: 300, marginBottom: 12 }}
+        />
+        <div style={{ overflowX: "auto" }}>
+          <table className="planb__rendimiento-tabla">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Quién</th>
+                <th>Método</th>
+                <th>Ruta</th>
+                <th>Código</th>
+                <th>Detalle</th>
+              </tr>
+            </thead>
+            <tbody>
+              {intentosFallidos
+                .filter((f) => {
+                  const q = filtroFallidos.toLowerCase();
+                  return (
+                    (f.usuario_nombre || "").toLowerCase().includes(q) ||
+                    (f.correo_intentado || "").toLowerCase().includes(q)
+                  );
+                })
+                .slice(0, 200)
+                .map((f) => (
+                  <tr key={f.id}>
+                    <td>{new Date(f.fecha).toLocaleString()}</td>
+                    <td>{f.usuario_nombre || f.correo_intentado || "?"}</td>
+                    <td>{f.metodo}</td>
+                    <td>{f.ruta}</td>
+                    <td>{f.status_code}</td>
+                    <td style={{ fontSize: "0.8rem", color: "var(--color-text-muted)", maxWidth: 400 }}>
+                      {f.detalle}
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div style={{ marginTop: 32 }}>
+        <h2>Actividad reciente</h2>
+        <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
+          Junta lo que ya guarda el sistema del uso normal de la app: login, tareas creadas,
+          avances, reuniones agendadas y notas. <strong>Límites reales:</strong> solo se conoce el
+          último login de cada persona (no un historial completo), y no existe ningún registro de
+          intentos fallidos.
+        </p>
+        <input
+          className="input"
+          placeholder="Filtrar por nombre..."
+          value={filtroActividad}
+          onChange={(e) => setFiltroActividad(e.target.value)}
+          style={{ maxWidth: 300, marginBottom: 12 }}
+        />
+        <div style={{ overflowX: "auto" }}>
+          <table className="planb__rendimiento-tabla">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Quién</th>
+                <th>Tipo</th>
+                <th>Qué hizo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {actividad
+                .filter((a) =>
+                  a.usuario_nombre.toLowerCase().includes(filtroActividad.toLowerCase())
+                )
+                .slice(0, 200)
+                .map((a, i) => (
+                  <tr key={i}>
+                    <td>{new Date(a.fecha).toLocaleString()}</td>
+                    <td>{a.usuario_nombre}</td>
+                    <td>{a.tipo}</td>
+                    <td>{a.descripcion}</td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       {modal?.modo === "reasignar" && (
         <ModalReasignar

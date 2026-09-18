@@ -162,6 +162,13 @@ export const adminApi = {
   actualizarConfiguracion: async (clave, valor) =>
     (await api.put("/admin/configuracion", { clave, valor })).data,
   obtenerAuditoria: async () => (await api.get("/admin/auditoria")).data,
+  obtenerActividad: async () => (await api.get("/admin/actividad")).data,
+  obtenerIntentosFallidos: async () => (await api.get("/admin/intentos-fallidos")).data,
+  obtenerOrganigrama: async () => (await api.get("/admin/organigrama")).data,
+  asignarEnOrganigrama: async (jefeId, usuarioId, rol) =>
+    api.post("/admin/organigrama/asignar", { jefe_id: jefeId, usuario_id: usuarioId, rol }),
+  quitarDeOrganigrama: async (jefeId, usuarioId) =>
+    api.delete(`/admin/organigrama/asignar/${jefeId}/${usuarioId}`),
   obtenerTerminosSensibles: async () => (await api.get("/admin/terminos-sensibles")).data,
   agregarTerminoSensible: async (texto) =>
     (await api.post("/admin/terminos-sensibles", { texto })).data,

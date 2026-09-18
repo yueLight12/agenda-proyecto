@@ -99,8 +99,12 @@ export default function AgendaPlanB() {
     setErrorDetalle("");
     setCargandoDetalle(true);
     try {
+      // Una reunión "general" (sin tema/proyecto, ver
+      // app/routers/reuniones.py) no vive en listarPorProyecto -- viene de
+      // listarGenerales() (2026-09-17, bug real: "nueva reuninon" de Juan
+      // José no era clickeable en Mi agenda por esto).
       const [lista, invitables] = await Promise.all([
-        reunionesApi.listarPorProyecto(proyectoId),
+        proyectoId ? reunionesApi.listarPorProyecto(proyectoId) : reunionesApi.listarGenerales(),
         reunionesApi.invitables(proyectoId),
       ]);
       const item = lista.find((r) => r.id === reunionId);
@@ -387,17 +391,18 @@ export default function AgendaPlanB() {
         </Modal>
       )}
 
-      {/* Asistente de voz "Chambeador" DESACTIVADO TEMPORALMENTE (2026-09-15,
-          a petición de Yue): sin crédito en la cuenta de la API de Claude,
-          nadie puede usarlo (cada intento tronaría). En vez de dejarlo
-          visible fallando, se oculta el botón flotante entero hasta que
-          haya crédito de nuevo -- para reactivarlo, descomentar la línea de
-          abajo. Ver también app/core/config.py::claude_api_key -- el mismo
-          problema de crédito afecta el piloto de "asignar tarea por
-          WhatsApp" (whatsapp_webhook.py) y el chatbot de consulta, que
-          usan la misma API key; no se tocaron todavía porque no se pidió
-          explícitamente. */}
-      {/* <FabAsistenteVoz proyectoIdContexto={null} /> */}
+      {/* Asistente de voz "Chambeador" -- apagado por default para todos
+          (2026-09-15, a petición de Yue: sin crédito en la cuenta de la
+          API de Claude, cada intento tronaría). Desde 2026-09-17 se
+          reactivó SOLO para David y su equipo (Ana, Iván, Juan José) vía
+          el campo `usuario.asistente_voz_habilitado` (lista blanca
+          manual, no un rol) -- ver Usuario.asistente_voz_habilitado en el
+          backend. El mismo problema de crédito puede seguir afectando el
+          piloto de "asignar tarea por WhatsApp" y el chatbot de consulta,
+          que usan la misma API key; no se tocaron. */}
+      {usuario?.asistente_voz_habilitado && (
+        <FabAsistenteVoz proyectoIdContexto={null} />
+      )}
     </div>
   );
 }

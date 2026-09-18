@@ -182,14 +182,21 @@ export default function ModalAsignarTareaRapida({ equipo, personaInicialId, onCe
           <span style={{ fontSize: "0.85rem" }}>Marcar como urgente</span>
         </label>
 
-        <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <input
-            type="checkbox"
-            checked={requiereComprobante}
-            onChange={(e) => setRequiereComprobante(e.target.checked)}
-          />
-          <span style={{ fontSize: "0.85rem" }}>Requiere comprobante</span>
-        </label>
+        {/* "Requiere comprobante" oculto por ahora (2026-09-17, a petición
+            de Yue: falló al asignar una tarea con esto activado) -- no se
+            borra, solo se deja de mostrar. requiereComprobante se queda en
+            false (su default) y así se manda al backend. Para reactivarlo,
+            quitar el `false &&` de abajo. */}
+        {false && (
+          <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <input
+              type="checkbox"
+              checked={requiereComprobante}
+              onChange={(e) => setRequiereComprobante(e.target.checked)}
+            />
+            <span style={{ fontSize: "0.85rem" }}>Requiere comprobante</span>
+          </label>
+        )}
 
         {error && <p className="error-text">{error}</p>}
 

@@ -32,6 +32,14 @@ class Notificacion(Base):
     tipo = Column(Enum(TipoNotificacion), default=TipoNotificacion.otro, nullable=False)
     mensaje = Column(String(500), nullable=False)
     leida = Column(Boolean, default=False, nullable=False)
+    # Cuándo se marcó como leída (2026-09-17, "acuse de vista" de tareas
+    # asignadas, a petición de Yue) -- nulo mientras `leida` sea False.
+    # Solo se llena en la marcada REAL desde la campanita (ver PATCH
+    # /notificaciones/{id}); el barrido automático que expira recordatorios
+    # viejos (expirar_recordatorios_reuniones_hoy) deja esto en None a
+    # propósito -- ese "leída" es forzado por el sistema, no porque la
+    # persona de verdad la haya visto.
+    fecha_leida = Column(DateTime, nullable=True)
     fecha_creacion = Column(DateTime, default=datetime.utcnow, nullable=False)
     # Urgencia (2026-08-20, a petición del cliente: la notificación de una
     # asignación urgente debe destacarse -- "lo primero que se ve") -- se

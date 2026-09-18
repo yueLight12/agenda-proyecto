@@ -420,32 +420,20 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
                           <span className="planb__misemana-ahora-linea" />
                         </div>
                       )}
-                      {r.proyecto_id ? (
-                        <button
-                          key={r.id}
-                          type="button"
-                          className="planb__misemana-fila"
-                          onClick={() => onAbrirReunion?.(r.proyecto_id, r.id)}
-                        >
-                          <span className="planb__misemana-fila-titulo">{r.titulo}</span>
-                          <span className="planb__misemana-fila-fecha">
-                            {new Date(r.fecha_inicio).toLocaleTimeString("es-MX", {
-                              hour: "numeric",
-                              minute: "2-digit",
-                            })}
-                          </span>
-                        </button>
-                      ) : (
-                        <div key={r.id} className="planb__misemana-fila">
-                          <span className="planb__misemana-fila-titulo">{r.titulo}</span>
-                          <span className="planb__misemana-fila-fecha">
-                            {new Date(r.fecha_inicio).toLocaleTimeString("es-MX", {
-                              hour: "numeric",
-                              minute: "2-digit",
-                            })}
-                          </span>
-                        </div>
-                      )}
+                      <button
+                        key={r.id}
+                        type="button"
+                        className="planb__misemana-fila"
+                        onClick={() => onAbrirReunion?.(r.proyecto_id, r.id)}
+                      >
+                        <span className="planb__misemana-fila-titulo">{r.titulo}</span>
+                        <span className="planb__misemana-fila-fecha">
+                          {new Date(r.fecha_inicio).toLocaleTimeString("es-MX", {
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      </button>
                     </Fragment>
                   ))}
                   {indiceDivisor === grupo.items.length && (

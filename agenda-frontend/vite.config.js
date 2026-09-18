@@ -7,6 +7,15 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
+      // El registro del service worker se hace a mano en
+      // AvisoNuevaVersion.jsx (2026-09-17, a petición de Yue: "por qué a
+      // veces hay que hacer hard refresh") -- con injectRegister: 'auto'
+      // (default) el propio plugin inyecta un script que se registra sin
+      // avisar a la UI cuando hay una versión nueva esperando, así que a
+      // veces la pestaña se queda en el bundle viejo hasta un hard
+      // refresh. injectRegister: false apaga ESE auto-registro para no
+      // duplicar el registro del SW.
+      injectRegister: false,
       // injectManifest (en vez del generateSW por default) porque
       // necesitamos código propio en el service worker para reaccionar a
       // eventos "push"/"notificationclick" (2026-08-23, notificaciones

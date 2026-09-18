@@ -24,3 +24,5 @@ from app.models.pendiente_personal import PendientePersonal  # noqa: F401
 from app.models.registro_auditoria import RegistroAuditoria  # noqa: F401
 from app.models.configuracion_app import ConfiguracionApp  # noqa: F401
 from app.models.termino_sensible import TerminoSensible  # noqa: F401
+from app.models.correo_alterno import CorreoAlterno  # noqa: F401
+from app.models.intento_fallido import IntentoFallido  # noqa: F401

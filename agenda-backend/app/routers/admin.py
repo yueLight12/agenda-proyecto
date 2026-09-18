@@ -20,13 +20,24 @@ from app.database import get_db
 from app.dependencies import obtener_usuario_actual
 from app.models.usuario import Usuario
 from app.schemas.admin import (
+    ActividadItemOut,
     ConfiguracionActualizar,
+    IntentoFallidoOut,
+    OrganigramaAsignarRequest,
+    OrganigramaOut,
     ReasignarTodoOut,
     ReasignarTodoRequest,
     RegistroAuditoriaOut,
 )
 from app.schemas.termino_sensible import TerminoSensibleCrear, TerminoSensibleOut
-from app.services import auditoria, configuracion, contenido_sensible
+from app.services import (
+    actividad,
+    auditoria,
+    configuracion,
+    contenido_sensible,
+    intentos_fallidos,
+    organigrama,
+)
 from app.services.admin import reasignar_todo
 from app.services.materializar_series import materializar_ocurrencias
 from app.services.recordatorios import (
@@ -114,6 +125,68 @@ def obtener_auditoria(
 ):
     requerir_super_admin(usuario)
     return auditoria.listar_recientes(db)
+
+
+@router.get("/actividad", response_model=list[ActividadItemOut])
+def obtener_actividad(
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Línea de tiempo de actividad reciente (login, tareas, avances,
+    reuniones, notas) armada con lo que ya guardan esas tablas -- ver
+    app/services/actividad.py para las limitaciones (solo último login
+    por persona, sin registro de intentos fallidos)."""
+    requerir_super_admin(usuario)
+    return actividad.listar_actividad_reciente(db)
+
+
+@router.get("/organigrama", response_model=OrganigramaOut)
+def obtener_organigrama(
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Árbol jefe-subordinado completo (misma tabla que 'Mi equipo') para
+    que el superadmin lo vea y reorganice. Ver app/services/organigrama.py."""
+    requerir_super_admin(usuario)
+    return organigrama.obtener_organigrama(db)
+
+
+@router.post("/organigrama/asignar", status_code=status.HTTP_204_NO_CONTENT)
+def asignar_en_organigrama(
+    datos: OrganigramaAsignarRequest,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Crea o actualiza una relación jefe->persona. 'Mover' a alguien es
+    quitarlo de un jefe (DELETE) y asignarlo a otro (este endpoint)."""
+    requerir_super_admin(usuario)
+    organigrama.asignar(db, datos.jefe_id, datos.usuario_id, datos.rol)
+    db.commit()
+
+
+@router.delete("/organigrama/asignar/{jefe_id}/{usuario_id}", status_code=status.HTTP_204_NO_CONTENT)
+def quitar_de_organigrama(
+    jefe_id: int,
+    usuario_id: int,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Quita a alguien del equipo de un jefe específico."""
+    requerir_super_admin(usuario)
+    organigrama.quitar(db, jefe_id, usuario_id)
+    db.commit()
+
+
+@router.get("/intentos-fallidos", response_model=list[IntentoFallidoOut])
+def obtener_intentos_fallidos(
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Acciones que el backend RECHAZÓ (crear/editar/borrar algo, o login),
+    con quién lo intentó y por qué falló -- ver
+    app/services/intentos_fallidos.py."""
+    requerir_super_admin(usuario)
+    return intentos_fallidos.listar_recientes(db)
 
 
 @router.get("/terminos-sensibles", response_model=list[TerminoSensibleOut])

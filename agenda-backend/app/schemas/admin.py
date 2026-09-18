@@ -6,6 +6,8 @@ from typing import Optional
 
 from pydantic import BaseModel
 
+from app.models.usuario import RolEnum
+
 
 class ReasignarTodoRequest(BaseModel):
     origen_id: int
@@ -32,3 +34,62 @@ class RegistroAuditoriaOut(BaseModel):
     objetivo_id: Optional[int] = None
     objetivo_nombre: Optional[str] = None
     detalle: Optional[dict] = None
+
+
+class ActividadItemOut(BaseModel):
+    """Un evento en la línea de tiempo de 'Actividad reciente' (opción A,
+    2026-09-17) -- a diferencia de RegistroAuditoriaOut (solo acciones de
+    superadmin), esto junta lo que YA guardan varias tablas del uso normal
+    de la app (login, tareas, avances, reuniones, notas) en una sola
+    lista, sin agregar ningún registro nuevo. Ver app/services/actividad.py."""
+
+    fecha: datetime
+    usuario_id: Optional[int] = None
+    usuario_nombre: str
+    tipo: str
+    descripcion: str
+
+
+class OrganigramaUsuarioOut(BaseModel):
+    id: int
+    nombre: str
+    activo: bool
+
+
+class OrganigramaRelacionOut(BaseModel):
+    jefe_id: int
+    jefe_nombre: str
+    usuario_id: int
+    usuario_nombre: str
+    rol: RolEnum
+
+
+class OrganigramaOut(BaseModel):
+    """Árbol jefe-subordinado (2026-09-17, a petición de Yue) -- las
+    relaciones son las mismas de 'Mi equipo' (equipo_miembros), aquí
+    expuestas para que el superadmin las vea y reorganice sin depender de
+    que cada jefe entre a su propia pantalla. `usuarios` trae a TODOS
+    (activos e inactivos) para poder elegir a quién agregar/mover."""
+
+    relaciones: list[OrganigramaRelacionOut]
+    usuarios: list[OrganigramaUsuarioOut]
+
+
+class OrganigramaAsignarRequest(BaseModel):
+    jefe_id: int
+    usuario_id: int
+    rol: RolEnum
+
+
+class IntentoFallidoOut(BaseModel):
+    """'Opción B' (2026-09-17) -- ver app/models/intento_fallido.py."""
+
+    id: int
+    fecha: datetime
+    usuario_id: Optional[int] = None
+    usuario_nombre: Optional[str] = None
+    correo_intentado: Optional[str] = None
+    metodo: str
+    ruta: str
+    status_code: int
+    detalle: Optional[str] = None

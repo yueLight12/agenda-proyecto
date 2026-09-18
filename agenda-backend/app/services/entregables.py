@@ -57,7 +57,34 @@ def es_urgente(entregable: Entregable) -> bool:
     return dias_para_vencer <= DIAS_URGENTE_POR_VENCER
 
 
+def _notificacion_vista_de_asignacion(db: Session, usuario: Usuario, entregable: Entregable):
+    """"Acuse de vista" (2026-09-17) -- devuelve (vista, fecha) de la
+    notificación de asignación de `entregable` para su responsable actual,
+    o (None, None) si quien pregunta no tiene permiso para saberlo (mismo
+    público que "Visto bueno": el creador o N1/N2 del tema, nunca el
+    propio responsable) o si esa tarea nunca generó esa notificación (ej.
+    autoasignada)."""
+    if not puede_aprobar_rechazar_entregable(db, usuario, entregable):
+        return None, None
+    notificacion = (
+        db.query(Notificacion)
+        .filter(
+            Notificacion.entregable_id == entregable.id,
+            Notificacion.usuario_id == entregable.responsable_id,
+            Notificacion.tipo == TipoNotificacion.entregable_asignado,
+        )
+        .order_by(Notificacion.fecha_creacion.desc())
+        .first()
+    )
+    if not notificacion:
+        return None, None
+    return notificacion.leida, notificacion.fecha_leida
+
+
 def entregable_a_out(db: Session, usuario: Usuario, entregable: Entregable) -> EntregableOut:
+    notificacion_vista, notificacion_vista_fecha = _notificacion_vista_de_asignacion(
+        db, usuario, entregable
+    )
     return EntregableOut(
         id=entregable.id,
         proyecto_id=entregable.proyecto_id,
@@ -80,6 +107,8 @@ def entregable_a_out(db: Session, usuario: Usuario, entregable: Entregable) -> E
         requiere_comprobante=entregable.requiere_comprobante,
         tiene_comprobante=entregable.comprobante_path is not None,
         responsable_nombre=entregable.responsable.nombre if entregable.responsable else "",
+        notificacion_vista=notificacion_vista,
+        notificacion_vista_fecha=notificacion_vista_fecha,
     )
 
 

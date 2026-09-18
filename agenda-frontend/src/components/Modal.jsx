@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import FabAsistenteVoz from "./FabAsistenteVoz";
+import { useAuth } from "../context/AuthContext";
 
 // Pila de módulo con los modales abiertos ahora mismo (puede haber más de
 // uno, ej. un ConfirmDialog sobre un formulario) — Escape solo cierra el de
@@ -8,6 +9,7 @@ import FabAsistenteVoz from "./FabAsistenteVoz";
 const pilaModales = [];
 
 export default function Modal({ titulo, onCerrar, children, ocultarAsistenteVoz = false }) {
+  const { usuario } = useAuth();
   const idRef = useRef({});
 
   useEffect(() => {
@@ -56,13 +58,11 @@ export default function Modal({ titulo, onCerrar, children, ocultarAsistenteVoz 
             z-index. Se excluye del propio ModalAsistenteVoz vía
             `ocultarAsistenteVoz` -- no tiene sentido un botón para abrir
             el asistente DENTRO del asistente mismo. */}
-        {/* Asistente de voz "Chambeador" DESACTIVADO TEMPORALMENTE (2026-09-15,
-            a petición de Yue, mismo motivo que en AgendaPlanB.jsx): sin
-            crédito en la cuenta de la API de Claude, cualquier intento de
-            usarlo tronaría -- se oculta también esta copia "dentro del
-            modal" hasta que haya crédito de nuevo. Para reactivarlo,
-            restaurar la condición `!ocultarAsistenteVoz` de abajo. */}
-        {false && !ocultarAsistenteVoz && (
+        {/* Asistente de voz "Chambeador" -- apagado por default (mismo
+            motivo que en AgendaPlanB.jsx), reactivado desde 2026-09-17
+            solo para quien tenga `usuario.asistente_voz_habilitado` (ver
+            Usuario.asistente_voz_habilitado en el backend). */}
+        {usuario?.asistente_voz_habilitado && !ocultarAsistenteVoz && (
           <FabAsistenteVoz proyectoIdContexto={null} variante="dentro-modal" />
         )}
       </div>

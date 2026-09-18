@@ -2,12 +2,14 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import RutaProtegida from "./components/RutaProtegida";
 import AvisoInstalarIos from "./components/AvisoInstalarIos";
+import AvisoNuevaVersion from "./components/AvisoNuevaVersion";
 import Login from "./pages/Login";
 import SsoCallback from "./pages/SsoCallback";
 import AgendaPlanB from "./pages/AgendaPlanB";
 import TableroProyecto from "./pages/TableroProyecto";
 import Perfil from "./pages/Perfil";
 import AdminUsuarios from "./pages/AdminUsuarios";
+import OrganigramaAdmin from "./pages/OrganigramaAdmin";
 import MiEquipo from "./pages/MiEquipo";
 
 export default function App() {
@@ -15,6 +17,7 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <AvisoInstalarIos />
+        <AvisoNuevaVersion />
         <Routes>
           <Route path="/login" element={<Login />} />
           {/* Callback de login corporativo (SSO/SAML, 2026-09-15) -- ver
@@ -80,6 +83,16 @@ export default function App() {
             element={
               <RutaProtegida>
                 <AdminUsuarios />
+              </RutaProtegida>
+            }
+          />
+          {/* Organigrama editable del superadmin (2026-09-17) -- ver
+              OrganigramaAdmin.jsx. */}
+          <Route
+            path="/admin/organigrama"
+            element={
+              <RutaProtegida>
+                <OrganigramaAdmin />
               </RutaProtegida>
             }
           />

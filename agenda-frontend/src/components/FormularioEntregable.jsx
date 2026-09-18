@@ -379,12 +379,17 @@ export default function FormularioEntregable({
             <p style={{ margin: 0, fontSize: "0.85rem" }}>
               <strong>Urgente:</strong> {entregable.urgente ? "Sí" : "No"}
             </p>
-            <p style={{ margin: 0, fontSize: "0.85rem" }}>
-              <strong>Requiere comprobante:</strong> {requiereComprobante ? "Sí" : "No"}
-            </p>
+            {/* "Requiere comprobante" oculto por ahora (2026-09-17, a
+                petición de Yue) -- no se borra, ver el mismo comentario más
+                abajo junto al checkbox. */}
+            {false && (
+              <p style={{ margin: 0, fontSize: "0.85rem" }}>
+                <strong>Requiere comprobante:</strong> {requiereComprobante ? "Sí" : "No"}
+              </p>
+            )}
           </div>
 
-          {requiereComprobante && (
+          {false && requiereComprobante && (
             <div className="stack" style={{ gap: 4 }}>
               <label style={{ fontSize: "0.78rem", color: "var(--color-text-muted)" }}>
                 Comprobante (imagen) -- necesario para poder marcar como concluida
@@ -481,6 +486,24 @@ export default function FormularioEntregable({
             <p style={{ margin: 0, fontSize: "0.85rem" }}>
               <strong>Urgente:</strong> {entregable.urgente ? "Sí" : "No"}
             </p>
+            {entregable.notificacion_vista != null && (
+              <p style={{ margin: 0, fontSize: "0.85rem" }}>
+                {entregable.notificacion_vista ? (
+                  <>
+                    ✓ {responsable?.nombre || "El responsable"} ya vio esta tarea
+                    {entregable.notificacion_vista_fecha &&
+                      ` (${new Date(entregable.notificacion_vista_fecha).toLocaleString("es-MX", {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })})`}
+                  </>
+                ) : (
+                  <span style={{ color: "var(--color-text-muted)" }}>
+                    ○ Todavía no la ha visto
+                  </span>
+                )}
+              </p>
+            )}
           </div>
 
           {/* Solo supervisa -- no es el responsable ni quien la creó, así
@@ -618,6 +641,23 @@ export default function FormularioEntregable({
           )}
         </label>
 
+        {esEdicion && entregable.notificacion_vista != null && (
+          <p style={{ margin: 0, fontSize: "0.85rem" }}>
+            {entregable.notificacion_vista ? (
+              <>
+                ✓ {entregable.responsable_nombre || "El responsable"} ya vio esta tarea
+                {entregable.notificacion_vista_fecha &&
+                  ` (${new Date(entregable.notificacion_vista_fecha).toLocaleString("es-MX", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  })})`}
+              </>
+            ) : (
+              <span style={{ color: "var(--color-text-muted)" }}>○ Todavía no la ha visto</span>
+            )}
+          </p>
+        )}
+
         {muestraReasignar && (
           <label className="stack" style={{ gap: 4 }}>
             <span style={{ fontSize: "0.85rem" }}>
@@ -725,16 +765,24 @@ export default function FormularioEntregable({
           </span>
         </label>
 
-        <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <input
-            type="checkbox"
-            checked={requiereComprobante}
-            onChange={(e) => setRequiereComprobante(e.target.checked)}
-          />
-          <span style={{ fontSize: "0.85rem" }}>Requiere comprobante</span>
-        </label>
+        {/* "Requiere comprobante" y su subida de imagen ocultos por ahora
+            (2026-09-17, a petición de Yue: falló al asignar una tarea con
+            esto activado) -- no se borra, solo se deja de mostrar.
+            requiereComprobante se queda en su valor por default (false) y
+            así se manda al backend. Para reactivarlo, quitar el
+            `false &&` de los dos bloques de abajo. */}
+        {false && (
+          <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <input
+              type="checkbox"
+              checked={requiereComprobante}
+              onChange={(e) => setRequiereComprobante(e.target.checked)}
+            />
+            <span style={{ fontSize: "0.85rem" }}>Requiere comprobante</span>
+          </label>
+        )}
 
-        {esEdicion && requiereComprobante && (
+        {false && esEdicion && requiereComprobante && (
           <div className="stack" style={{ gap: 4 }}>
             <label style={{ fontSize: "0.78rem", color: "var(--color-text-muted)" }}>
               Comprobante (imagen)

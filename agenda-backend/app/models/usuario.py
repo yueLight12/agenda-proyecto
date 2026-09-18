@@ -48,6 +48,11 @@ class Usuario(Base):
     # "+525512345678". Nulo = esta persona no recibe avisos por WhatsApp
     # (se omite el envío, no es error).
     telefono_whatsapp = Column(String(30), nullable=True)
+    # Activa el botón/FAB del asistente de voz ("Chambeador") solo para
+    # esta persona (2026-09-17, a petición de Yue) -- el asistente sigue
+    # apagado por default para todos (ver componentes FabAsistenteVoz /
+    # AgendaPlanB.jsx), esto es una lista blanca manual, no un rol.
+    asistente_voz_habilitado = Column(Boolean, default=False, nullable=False)
 
     roles_por_proyecto = relationship(
         "UsuarioProyectoRol",
