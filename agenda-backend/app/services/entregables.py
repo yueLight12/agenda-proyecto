@@ -4,7 +4,7 @@ routers REST (app/routers/entregables.py, app/routers/minutas.py) y por el
 asistente de voz (app/services/asistente/), para no duplicar reglas de
 permisos ni notificaciones entre ambos caminos.
 """
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
@@ -81,7 +81,39 @@ def _notificacion_vista_de_asignacion(db: Session, usuario: Usuario, entregable:
     return notificacion.leida, notificacion.fecha_leida
 
 
+def _marcar_vista_si_es_el_propio_responsable(
+    db: Session, usuario: Usuario, entregable: Entregable
+) -> None:
+    """"Acuse de vista" (bug real, 2026-09-21: Juan José abrió su tarea,
+    usó "Reasignar" sobre ella, y a David le seguía apareciendo "Todavía
+    no la ha visto") -- la notificación de asignación solo se marcaba
+    leída desde la campanita de notificaciones (PATCH
+    /notificaciones/{id}/marcar-leida, ver app/routers/notificaciones.py),
+    nunca por el hecho de que el responsable en realidad ya abrió y usó su
+    propia tarea (que es exactamente lo que David quiere saber). Aquí se
+    marca sola la primera vez que el RESPONSABLE ve su propio entregable
+    (list o detalle, da igual -- ambos pasan por entregable_a_out)."""
+    if usuario.id != entregable.responsable_id:
+        return
+    notificacion = (
+        db.query(Notificacion)
+        .filter(
+            Notificacion.entregable_id == entregable.id,
+            Notificacion.usuario_id == entregable.responsable_id,
+            Notificacion.tipo == TipoNotificacion.entregable_asignado,
+            Notificacion.leida.is_(False),
+        )
+        .first()
+    )
+    if notificacion is None:
+        return
+    notificacion.leida = True
+    notificacion.fecha_leida = datetime.utcnow()
+    db.commit()
+
+
 def entregable_a_out(db: Session, usuario: Usuario, entregable: Entregable) -> EntregableOut:
+    _marcar_vista_si_es_el_propio_responsable(db, usuario, entregable)
     notificacion_vista, notificacion_vista_fecha = _notificacion_vista_de_asignacion(
         db, usuario, entregable
     )
