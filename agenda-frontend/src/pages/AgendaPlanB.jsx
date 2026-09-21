@@ -170,19 +170,38 @@ export default function AgendaPlanB() {
   // nivel: David ve a Ana/Iván/Juan, no a quien reporte a ellos. No es un
   // cambio de permisos (query_entregables_visibles/listar_equipo_visible
   // no se tocaron) -- solo cambia qué lista alimenta este selector.
-  const cargarEquipo = useCallback(() => {
-    setCargandoEquipo(true);
+  const cargarEquipo = useCallback(({ silencioso = false } = {}) => {
+    if (!silencioso) setCargandoEquipo(true);
     setErrorEquipo("");
     return miEquipoApi
       .listar()
       .then((data) => setEquipo(data))
       .catch(() => setErrorEquipo("No se pudo cargar tu equipo."))
-      .finally(() => setCargandoEquipo(false));
+      .finally(() => {
+        if (!silencioso) setCargandoEquipo(false);
+      });
   }, []);
 
   useEffect(() => {
     cargarEquipo();
   }, [cargarEquipo]);
+
+  // Tiempo real (2026-09-21, bug real reportado por Beatriz Saavedra: agregó
+  // a Jesús Arturo a un proyecto nuevo desde "Editar proyecto" y, sin
+  // recargar la página, "Asignar tarea a mi equipo" seguía sin mostrarle
+  // ese proyecto como opción) -- `equipo` (y el `persona.proyectos` de cada
+  // quien, que es lo que de verdad filtra el selector de tema en
+  // ModalAsignarTareaRapida.jsx) solo se pedía UNA vez al montar esta
+  // página. Ahora también se refresca en silencio ante cualquier evento de
+  // tiempo real (agregar/quitar a alguien de un proyecto ya dispara uno,
+  // ver eventos_tiempo_real.py) -- mismo mecanismo que ya usa el resto de
+  // Plan B, sin necesidad de recargar la página. Silencioso (mismo criterio
+  // que el resto de "cargar" de Plan B): sin esto, `cargandoEquipo` volvía
+  // a true en cada evento y `!cargandoEquipo && <SelectorPersona .../>`
+  // (más abajo) hacía que el selector de persona desapareciera un instante
+  // si ya estaba abierto -- mismo tipo de bug ya visto y corregido en
+  // CalendarioGlobal.jsx con el calendario.
+  useEventosTiempoReal(() => cargarEquipo({ silencioso: true }));
 
   const cerrarModal = () => {
     setModalActivo(null);
