@@ -273,6 +273,20 @@ export default function ModalReunion({
       // temas que la nueva invitada destapó).
       setVersionChecklist((v) => v + 1);
       await onGuardado();
+      // 2026-09-21, a petición de Yue: al CREAR una reunión (no al editar
+      // una ya existente), el modal se cierra solo y regresa al calendario
+      // -- antes se quedaba abierto mostrando "Reunión creada" + notas +
+      // checklist de agenda (a propósito, para poder agregar eso de
+      // inmediato), pero Yue prefiere que solo quede abierto el
+      // calendario. `esEdicionReunion`/`esEdicionSerie` reflejan si el
+      // modal se ABRIÓ en modo edición (vienen de los props `reunion`/
+      // `serie`, no cambian aunque `guardar` ya haya hecho
+      // setReunionActual/setSerieActual arriba) -- así se distingue
+      // "se acaba de crear" de "se estaba editando".
+      if (!esEdicionReunion && !esEdicionSerie) {
+        onCerrar();
+        return;
+      }
     } catch (err) {
       setError(err.response?.data?.detail || "No se pudo guardar la reunión.");
     } finally {
