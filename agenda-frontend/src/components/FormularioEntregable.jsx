@@ -216,9 +216,14 @@ export default function FormularioEntregable({
   // de reasignar de hecho se va a mostrar.
   const [lideres, setLideres] = useState([]);
   useEffect(() => {
-    if (!muestraReasignar) return;
+    // No depende solo de `muestraReasignar` (que además exige
+    // `!puedeAsignarAOtros`) -- la vista simplificada del responsable
+    // (esVistaSimpleResponsable, ver más abajo) también ofrece reasignar
+    // usando el mismo permiso real (`entregable.puede_reasignar`) y
+    // necesita esta lista igual.
+    if (!muestraReasignar && !entregable?.puede_reasignar) return;
     proyectosApi.lideres().then(setLideres).catch(() => {});
-  }, [muestraReasignar]);
+  }, [muestraReasignar, entregable?.puede_reasignar]);
 
   const handleReasignar = async () => {
     if (!reasignandoA) return;
@@ -369,6 +374,19 @@ export default function FormularioEntregable({
   if (esVistaSimpleResponsable) {
     const yaConcluida = entregable.estatus === "cumplido";
     const enEsperaDeVisto = entregable.estatus === "pendiente_aprobacion";
+    // 2026-09-21, bug real: esta vista simplificada (el responsable viendo
+    // SU propia tarea, sin ser administrador) nunca incluía la opción de
+    // "Reasignar" -- esa sección solo vivía en el formulario COMPLETO más
+    // abajo (`muestraReasignar`), al que esta vista nunca llega porque
+    // retorna antes (return temprano de esVistaSimpleResponsable). El
+    // permiso real (`entregable.puede_reasignar`, calculado en el backend
+    // por puede_reasignar_entregable) sí lo autorizaba -- la persona
+    // simplemente no tenía forma de verlo ni usarlo en la UI. Se usa el
+    // permiso directo en vez de `muestraReasignar` (que además exige
+    // `!puedeAsignarAOtros`, una restricción pensada para no duplicar el
+    // <select> de Responsable del formulario completo -- aquí no existe
+    // ese <select>, así que no aplica).
+    const muestraReasignarAqui = Boolean(entregable?.puede_reasignar);
     return (
       <Modal titulo={entregable.nombre} onCerrar={onCerrar}>
         <div className="stack" style={{ gap: 12 }}>
@@ -451,6 +469,69 @@ export default function FormularioEntregable({
             >
               {marcandoConcluida ? "Concluyendo..." : "Concluir"}
             </button>
+          )}
+
+          {muestraReasignarAqui && !yaConcluida && (
+            <div className="stack" style={{ gap: 4, borderTop: "1px solid var(--color-border)", paddingTop: 12 }}>
+              <span style={{ fontSize: "0.85rem" }}>
+                ¿No te corresponde? Reasignar a otra persona
+              </span>
+              <div style={{ display: "flex", gap: 8 }}>
+                <select
+                  className="input"
+                  value={reasignandoA}
+                  onChange={(e) => setReasignandoA(e.target.value)}
+                  style={{ flex: 1 }}
+                >
+                  <option value="">Selecciona una persona...</option>
+                  <optgroup label="Este proyecto">
+                    {miembros
+                      .filter((m) => m.usuario_id !== entregable.responsable_id)
+                      .map((m) => (
+                        <option key={m.usuario_id} value={m.usuario_id}>
+                          {m.nombre} ({etiquetaRol(m.rol)})
+                        </option>
+                      ))}
+                  </optgroup>
+                  {lideres.filter(
+                    (l) =>
+                      l.usuario_id !== entregable.responsable_id &&
+                      !miembros.some((m) => m.usuario_id === l.usuario_id)
+                  ).length > 0 && (
+                    <optgroup label="Otros líderes">
+                      {lideres
+                        .filter(
+                          (l) =>
+                            l.usuario_id !== entregable.responsable_id &&
+                            !miembros.some((m) => m.usuario_id === l.usuario_id)
+                        )
+                        .map((l) => (
+                          <option key={l.usuario_id} value={l.usuario_id}>
+                            {l.nombre}
+                            {l.puesto ? ` — ${l.puesto}` : ""}
+                          </option>
+                        ))}
+                    </optgroup>
+                  )}
+                </select>
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  disabled={!reasignandoA || reasignando}
+                  onClick={handleReasignar}
+                >
+                  {reasignando ? "Reasignando..." : "Reasignar"}
+                </button>
+              </div>
+              <textarea
+                className="input"
+                placeholder="Nota (opcional) -- ej. 'esto no me compete, es de otra área'"
+                value={notaReasignar}
+                onChange={(e) => setNotaReasignar(e.target.value)}
+                rows={2}
+              />
+              {errorReasignar && <p className="error-text">{errorReasignar}</p>}
+            </div>
           )}
         </div>
 
