@@ -23,7 +23,9 @@ from app.models.entregable import Entregable, EstatusEntregable
 from app.models.historial_avance import HistorialAvance
 from app.models.nota import Nota
 from app.models.usuario import Usuario
-from app.services.proyectos import listar_raices_visibles
+from app.models.usuario_proyecto_rol import UsuarioProyectoRol
+from app.services import arbol_proyectos
+from app.services.proyectos import listar_proyectos_visibles, listar_raices_visibles
 
 Periodo = Literal["semana", "mes", "todo"]
 
@@ -69,6 +71,36 @@ def _entregables_visibles(
         for e in query_entregables_visibles(db, usuario, raiz.id).all():
             entregables[e.id] = e
     return entregables
+
+
+def _proyecto_ids_visibles(db: Session, usuario: Usuario, proyecto_id: int | None) -> set[int]:
+    """Todos los ids de proyecto/tema que `usuario` puede ver -- para
+    contar MEMBRESÍA real (a cuántos proyectos pertenece alguien), no solo
+    "proyectos con al menos un entregable" (ver `_filtrar_por_personas`
+    abajo). Con `proyecto_id`: el subárbol de ese nodo. Sin él: todo lo
+    visible (mismo criterio que _entregables_visibles)."""
+    if proyecto_id is not None:
+        indice = arbol_proyectos.cargar_indice(db)
+        return arbol_proyectos.ids_subarbol(indice, proyecto_id)
+    return {p.id for p in listar_proyectos_visibles(db, usuario)}
+
+
+def _filtrar_por_personas(
+    entregables: dict[int, Entregable], personas_ids: list[int] | None
+) -> dict[int, Entregable]:
+    """2026-09-21, a petición de Yue tras un reporte real de Beatriz
+    Saavedra: el buscador de persona en Rendimiento solo filtraba la
+    tabla/gráfica "Quién entrega más" -- las demás gráficas (estatus,
+    carga por proyecto, tendencia, tasa de aprobación, actividad) seguían
+    mostrando a TODO el equipo/proyecto sin importar el nombre buscado, lo
+    cual confundía porque comparten la misma barra de filtros que "Todos
+    los proyectos". Acota el conjunto de entregables a los de esas
+    personas ANTES de agregar cualquier gráfica -- así una sola llamada
+    filtra todo consistentemente."""
+    if not personas_ids:
+        return entregables
+    ids = set(personas_ids)
+    return {eid: e for eid, e in entregables.items() if e.responsable_id in ids}
 
 
 def _primeras_completadas(db: Session, ids: list[int]) -> dict[int, datetime]:
@@ -155,9 +187,32 @@ def calcular_rendimiento_equipo(
         if inicio is None or inicio <= e.fecha_creacion.date() <= fin:
             fila["asignadas_en_periodo"] += 1
 
+    # "Proyectos" (bug real, 2026-09-21, reportado por Beatriz Saavedra:
+    # "aquí aparece que se le asignaron 2 proyectos, cuando son 3") -- antes
+    # contaba `proyectos_ids` (proyectos donde la persona tiene AL MENOS UN
+    # ENTREGABLE), no a cuántos proyectos pertenece de verdad. Si acabas de
+    # agregar a alguien a un proyecto nuevo (ver ModalEditarProyecto.jsx)
+    # pero todavía no le creas ninguna tarea ahí, ese proyecto no contaba.
+    # Ahora se cuenta la membresía real (UsuarioProyectoRol), acotada a los
+    # proyectos que EL VIEWER puede ver (mismo alcance que el resto del
+    # dashboard, para no filtrar de más ni de menos según quién pregunta).
+    proyecto_ids_visibles = _proyecto_ids_visibles(db, usuario, proyecto_id)
+    membresias: dict[int, set[int]] = defaultdict(set)
+    if personas:
+        for uid, pid in (
+            db.query(UsuarioProyectoRol.usuario_id, UsuarioProyectoRol.proyecto_id)
+            .filter(
+                UsuarioProyectoRol.usuario_id.in_(personas.keys()),
+                UsuarioProyectoRol.proyecto_id.in_(proyecto_ids_visibles),
+            )
+            .all()
+        ):
+            membresias[uid].add(pid)
+
     resultado = []
     for fila in personas.values():
-        fila["proyectos"] = len(fila.pop("proyectos_ids"))
+        fila.pop("proyectos_ids")
+        fila["proyectos"] = len(membresias.get(fila["usuario_id"], set()))
         dias_lista = fila.pop("_dias_atraso_lista")
         fila["dias_atraso_promedio"] = round(sum(dias_lista) / len(dias_lista), 1) if dias_lista else 0
         resultado.append(fila)
@@ -166,15 +221,20 @@ def calcular_rendimiento_equipo(
 
 
 def calcular_resumen_dashboard(
-    db: Session, usuario: Usuario, proyecto_id: int | None = None
+    db: Session,
+    usuario: Usuario,
+    proyecto_id: int | None = None,
+    personas_ids: list[int] | None = None,
 ) -> dict:
     """Datos para las 3 gráficas adicionales del dashboard (estatus
     org-wide, carga por proyecto, tendencia semanal) -- snapshot actual, no
     depende del selector de periodo de la tabla de personas (un donut de
     "cómo están las tareas AHORA" y una tendencia de varias semanas no
     tienen "periodo" en el mismo sentido que "completadas esta semana").
-    `proyecto_id`: ver _entregables_visibles."""
-    entregables = _entregables_visibles(db, usuario, proyecto_id)
+    `proyecto_id`: ver _entregables_visibles. `personas_ids`: ver
+    _filtrar_por_personas -- acota estas 3 gráficas al buscador de persona
+    del dashboard, igual que ya hacía la tabla/gráfica de personas."""
+    entregables = _filtrar_por_personas(_entregables_visibles(db, usuario, proyecto_id), personas_ids)
 
     # "pendiente_aprobacion" agregado 2026-09-03 ("Visto bueno") -- sin
     # esto, KeyError real en cuanto exista una tarea en ese estatus (bug
@@ -224,7 +284,11 @@ _DIAS_SEMANA_ES = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábad
 
 
 def calcular_tasa_aprobacion(
-    db: Session, usuario: Usuario, periodo: Periodo, proyecto_id: int | None = None
+    db: Session,
+    usuario: Usuario,
+    periodo: Periodo,
+    proyecto_id: int | None = None,
+    personas_ids: list[int] | None = None,
 ) -> list[dict]:
     """Tasa de aprobación en "Visto bueno" por persona (2026-09-07, a
     petición de Yue). No hay un timestamp propio de "cuándo se aprobó" (
@@ -239,7 +303,7 @@ def calcular_tasa_aprobacion(
     rechazan la misma tarea dos veces antes de aprobarla, cuenta doble,
     a propósito: mide fricción real, no solo el resultado final)."""
     inicio, fin = _rango_periodo(periodo)
-    entregables = _entregables_visibles(db, usuario, proyecto_id)
+    entregables = _filtrar_por_personas(_entregables_visibles(db, usuario, proyecto_id), personas_ids)
     if not entregables:
         return []
 
@@ -285,15 +349,21 @@ def calcular_tasa_aprobacion(
 
 
 def calcular_actividad(
-    db: Session, usuario: Usuario, periodo: Periodo, proyecto_id: int | None = None
+    db: Session,
+    usuario: Usuario,
+    periodo: Periodo,
+    proyecto_id: int | None = None,
+    personas_ids: list[int] | None = None,
 ) -> dict:
     """Actividad (actualizaciones de avance) por hora del día y por día de
     la semana (2026-09-07, a petición de Yue: "saber cuándo se trabaja
     más") -- usa HistorialAvance.fecha_registro, acotado a los mismos
     entregables visibles, sin importar quién hizo cada actualización
-    (es una foto del equipo completo, no por persona)."""
+    (es una foto del equipo completo, no por persona). `personas_ids`
+    (2026-09-21): si se da, acota a los entregables DE esas personas, para
+    que el buscador de persona del dashboard también filtre esta gráfica."""
     inicio, fin = _rango_periodo(periodo)
-    entregables = _entregables_visibles(db, usuario, proyecto_id)
+    entregables = _filtrar_por_personas(_entregables_visibles(db, usuario, proyecto_id), personas_ids)
     if not entregables:
         return {"por_hora": [{"hora": h, "total": 0} for h in range(24)],
                 "por_dia_semana": [{"dia": d, "total": 0} for d in _DIAS_SEMANA_ES]}

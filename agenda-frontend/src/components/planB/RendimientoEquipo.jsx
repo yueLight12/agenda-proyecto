@@ -159,18 +159,33 @@ export default function RendimientoEquipo() {
       setError("");
       const miToken = ++tokenCarga.current;
       const filtro = proyectoId ? Number(proyectoId) : undefined;
-      return Promise.all([
-        rendimientoApi.obtener(periodo, filtro),
-        rendimientoApi.obtenerResumen(filtro),
-        rendimientoApi.obtenerAprobacion(periodo, filtro),
-        rendimientoApi.obtenerActividad(periodo, filtro),
-      ])
-        .then(([datosPersonas, datosResumen, datosAprobacion, datosActividad]) => {
+      // El buscador de persona necesita saber A QUIÉN buscas ANTES de
+      // pedir resumen/aprobación/actividad (2026-09-21, bug real
+      // reportado por Beatriz Saavedra: esas 3 gráficas nunca recibían el
+      // filtro de nombre, solo la tabla/gráfica de personas) -- se pide
+      // primero /rendimiento (la lista completa, necesaria para poder
+      // buscar por nombre) y con ESA respuesta se calculan los ids que
+      // coinciden, en vez de depender del estado `personas` (que podría
+      // estar desactualizado si periodo/proyecto cambiaron a la vez).
+      return rendimientoApi
+        .obtener(periodo, filtro)
+        .then((datosPersonas) => {
           if (tokenCarga.current !== miToken) return;
           setPersonas(datosPersonas);
-          setResumen(datosResumen);
-          setAprobacion(datosAprobacion);
-          setActividad(datosActividad);
+          const texto = busquedaPersona.trim().toLowerCase();
+          const idsFiltro = texto
+            ? datosPersonas.filter((p) => p.nombre.toLowerCase().includes(texto)).map((p) => p.usuario_id)
+            : undefined;
+          return Promise.all([
+            rendimientoApi.obtenerResumen(filtro, idsFiltro),
+            rendimientoApi.obtenerAprobacion(periodo, filtro, idsFiltro),
+            rendimientoApi.obtenerActividad(periodo, filtro, idsFiltro),
+          ]).then(([datosResumen, datosAprobacion, datosActividad]) => {
+            if (tokenCarga.current !== miToken) return;
+            setResumen(datosResumen);
+            setAprobacion(datosAprobacion);
+            setActividad(datosActividad);
+          });
         })
         .catch(() => {
           if (tokenCarga.current === miToken) setError("No se pudo cargar el rendimiento del equipo.");
@@ -179,11 +194,17 @@ export default function RendimientoEquipo() {
           if (!silencioso && tokenCarga.current === miToken) setCargando(false);
         });
     },
-    [periodo, proyectoId]
+    [periodo, proyectoId, busquedaPersona]
   );
 
+  // Debounce (2026-09-21): `cargar` ahora depende de `busquedaPersona`, así
+  // que escribir en el buscador dispara una petición nueva por cada letra
+  // sin esto -- 300ms de espera solo cuando hay texto (periodo/proyecto
+  // siguen siendo instantáneos, no tiene sentido esperar ahí).
   useEffect(() => {
-    cargar();
+    const espera = busquedaPersona.trim() ? 300 : 0;
+    const temporizador = setTimeout(() => cargar(), espera);
+    return () => clearTimeout(temporizador);
   }, [cargar]);
 
   // Tiempo real (2026-09-18, a petición de Yue: "que todo sea

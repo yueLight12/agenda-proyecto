@@ -205,14 +205,37 @@ export const miEquipoApi = {
 export const rendimientoApi = {
   obtener: async (periodo, proyectoId) =>
     (await api.get("/rendimiento", { params: { periodo, proyecto_id: proyectoId } })).data,
-  obtenerResumen: async (proyectoId) =>
-    (await api.get("/rendimiento/resumen", { params: { proyecto_id: proyectoId } })).data,
-  obtenerAprobacion: async (periodo, proyectoId) =>
-    (await api.get("/rendimiento/aprobacion", { params: { periodo, proyecto_id: proyectoId } }))
-      .data,
-  obtenerActividad: async (periodo, proyectoId) =>
-    (await api.get("/rendimiento/actividad", { params: { periodo, proyecto_id: proyectoId } }))
-      .data,
+  // `personasIds` (2026-09-21): array de usuario_id o undefined -- se manda
+  // como string separado por comas (ver _parsear_personas_ids en el
+  // backend), para que el buscador de persona de RendimientoEquipo.jsx
+  // también filtre resumen/aprobación/actividad, no solo la tabla de
+  // personas.
+  obtenerResumen: async (proyectoId, personasIds) =>
+    (
+      await api.get("/rendimiento/resumen", {
+        params: { proyecto_id: proyectoId, personas_ids: personasIds?.join(",") || undefined },
+      })
+    ).data,
+  obtenerAprobacion: async (periodo, proyectoId, personasIds) =>
+    (
+      await api.get("/rendimiento/aprobacion", {
+        params: {
+          periodo,
+          proyecto_id: proyectoId,
+          personas_ids: personasIds?.join(",") || undefined,
+        },
+      })
+    ).data,
+  obtenerActividad: async (periodo, proyectoId, personasIds) =>
+    (
+      await api.get("/rendimiento/actividad", {
+        params: {
+          periodo,
+          proyecto_id: proyectoId,
+          personas_ids: personasIds?.join(",") || undefined,
+        },
+      })
+    ).data,
   descargarReportePdf: async (periodo, proyectoId) =>
     (
       await api.get("/rendimiento/reporte-pdf", {
