@@ -158,6 +158,23 @@ export default function FormularioEntregable({
   const [responsableId, setResponsableId] = useState(
     entregable?.responsable_id || (puedeAsignarAOtros ? "" : usuarioActualId)
   );
+  // 2026-09-21, bug real (David asignando a Juan José en "Tareas sueltas"):
+  // `miembros` viene de listar_equipo_visible, que para un N2 solo incluye
+  // a quien SUPERVISA en ESE tema puntual -- en un tema personal tipo
+  // "Tareas sueltas" del responsable, quien asigna puede no figurar como su
+  // supervisor ahí (ver _asegurar_acceso_asignador/rol_default_para_nuevo_proyecto
+  // en el backend), así que el responsable real de la tarea no aparecía
+  // entre las opciones del <select>. El VALOR seguía siendo correcto
+  // (responsableId ya traía su id), pero un <select> controlado sin
+  // ninguna <option> que calce ese value se ve como si mostrara la
+  // PRIMERA opción de la lista -- en este caso, el propio David -- dando a
+  // entender que el responsable estaba mal, cuando el dato real nunca
+  // cambió. Se agrega el responsable actual a las opciones si no viene ya
+  // en `miembros`, para que el selector siempre refleje la realidad.
+  const opcionesResponsable =
+    esEdicion && entregable?.responsable_id && !miembros.some((m) => m.usuario_id === entregable.responsable_id)
+      ? [...miembros, { usuario_id: entregable.responsable_id, nombre: entregable.responsable_nombre || "Responsable actual", rol: null }]
+      : miembros;
   const [fechaEntrega, setFechaEntrega] = useState(entregable?.fecha_entrega || "");
   // Hora opcional (2026-09-01, a petición de Yue) -- el backend manda
   // "HH:MM:SS", el input type="time" solo acepta "HH:MM".
@@ -734,9 +751,10 @@ export default function FormularioEntregable({
               <option value="" disabled>
                 Selecciona un responsable
               </option>
-              {miembros.map((m) => (
+              {opcionesResponsable.map((m) => (
                 <option key={m.usuario_id} value={m.usuario_id}>
-                  {m.nombre} ({etiquetaRol(m.rol)})
+                  {m.nombre}
+                  {m.rol ? ` (${etiquetaRol(m.rol)})` : ""}
                 </option>
               ))}
             </select>
