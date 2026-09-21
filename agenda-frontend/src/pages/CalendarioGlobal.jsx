@@ -262,6 +262,16 @@ export default function CalendarioGlobal({ altoCalendario } = {}) {
         <ModalEventoEmpresa evento={modalEventoEmpresa} onCerrar={() => setModalEventoEmpresa(null)} />
       )}
 
+      {/* onGuardado va SIEMPRE con silencioso:true (2026-09-21, bug real:
+          "se cierra el calendario y se vuelve a abrir la tarjeta de crear
+          reunión") -- sin eso, cargarTodo() hacía setCargando(true), y el
+          `if (cargando) return <p>Cargando...</p>` de arriba reemplaza TODO
+          el árbol de este componente (calendario + este mismo modal), que
+          reaparece solo al terminar de cargar porque el estado modalReunion
+          nunca se tocó -- se veía como que todo se cerraba y se reabría
+          solo. Guardar una reunión NO debe cerrar su propio modal (ver
+          mismo criterio en AgendaPlanB.jsx), así que tampoco hay que tocar
+          onCerrar aquí. */}
       {modalReunion && modalReunion !== "nueva-general" && (
         <ModalReunion
           proyectoId={modalReunion.proyecto_id}
@@ -274,7 +284,7 @@ export default function CalendarioGlobal({ altoCalendario } = {}) {
           organizadorId={modalReunion.organizador_id}
           puedeAdministrar={puedeEditar(modalReunion)}
           equipoDisponible={equipo}
-          onGuardado={cargarTodo}
+          onGuardado={() => cargarTodo({ silencioso: true })}
           onCerrar={() => setModalReunion(null)}
         />
       )}
@@ -288,7 +298,7 @@ export default function CalendarioGlobal({ altoCalendario } = {}) {
           puedeAdministrar
           equipoDisponible={equipo}
           fechaHoraSugerida={franjaSugerida}
-          onGuardado={cargarTodo}
+          onGuardado={() => cargarTodo({ silencioso: true })}
           onCerrar={() => {
             setModalReunion(null);
             setFranjaSugerida(null);

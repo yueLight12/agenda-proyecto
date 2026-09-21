@@ -619,13 +619,24 @@ export default function ModalReunion({
                 <button
                   type="button"
                   className="btn btn--ghost"
-                  onClick={() => setMostrarAsignarTarea(true)}
-                  disabled={participantesAsignables.length === 0}
-                  title={
-                    participantesAsignables.length === 0
-                      ? "Ninguno de los participantes está en tu equipo para asignarle tareas"
-                      : undefined
-                  }
+                  onClick={() => {
+                    // 2026-09-21, a petición de Yue tras un caso real (Juan
+                    // José, N3, en una junta con otros N3 bajo el mismo N2 --
+                    // ninguno es su reporte directo): antes el botón se
+                    // deshabilitaba en silencio con solo un `title`, que en
+                    // móvil no se ve al tocar un botón deshabilitado -- daba
+                    // la sensación de que el botón "no hacía nada". Ahora
+                    // queda siempre clicable y explica la razón real (mismo
+                    // patrón que el resto de errores de este formulario).
+                    if (participantesAsignables.length === 0) {
+                      setError(
+                        "Ninguno de los participantes de esta reunión está en tu equipo directo -- solo puedes asignarle tareas a tu gente."
+                      );
+                      return;
+                    }
+                    setError("");
+                    setMostrarAsignarTarea(true);
+                  }}
                 >
                   Asignar tarea
                 </button>
