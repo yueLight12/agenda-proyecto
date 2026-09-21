@@ -44,7 +44,11 @@ from app.routers import (
     usuarios,
 )
 from app.services import intentos_fallidos
-from app.services.eventos_tiempo_real import registrar_hooks_sqlalchemy, registrar_loop
+from app.services.eventos_tiempo_real import (
+    registrar_hooks_sqlalchemy,
+    registrar_loop,
+    usuario_actor_id,
+)
 from app.services.materializar_series import materializar_ocurrencias
 from app.services.recordatorios import (
     expirar_recordatorios_reuniones_hoy,
@@ -143,6 +147,26 @@ async def registrar_intentos_fallidos(request: Request, call_next):
     audita aparte en app/routers/auth.py, donde sí se conoce el correo
     intentado). El logueo en sí NUNCA debe tumbar la respuesta real -- ver
     app/services/intentos_fallidos.py, que se traga sus propios errores."""
+    # 2026-09-21, corrigiendo un bug real: el ContextVar `usuario_actor_id`
+    # (ver eventos_tiempo_real.py, avisa en tiempo real al propio usuario
+    # cuando su acción no genera Notificacion para él) se intentó fijar
+    # antes desde `obtener_usuario_actual` (una dependencia SÍNCRONA de
+    # FastAPI) -- pero esas dependencias corren en su PROPIO hilo vía
+    # `run_in_threadpool`, cada llamada con una COPIA nueva del contexto;
+    # lo que se fija ahí adentro nunca vuelve a subir al contexto async de
+    # la petición, así que el endpoint (y el commit dentro de él, en otra
+    # llamada a threadpool aparte) nunca lo veía -- por eso no se estaba
+    # reflejando nada en tiempo real al crear una tarea. Aquí SÍ funciona
+    # porque este middleware corre en el contexto async real de la
+    # petición: cualquier hilo de threadpool que FastAPI abra después
+    # (dependencias, el endpoint) parte de una COPIA de ESTE contexto, así
+    # que ya lo hereda. Se hace para TODA petición (no solo de escritura)
+    # porque fijar el ContextVar es barato y así no hay que acordarse de
+    # repetirlo si mañana se agrega un método nuevo.
+    usuario_id_actor = _usuario_id_del_token(request)
+    if usuario_id_actor is not None:
+        usuario_actor_id.set(usuario_id_actor)
+
     if request.method not in _METODOS_ESCRITURA or request.url.path == "/auth/login":
         return await call_next(request)
 
