@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { miEquipoApi, proyectosApi } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
+import BuscadorInvitados from "./BuscadorInvitados";
 import Modal from "./Modal";
-import ModalEquipo from "./ModalEquipo";
 
 // `proyecto` es opcional: si no viene, el modal entra en modo creación
 // (mismo patrón de modal que el resto del sistema — antes "Crear proyecto"
@@ -10,22 +10,26 @@ import ModalEquipo from "./ModalEquipo";
 // `parentId` (solo aplica en modo creación) crea un SUBTEMA dentro de ese
 // nodo en vez de un proyecto/tema raíz (ver Fase 1 de jerarquía, 2026-08-16).
 //
-// En modo creación (2026-08-22, simplificado a petición de Yue mientras
-// hace pruebas): solo nombre, descripción y UNA "persona a cargo" opcional
-// (tomada de tu plantilla personal "Mi equipo"), en vez del bloque anterior
-// de agregar varias personas con rol/supervisor cada una -- eso sigue
-// disponible después desde "Administrar equipo" en el tema ya creado. Si se
-// deja en blanco, el backend ya deja como encargado a quien crea el tema
-// (ver rol_default_para_nuevo_proyecto/crear_proyecto en el backend) -- no
-// hace falta ninguna llamada extra para ese caso.
+// 2026-09-21, a petición de Yue tras un bug real (Beatriz Saavedra: creó
+// proyectos nuevos y no tenía ninguna forma de agregarles gente, porque
+// "Mis proyectos" dejó de enlazar a TableroProyecto.jsx -- la única
+// pantalla con el panel completo de roles/supervisor -- desde 2026-09-18).
+// Un primer intento reusó ese panel completo (ModalEquipo.jsx) desde aquí,
+// pero Yue lo vio "muy complejo" y pidió simplificar: CREAR y EDITAR se ven
+// IGUAL (mismo formulario), con un solo campo "Participantes" que agrega
+// varias personas de una vez, con el mismo buscador tipo Teams que ya se
+// usa para invitar gente a una reunión (BuscadorInvitados.jsx) -- en vez
+// del panel de roles/supervisor/Kanban de equipo completo.
 //
-// Si se elige a alguien, hereda el ROL REAL que ya tiene guardado en tu
-// "Mi equipo" (N2, N3 o N4) -- antes SIEMPRE quedaba como N2 sin
-// supervisor sin importar su rol real, lo que rompía la visibilidad si en
-// realidad era tu N3/N4: al no tener supervisor_id apuntándote, dejabas
-// de "verlo como tu equipo" en ese tema (ver listar_equipo_visible), y el
-// selector de Responsable al crear una tarea ni siquiera lo mostraba
-// (bug real, 2026-09-17: "Comprobaciones 2025", Beatriz/Judith).
+// El rol de cada participante se resuelve solo, tomando lo que ya tiene
+// guardado en tu "Mi equipo" (N2/N3/N4) -- mismo criterio que ya usaba la
+// "persona a cargo" de antes (ver comentario más abajo, bug real
+// 2026-09-17: "Comprobaciones 2025", Beatriz/Judith, por quedar siempre
+// como N2 sin supervisor). Si alguien no está en tu "Mi equipo" guardado,
+// no aparece como candidato -- para agregar a alguien nuevo a la
+// organización, primero se guarda en "Equipo" (mismo requisito que ya
+// tenía el selector de "persona a cargo").
+//
 // `onEliminar` (2026-09-18, solo lo pasa ListaProyectos.jsx) -- cuando
 // viene, y estamos en modo edición de un SUBTEMA (parent_id no nulo, mismo
 // límite que ya existía en TableroProyecto.jsx: no se puede eliminar un
@@ -44,45 +48,51 @@ export default function ModalEditarProyecto({ proyecto = null, parentId = null, 
 
   const [miEquipo, setMiEquipo] = useState([]);
   const [errorMiEquipo, setErrorMiEquipo] = useState("");
-  const [encargadoId, setEncargadoId] = useState("");
+  const [cargandoParticipantes, setCargandoParticipantes] = useState(esEdicion);
+
+  // Participantes elegidos AHORA (se muestran como chips, igual que
+  // invitados de una reunión) -- en modo edición arranca con quienes ya
+  // están en el proyecto (intersección con tu "Mi equipo": solo se puede
+  // agregar/quitar gente que ya tienes guardada ahí, mismo límite que el
+  // resto del sistema para este flujo simplificado). `idsOriginales` guarda
+  // esa foto inicial para poder calcular, al guardar, a quién agregar y a
+  // quién quitar -- sin eso habría que reconstruir el diff comparando con
+  // el equipo real del proyecto otra vez.
+  const [participantesIds, setParticipantesIds] = useState([]);
+  const [idsOriginales, setIdsOriginales] = useState([]);
 
   useEffect(() => {
-    if (esEdicion) return;
-    miEquipoApi.listar().then(setMiEquipo).catch(() => setErrorMiEquipo("No se pudo cargar tu equipo guardado."));
-  }, [esEdicion]);
+    let cancelado = false;
+    miEquipoApi
+      .listar()
+      .then(async (equipo) => {
+        if (cancelado) return;
+        setMiEquipo(equipo);
+        if (esEdicion) {
+          const miembrosProyecto = await proyectosApi.equipo(proyecto.id);
+          if (cancelado) return;
+          const idsEquipoProyecto = new Set(miembrosProyecto.map((m) => m.usuario_id));
+          const idsIniciales = equipo
+            .map((m) => m.usuario_id)
+            .filter((id) => idsEquipoProyecto.has(id));
+          setParticipantesIds(idsIniciales);
+          setIdsOriginales(idsIniciales);
+        }
+      })
+      .catch(() => setErrorMiEquipo("No se pudo cargar tu equipo guardado."))
+      .finally(() => {
+        if (!cancelado) setCargandoParticipantes(false);
+      });
+    return () => {
+      cancelado = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // "Administrar equipo" (2026-09-21, bug real reportado por Beatriz Saavedra:
-  // creó proyectos nuevos y no tenía ninguna forma de agregarle gente --
-  // desde el 2026-09-18 "Mis proyectos" dejó de enlazar a TableroProyecto.jsx
-  // (la única pantalla con este modal), y este modal de edición rápida solo
-  // dejaba elegir UNA "persona a cargo" al CREAR, nada después). Reusa
-  // ModalEquipo.jsx tal cual (mismo que ya usa TableroProyecto), pidiendo
-  // los datos que necesita (proyecto con rol_efectivo + miembros) solo
-  // cuando de verdad se abre, no en cada edición de nombre/descripción.
-  const [mostrarEquipo, setMostrarEquipo] = useState(false);
-  const [datosEquipo, setDatosEquipo] = useState(null); // { rolEfectivo, miembros }
-  const [cargandoEquipo, setCargandoEquipo] = useState(false);
-  const [errorEquipo, setErrorEquipo] = useState("");
-
-  const cargarEquipo = async () => {
-    setCargandoEquipo(true);
-    setErrorEquipo("");
-    try {
-      const [p, miembros] = await Promise.all([
-        proyectosApi.obtener(proyecto.id),
-        proyectosApi.equipo(proyecto.id),
-      ]);
-      setDatosEquipo({ rolEfectivo: p.rol_efectivo, miembros });
-    } catch {
-      setErrorEquipo("No se pudo cargar el equipo de este proyecto.");
-    } finally {
-      setCargandoEquipo(false);
-    }
-  };
-
-  const abrirEquipo = async () => {
-    setMostrarEquipo(true);
-    await cargarEquipo();
+  const rolYSupervisorPara = (usuarioId) => {
+    const m = miEquipo.find((x) => x.usuario_id === usuarioId);
+    const rol = m?.rol || "N3";
+    return { rol, supervisor_id: ["N3", "N4"].includes(rol) ? usuarioActual.id : null };
   };
 
   const handleGuardar = async (e) => {
@@ -96,17 +106,21 @@ export default function ModalEditarProyecto({ proyecto = null, parentId = null, 
           descripcion: descripcion || null,
           activo,
         });
+        const agregados = participantesIds.filter((id) => !idsOriginales.includes(id));
+        const quitados = idsOriginales.filter((id) => !participantesIds.includes(id));
+        await Promise.all([
+          ...agregados.map((id) =>
+            proyectosApi.asignarRol(proyecto.id, { usuario_id: id, ...rolYSupervisorPara(id) })
+          ),
+          ...quitados.map((id) => proyectosApi.quitarMiembro(proyecto.id, id)),
+        ]);
       } else {
         const nuevo = await proyectosApi.crear({ nombre, descripcion: descripcion || null, parent_id: parentId });
-        if (encargadoId) {
-          const encargado = miEquipo.find((m) => m.usuario_id === Number(encargadoId));
-          const rolEncargado = encargado?.rol || "N2";
-          await proyectosApi.asignarRol(nuevo.id, {
-            usuario_id: Number(encargadoId),
-            rol: rolEncargado,
-            supervisor_id: ["N3", "N4"].includes(rolEncargado) ? usuarioActual.id : null,
-          });
-        }
+        await Promise.all(
+          participantesIds.map((id) =>
+            proyectosApi.asignarRol(nuevo.id, { usuario_id: id, ...rolYSupervisorPara(id) })
+          )
+        );
       }
       await onGuardado();
     } catch (err) {
@@ -117,7 +131,6 @@ export default function ModalEditarProyecto({ proyecto = null, parentId = null, 
   };
 
   return (
-    <>
     <Modal
       titulo={esEdicion ? "Editar proyecto" : parentId ? "Nuevo subtema" : "Crear proyecto"}
       onCerrar={onCerrar}
@@ -151,36 +164,23 @@ export default function ModalEditarProyecto({ proyecto = null, parentId = null, 
           </label>
         )}
 
-        {esEdicion && (
-          <div className="list-inline" style={{ borderBottom: "none" }}>
-            <span style={{ fontSize: "0.85rem", color: "var(--color-text-muted)" }}>
-              ¿Quieres agregar o quitar gente de este proyecto?
-            </span>
-            <button className="btn btn--ghost" type="button" onClick={abrirEquipo}>
-              Administrar equipo
-            </button>
-          </div>
-        )}
-
-        {!esEdicion && (
-          <label className="stack" style={{ gap: 4 }}>
-            <span style={{ fontSize: "0.85rem" }}>Persona a cargo (opcional)</span>
-            <select
-              className="input"
-              value={encargadoId}
-              onChange={(e) => setEncargadoId(e.target.value)}
-            >
-              <option value="">Dejar en blanco (quedarás tú a cargo)</option>
-              {miEquipo.map((m) => (
-                <option key={m.usuario_id} value={m.usuario_id}>
-                  {m.nombre}
-                  {m.puesto ? ` — ${m.puesto}` : ""}
-                </option>
-              ))}
-            </select>
-            {errorMiEquipo && <p className="error-text">{errorMiEquipo}</p>}
-          </label>
-        )}
+        <div className="stack" style={{ gap: 4 }}>
+          <span style={{ fontSize: "0.85rem" }}>Participantes (opcional)</span>
+          <span style={{ color: "var(--color-text-muted)", fontSize: "0.78rem" }}>
+            Solo gente de tu equipo guardado ("Equipo"). Si dejas esto vacío, quedarás tú a cargo.
+          </span>
+          {errorMiEquipo && <p className="error-text">{errorMiEquipo}</p>}
+          {!errorMiEquipo && cargandoParticipantes && (
+            <p style={{ color: "var(--color-text-muted)", fontSize: "0.78rem" }}>Cargando...</p>
+          )}
+          {!errorMiEquipo && !cargandoParticipantes && (
+            <BuscadorInvitados
+              candidatos={miEquipo}
+              seleccionadosIds={participantesIds}
+              onCambiar={setParticipantesIds}
+            />
+          )}
+        </div>
 
         {error && <p className="error-text">{error}</p>}
         <div style={{ display: "flex", gap: 8 }}>
@@ -200,28 +200,5 @@ export default function ModalEditarProyecto({ proyecto = null, parentId = null, 
         </div>
       </form>
     </Modal>
-
-    {mostrarEquipo && cargandoEquipo && (
-      <Modal titulo="Administrar equipo del proyecto" onCerrar={() => setMostrarEquipo(false)}>
-        <p style={{ color: "var(--color-text-muted)" }}>Cargando...</p>
-      </Modal>
-    )}
-
-    {mostrarEquipo && !cargandoEquipo && errorEquipo && (
-      <Modal titulo="Administrar equipo del proyecto" onCerrar={() => setMostrarEquipo(false)}>
-        <p className="error-text">{errorEquipo}</p>
-      </Modal>
-    )}
-
-    {mostrarEquipo && !cargandoEquipo && datosEquipo && (
-      <ModalEquipo
-        proyectoId={proyecto.id}
-        miembros={datosEquipo.miembros}
-        viewerRolEfectivo={datosEquipo.rolEfectivo}
-        onCambio={cargarEquipo}
-        onCerrar={() => setMostrarEquipo(false)}
-      />
-    )}
-    </>
   );
 }
