@@ -102,12 +102,24 @@ def _antes_de_commit(session: Session) -> None:
     if nuevas:
         session.info["_eventos_tiempo_real_pendientes"] = nuevas
 
-    # Avisarle también a quien hizo la petición actual, si este commit
-    # cambió algo (inserciones, ediciones o borrados) -- cubre el caso de
-    # que la propia acción del usuario no genere ninguna Notificacion para
-    # él mismo (ver comentario de `usuario_actor_id` arriba).
+    # Avisarle también a quien hizo la petición actual (ver comentario de
+    # `usuario_actor_id` arriba) -- cubre el caso de que la propia acción
+    # del usuario no genere ninguna Notificacion para él mismo.
+    #
+    # A propósito NO se filtra por `session.new`/`dirty`/`deleted`: un
+    # commit puede llegar aquí con esos tres vacíos si algo en el request
+    # ya hizo `db.flush()` antes (ej. crear_reunion en
+    # app/services/reuniones.py hace `db.add(nueva); db.flush()` para
+    # obtener `nueva.id` antes de crear las notificaciones de los
+    # invitados) -- flush() saca al objeto de "pending" (session.new) a
+    # "persistente", así que en el commit real ya no aparecía ahí y este
+    # aviso nunca se disparaba (bug real, 2026-09-21: "creé una reunión y
+    # no se reflejó hasta refrescar"). Publicar de más en un commit vacío
+    # es inofensivo (el cliente solo vuelve a pedir su lista), así que no
+    # vale la pena mantener un filtro que puede volver a fallar con el
+    # próximo servicio que haga flush() por su cuenta.
     actor_id = usuario_actor_id.get()
-    if actor_id is not None and (session.new or session.dirty or session.deleted):
+    if actor_id is not None:
         session.info["_eventos_tiempo_real_actor"] = actor_id
 
 
