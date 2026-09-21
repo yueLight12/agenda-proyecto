@@ -25,6 +25,7 @@ servicio uno por uno, y sin arriesgarse a que se le olvide agregarlo a un
 lugar nuevo en el futuro.
 """
 import asyncio
+import contextvars
 import logging
 
 from sqlalchemy import event
@@ -36,6 +37,19 @@ logger = logging.getLogger(__name__)
 
 _loop: asyncio.AbstractEventLoop | None = None
 _colas_por_usuario: dict[int, list[asyncio.Queue]] = {}
+
+# 2026-09-21, a petición de Yue ("todo tiene que ser en tiempo real"):
+# quién hace la petición HTTP actual (la fija `obtener_usuario_actual` en
+# app/dependencies.py). Antes este módulo solo avisaba a quien RECIBE una
+# Notificacion -- si tú mismo creabas/editabas algo (ej. autoasignarte una
+# tarea, agendar tu propia reunión, un recordatorio) y esa acción no genera
+# Notificacion para TI (solo para tu supervisor u otro involucrado), tu
+# propia vista ("Mi semana") no se enteraba y se quedaba desactualizada
+# hasta recargar la página. Con esto, cualquier commit que cambie datos
+# durante tu propia petición también te avisa a ti.
+usuario_actor_id: contextvars.ContextVar[int | None] = contextvars.ContextVar(
+    "usuario_actor_id", default=None
+)
 
 
 def registrar_loop(loop: asyncio.AbstractEventLoop) -> None:
@@ -88,16 +102,29 @@ def _antes_de_commit(session: Session) -> None:
     if nuevas:
         session.info["_eventos_tiempo_real_pendientes"] = nuevas
 
+    # Avisarle también a quien hizo la petición actual, si este commit
+    # cambió algo (inserciones, ediciones o borrados) -- cubre el caso de
+    # que la propia acción del usuario no genere ninguna Notificacion para
+    # él mismo (ver comentario de `usuario_actor_id` arriba).
+    actor_id = usuario_actor_id.get()
+    if actor_id is not None and (session.new or session.dirty or session.deleted):
+        session.info["_eventos_tiempo_real_actor"] = actor_id
+
 
 def _despues_de_commit(session: Session) -> None:
     pendientes = session.info.pop("_eventos_tiempo_real_pendientes", None)
-    if not pendientes:
-        return
-    for item in pendientes:
+    for item in pendientes or []:
         try:
             publicar(item["usuario_id"], {"evento": "notificacion_nueva", "tipo": item["tipo"]})
         except Exception:
             logger.exception("No se pudo publicar evento de tiempo real")
+
+    actor_id = session.info.pop("_eventos_tiempo_real_actor", None)
+    if actor_id is not None:
+        try:
+            publicar(actor_id, {"evento": "cambio_propio"})
+        except Exception:
+            logger.exception("No se pudo publicar evento de tiempo real (actor)")
 
 
 def registrar_hooks_sqlalchemy() -> None:
