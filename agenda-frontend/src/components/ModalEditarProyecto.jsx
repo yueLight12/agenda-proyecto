@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { miEquipoApi, proyectosApi } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
 import Modal from "./Modal";
+import ModalEquipo from "./ModalEquipo";
 
 // `proyecto` es opcional: si no viene, el modal entra en modo creación
 // (mismo patrón de modal que el resto del sistema — antes "Crear proyecto"
@@ -50,6 +51,40 @@ export default function ModalEditarProyecto({ proyecto = null, parentId = null, 
     miEquipoApi.listar().then(setMiEquipo).catch(() => setErrorMiEquipo("No se pudo cargar tu equipo guardado."));
   }, [esEdicion]);
 
+  // "Administrar equipo" (2026-09-21, bug real reportado por Beatriz Saavedra:
+  // creó proyectos nuevos y no tenía ninguna forma de agregarle gente --
+  // desde el 2026-09-18 "Mis proyectos" dejó de enlazar a TableroProyecto.jsx
+  // (la única pantalla con este modal), y este modal de edición rápida solo
+  // dejaba elegir UNA "persona a cargo" al CREAR, nada después). Reusa
+  // ModalEquipo.jsx tal cual (mismo que ya usa TableroProyecto), pidiendo
+  // los datos que necesita (proyecto con rol_efectivo + miembros) solo
+  // cuando de verdad se abre, no en cada edición de nombre/descripción.
+  const [mostrarEquipo, setMostrarEquipo] = useState(false);
+  const [datosEquipo, setDatosEquipo] = useState(null); // { rolEfectivo, miembros }
+  const [cargandoEquipo, setCargandoEquipo] = useState(false);
+  const [errorEquipo, setErrorEquipo] = useState("");
+
+  const cargarEquipo = async () => {
+    setCargandoEquipo(true);
+    setErrorEquipo("");
+    try {
+      const [p, miembros] = await Promise.all([
+        proyectosApi.obtener(proyecto.id),
+        proyectosApi.equipo(proyecto.id),
+      ]);
+      setDatosEquipo({ rolEfectivo: p.rol_efectivo, miembros });
+    } catch {
+      setErrorEquipo("No se pudo cargar el equipo de este proyecto.");
+    } finally {
+      setCargandoEquipo(false);
+    }
+  };
+
+  const abrirEquipo = async () => {
+    setMostrarEquipo(true);
+    await cargarEquipo();
+  };
+
   const handleGuardar = async (e) => {
     e.preventDefault();
     setError("");
@@ -82,6 +117,7 @@ export default function ModalEditarProyecto({ proyecto = null, parentId = null, 
   };
 
   return (
+    <>
     <Modal
       titulo={esEdicion ? "Editar proyecto" : parentId ? "Nuevo subtema" : "Crear proyecto"}
       onCerrar={onCerrar}
@@ -113,6 +149,17 @@ export default function ModalEditarProyecto({ proyecto = null, parentId = null, 
               onChange={(e) => setActivo(e.target.checked)}
             />
           </label>
+        )}
+
+        {esEdicion && (
+          <div className="list-inline" style={{ borderBottom: "none" }}>
+            <span style={{ fontSize: "0.85rem", color: "var(--color-text-muted)" }}>
+              ¿Quieres agregar o quitar gente de este proyecto?
+            </span>
+            <button className="btn btn--ghost" type="button" onClick={abrirEquipo}>
+              Administrar equipo
+            </button>
+          </div>
         )}
 
         {!esEdicion && (
@@ -153,5 +200,28 @@ export default function ModalEditarProyecto({ proyecto = null, parentId = null, 
         </div>
       </form>
     </Modal>
+
+    {mostrarEquipo && cargandoEquipo && (
+      <Modal titulo="Administrar equipo del proyecto" onCerrar={() => setMostrarEquipo(false)}>
+        <p style={{ color: "var(--color-text-muted)" }}>Cargando...</p>
+      </Modal>
+    )}
+
+    {mostrarEquipo && !cargandoEquipo && errorEquipo && (
+      <Modal titulo="Administrar equipo del proyecto" onCerrar={() => setMostrarEquipo(false)}>
+        <p className="error-text">{errorEquipo}</p>
+      </Modal>
+    )}
+
+    {mostrarEquipo && !cargandoEquipo && datosEquipo && (
+      <ModalEquipo
+        proyectoId={proyecto.id}
+        miembros={datosEquipo.miembros}
+        viewerRolEfectivo={datosEquipo.rolEfectivo}
+        onCambio={cargarEquipo}
+        onCerrar={() => setMostrarEquipo(false)}
+      />
+    )}
+    </>
   );
 }
