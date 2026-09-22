@@ -9,6 +9,7 @@ import {
   miEquipoApi,
   proyectosApi,
   reunionesApi,
+  usuariosApi,
 } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
 import { useEventosTiempoReal } from "../hooks/useEventosTiempoReal";
@@ -94,7 +95,15 @@ export default function CalendarioGlobal({ altoCalendario } = {}) {
 
   useEffect(() => {
     cargarTodo();
-    miEquipoApi.listar().then(setEquipo).catch(() => {});
+    // 2026-09-22, regla nueva SOLO USO LOCAL ("todos pueden asignar
+    // tareas/invitar a todos") -- mismo patrón que AgendaPlanB.jsx:
+    // intenta el directorio completo, cae de vuelta a "tu equipo" si la
+    // regla está apagada (404).
+    usuariosApi
+      .directorio()
+      .catch(() => miEquipoApi.listar())
+      .then(setEquipo)
+      .catch(() => {});
     reunionesApi.invitables().then(setInvitablesGenerales).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

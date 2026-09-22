@@ -175,6 +175,17 @@ class Settings(BaseSettings):
     saml_idp_sso_url: str = ""
     saml_idp_cert_path: str = ""
 
+    # 2026-09-22, regla nueva a petición de Yue: "que todos los usuarios
+    # puedan ver y asignar tareas a todos, igual con los mensajes [y
+    # reuniones]" -- interruptor único para las 3 reglas (visibilidad de
+    # entregables, invitados a reunión, destinatarios de mensajes
+    # directos), default False para no afectar en NADA el comportamiento
+    # real (el .env compartido con el backend en producción no se toca --
+    # ver CLAUDE.md sección 0 regla 8). Se activa solo con
+    # REGLA_TODOS_CON_TODOS=true en el entorno de una instancia LOCAL de
+    # prueba, nunca en el .env real.
+    regla_todos_con_todos: bool = False
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 

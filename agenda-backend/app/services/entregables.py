@@ -707,7 +707,10 @@ def reasignar_entregable(
     # LOCAL, filtra por equipo/self usando la fila de ESTE nodo exacto).
     rol_local_nuevo = obtener_rol_local_en_proyecto(db, nuevo_responsable_id, entregable.proyecto_id)
     if rol_local_nuevo is None:
-        if not es_lider_en_algun_tema(db, nuevo_responsable_id):
+        # 2026-09-22, regla nueva a petición de Yue (SOLO USO LOCAL, ver
+        # settings.regla_todos_con_todos): se puede reasignar a CUALQUIERA,
+        # no solo a alguien que ya lidera algún otro tema.
+        if not settings.regla_todos_con_todos and not es_lider_en_algun_tema(db, nuevo_responsable_id):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="La persona elegida no participa en este proyecto",

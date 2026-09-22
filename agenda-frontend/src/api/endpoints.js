@@ -157,6 +157,10 @@ export const reunionesApi = {
 
 export const usuariosApi = {
   listar: async () => (await api.get("/usuarios")).data,
+  // 2026-09-22, regla nueva SOLO USO LOCAL (ver settings.regla_todos_con_todos
+  // en el backend) -- 404 si la regla está apagada; quien llame debe
+  // atrapar ese caso y usar la fuente de siempre (miEquipoApi.listar()).
+  directorio: async () => (await api.get("/usuarios/directorio")).data,
   perfil: async (usuarioId) => (await api.get(`/usuarios/${usuarioId}/perfil`)).data,
   actualizarMiTelefono: async (telefonoWhatsapp) =>
     (await api.patch("/usuarios/me", { telefono_whatsapp: telefonoWhatsapp })).data,

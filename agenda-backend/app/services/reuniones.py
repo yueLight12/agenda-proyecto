@@ -7,6 +7,7 @@ permisos (app.core.permissions) ni la construcción de ReunionOut.
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.permissions import (
     puede_editar_reunion,
     puede_ver_reunion,
@@ -180,6 +181,27 @@ def listar_invitables_reunion(
     fila local N1 en cada tema de David/Diana). No cambia ninguna regla de
     permisos existente, es una lista nueva y aparte.
     """
+    # 2026-09-22, regla nueva a petición de Yue ("que todos los usuarios
+    # puedan ver y asignar tareas a todos, igual con los mensajes [y
+    # reuniones]", SOLO USO LOCAL -- ver settings.regla_todos_con_todos):
+    # esta MISMA función alimenta tanto el selector de invitados a
+    # reunión como el de destinatarios de mensajes directos
+    # (listar_contactos en mensajes_directos.py la reusa tal cual), así
+    # que abrirla aquí cubre ambas reglas en un solo lugar. `rol` es
+    # obligatorio en MiembroEquipoOut pero no tiene sentido real en un
+    # directorio global (un usuario no tiene un rol único) -- se manda N3
+    # como valor de relleno, solo se usa para la etiqueta visual.
+    if settings.regla_todos_con_todos:
+        return [
+            MiembroEquipoOut(
+                usuario_id=u.id, nombre=u.nombre, puesto=u.puesto, email=u.email, rol=RolEnum.N3
+            )
+            for u in db.query(Usuario)
+            .filter(Usuario.activo.is_(True), Usuario.id != usuario.id)
+            .order_by(Usuario.nombre)
+            .all()
+        ]
+
     vistos: dict[int, MiembroEquipoOut] = {}
     jefes_ids: set[int] = set()
 

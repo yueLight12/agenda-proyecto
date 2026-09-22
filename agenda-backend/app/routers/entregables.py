@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.permissions import (
     puede_ver_entregable,
     query_entregables_visibles,
@@ -15,7 +16,8 @@ from app.database import get_db
 from app.dependencies import obtener_usuario_actual
 from app.models.entregable import Entregable
 from app.models.historial_avance import HistorialAvance
-from app.models.usuario import Usuario
+from app.models.usuario import RolEnum, Usuario
+from app.models.usuario_proyecto_rol import UsuarioProyectoRol
 from app.schemas.entregable import (
     ActualizarAvanceRequest,
     EntregableActualizar,
@@ -70,8 +72,18 @@ def crear_entregable(
     N1/N2 pueden crear un entregable y asignarlo a cualquiera de su equipo.
     N3/N4 también pueden crear entregables, pero solo para sí mismos
     (autoasignación) — en ese caso se notifica a su supervisor (N2).
+
+    2026-09-22, regla nueva a petición de Yue (SOLO USO LOCAL, ver
+    settings.regla_todos_con_todos): con la regla activa, no hace falta
+    participar en el proyecto para crear un entregable ahí -- se trata
+    como si tuviera rol N1 local, así crear_entregable_servicio (que
+    decide "puede asignar a cualquiera" con `es_lider`) también queda
+    abierto sin tocar esa función.
     """
-    rol = requerir_participacion_en_proyecto(db, usuario, proyecto_id)
+    if settings.regla_todos_con_todos:
+        rol = UsuarioProyectoRol(usuario_id=usuario.id, proyecto_id=proyecto_id, rol=RolEnum.N1)
+    else:
+        rol = requerir_participacion_en_proyecto(db, usuario, proyecto_id)
 
     nuevo = crear_entregable_servicio(
         db,

@@ -70,6 +70,25 @@ class UsuarioConRolesOut(UsuarioOut):
     roles_por_proyecto: list[RolPorProyectoOut] = []
 
 
+# 2026-09-22, regla nueva a petición de Yue: "que todos los usuarios puedan
+# ver y asignar tareas a todos, igual con los mensajes [y reuniones]" --
+# fuente de datos para los selectores de persona de esos 3 flujos (ver
+# GET /usuarios/directorio en app/routers/usuarios.py). Deliberadamente
+# SIN `rol` (un usuario no tiene un rol único global, es por proyecto) ni
+# `proyectos` (con esta regla ya no hace falta filtrar por dónde participa
+# la persona -- se puede asignar/invitar/escribir sin importar el
+# proyecto). SOLO PARA USO LOCAL por ahora, ver CLAUDE.md sección 0 regla
+# 8 -- no desplegado al devtunnel real todavía.
+class UsuarioDirectorioOut(BaseModel):
+    usuario_id: int
+    nombre: str
+    puesto: Optional[str] = None
+    email: EmailStr
+
+    class Config:
+        from_attributes = True
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"

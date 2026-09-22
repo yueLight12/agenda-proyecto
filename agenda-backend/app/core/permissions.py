@@ -28,6 +28,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.config import settings
 from app.models.entregable import Entregable
 from app.models.historial_responsable import HistorialResponsable
 from app.models.reunion import Reunion, ReunionParticipante
@@ -289,10 +290,26 @@ def query_entregables_visibles(
     `responsable`/`proyecto` con joinedload (2026-08-31) para que iterar
     los resultados y leer `.responsable.nombre`/`.proyecto.nombre` (como
     hace /dashboard/resumen) no dispare una consulta extra por cada fila.
+
+    `settings.regla_todos_con_todos` (2026-09-22, regla nueva a petición
+    de Yue, SOLO PARA USO LOCAL -- ver docstring de la config): si está
+    activa, se salta por completo la exigencia de participar en el
+    proyecto y el filtro por rol/sensible de abajo -- cualquiera ve
+    cualquier entregable del subárbol. No toca `requerir_participacion_en_proyecto`
+    en sí (esa función la usan también reuniones/equipo/administración de
+    proyectos, fuera del alcance de esta regla).
     """
-    rol = requerir_participacion_en_proyecto(db, usuario, proyecto_id, indice=indice)
     if indice is None:
         indice = arbol_proyectos.cargar_indice(db)
+    if settings.regla_todos_con_todos:
+        ids_subtree_abiertos = arbol_proyectos.ids_subarbol(indice, proyecto_id)
+        return (
+            db.query(Entregable)
+            .filter(Entregable.proyecto_id.in_(ids_subtree_abiertos))
+            .options(joinedload(Entregable.responsable), joinedload(Entregable.proyecto))
+        )
+
+    rol = requerir_participacion_en_proyecto(db, usuario, proyecto_id, indice=indice)
     ids_subtree = arbol_proyectos.ids_subarbol(indice, proyecto_id)
     base_query = (
         db.query(Entregable)
@@ -433,6 +450,11 @@ def puede_aprobar_rechazar_entregable(db: Session, usuario: Usuario, entregable:
 # (creador, N1/N2 del proyecto, o el responsable actual), en vez de
 # heredar la nueva restricción de esa función.
 def puede_reasignar_entregable(db: Session, usuario: Usuario, entregable: Entregable) -> bool:
+    # 2026-09-22, regla nueva a petición de Yue (SOLO USO LOCAL, ver
+    # settings.regla_todos_con_todos): cualquiera puede reasignar
+    # cualquier entregable a cualquiera.
+    if settings.regla_todos_con_todos:
+        return True
     if usuario.es_super_admin:
         return True
     if entregable.creado_por == usuario.id or entregable.responsable_id == usuario.id:

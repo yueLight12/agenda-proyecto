@@ -21,6 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.permissions import requerir_super_admin
 from app.core.security import hash_password
 from app.database import get_db
@@ -33,6 +34,7 @@ from app.schemas.usuario import (
     UsuarioActualizar,
     UsuarioConRolesOut,
     UsuarioCrear,
+    UsuarioDirectorioOut,
     UsuarioOut,
 )
 from app.services import auditoria
@@ -74,6 +76,38 @@ def listar_usuarios(
 ):
     _requerir_n1(db, usuario)
     return db.query(Usuario).all()
+
+
+@router.get("/directorio", response_model=list[UsuarioDirectorioOut])
+def listar_directorio(
+    db: Session = Depends(get_db), usuario: Usuario = Depends(obtener_usuario_actual)
+):
+    """Directorio COMPLETO de usuarios activos, SIN restricción de N1 --
+    2026-09-22, regla nueva a petición de Yue: "que todos los usuarios
+    puedan ver y asignar tareas a todos, igual con los mensajes [y
+    reuniones]". A diferencia de GET /usuarios (arriba, exige N1), este lo
+    puede consultar cualquiera autenticado -- es la fuente de datos de los
+    selectores de persona en "Asignar tarea", "Invitar a reunión" y
+    "Mensajes directos" bajo esta regla nueva. Deliberadamente NO expone
+    nada más que lo que ya era público dentro de la app (nombre/puesto/
+    correo -- lo mismo que ya se ve en "Mi equipo"). SOLO PARA USO LOCAL
+    por ahora (CLAUDE.md sección 0 regla 8) -- no desplegado al devtunnel
+    real, que sigue con las reglas de visibilidad de siempre.
+
+    404 (no 403) si la regla no está activa -- a propósito, para que el
+    frontend pueda intentar este endpoint primero y caer de vuelta a
+    GET /mi-equipo de forma silenciosa (catch de un 404) sin tener que
+    consultar un endpoint de configuración aparte. Así el mismo código de
+    frontend funciona igual en producción (regla apagada, cae al
+    comportamiento de siempre) y en una instancia local con la regla
+    activada -- ver AgendaPlanB.jsx/ModalMensajesDirectos.jsx/BuscadorInvitados-relacionados."""
+    if not settings.regla_todos_con_todos:
+        raise HTTPException(status_code=404, detail="Directorio completo no disponible")
+    usuarios = db.query(Usuario).filter(Usuario.activo == True).order_by(Usuario.nombre).all()  # noqa: E712
+    return [
+        UsuarioDirectorioOut(usuario_id=u.id, nombre=u.nombre, puesto=u.puesto, email=u.email)
+        for u in usuarios
+    ]
 
 
 @router.post("", response_model=UsuarioOut, status_code=status.HTTP_201_CREATED)

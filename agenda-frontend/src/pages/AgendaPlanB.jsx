@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { entregablesApi, mensajesDirectosApi, miEquipoApi, proyectosApi, reunionesApi } from "../api/endpoints";
+import { entregablesApi, mensajesDirectosApi, miEquipoApi, proyectosApi, reunionesApi, usuariosApi } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
 import Modal from "../components/Modal";
 import AppearanceSettings from "../components/AppearanceSettings";
@@ -173,8 +173,15 @@ export default function AgendaPlanB() {
   const cargarEquipo = useCallback(({ silencioso = false } = {}) => {
     if (!silencioso) setCargandoEquipo(true);
     setErrorEquipo("");
-    return miEquipoApi
-      .listar()
+    // 2026-09-22, regla nueva SOLO USO LOCAL ("todos pueden asignar tareas
+    // a todos") -- intenta primero el directorio completo (404 si la
+    // regla está apagada en el backend, ver settings.regla_todos_con_todos)
+    // y cae de vuelta a "tu equipo" de siempre. Con la regla apagada
+    // (producción real), el 404 es inmediato y este código se comporta
+    // IDÉNTICO a antes.
+    return usuariosApi
+      .directorio()
+      .catch(() => miEquipoApi.listar())
       .then((data) => setEquipo(data))
       .catch(() => setErrorEquipo("No se pudo cargar tu equipo."))
       .finally(() => {
