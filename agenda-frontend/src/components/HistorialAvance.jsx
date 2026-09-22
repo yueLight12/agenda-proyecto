@@ -9,6 +9,7 @@ import {
   YAxis,
 } from "recharts";
 import { entregablesApi } from "../api/endpoints";
+import { fechaUtcComoLocal } from "../utils/fechas";
 
 // Gráfica + tabla de histórico de avance, extraído de ModalHistorial.jsx
 // para poder mostrarse tanto en su modal dedicado (acceso rápido desde la
@@ -27,7 +28,7 @@ export default function HistorialAvance({ entregableId, miembros }) {
         setHistorial(
           datos.map((registro) => ({
             ...registro,
-            fecha: new Date(registro.fecha_registro).toLocaleDateString("es-MX", {
+            fecha: fechaUtcComoLocal(registro.fecha_registro).toLocaleDateString("es-MX", {
               day: "2-digit",
               month: "short",
             }),

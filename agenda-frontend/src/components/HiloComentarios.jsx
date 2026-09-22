@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { notasApi } from "../api/endpoints";
+import { fechaUtcComoLocal } from "../utils/fechas";
 
 // Miniatura de la imagen adjunta a un comentario -- mismo patrón que
 // ImagenNota en SeccionNotas.jsx (blob autenticado, se libera al
@@ -137,7 +138,7 @@ export default function HiloComentarios({ padreParams, nivel = 0 }) {
               <p style={{ margin: 0 }}>{c.contenido}</p>
               <span style={{ color: "var(--color-text-muted)", fontSize: "0.68rem" }}>
                 {c.autor_nombre} —{" "}
-                {new Date(c.fecha_creacion).toLocaleString("es-MX", { dateStyle: "medium", timeStyle: "short" })}
+                {fechaUtcComoLocal(c.fecha_creacion).toLocaleString("es-MX", { dateStyle: "medium", timeStyle: "short" })}
               </span>
               {c.tiene_imagen && <ImagenComentario notaId={c.id} />}
               <HiloComentarios padreParams={{ nota_padre_id: c.id }} nivel={nivel + 1} />

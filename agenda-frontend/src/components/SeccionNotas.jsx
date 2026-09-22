@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { notasApi, pendientesApi } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
+import { fechaUtcComoLocal } from "../utils/fechas";
 import ConfirmDialog from "./ConfirmDialog";
 import HiloComentarios from "./HiloComentarios";
 
@@ -228,7 +229,7 @@ export default function SeccionNotas({
                 <p style={{ margin: 0 }}>{n.contenido}</p>
                 <span style={{ color: "var(--color-text-muted)", fontSize: "0.78rem" }}>
                   {n.autor_nombre} —{" "}
-                  {new Date(n.fecha_creacion).toLocaleString("es-MX", {
+                  {fechaUtcComoLocal(n.fecha_creacion).toLocaleString("es-MX", {
                     dateStyle: "medium",
                     timeStyle: "short",
                   })}

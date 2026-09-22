@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { mensajesDirectosApi } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
 import { colorAvatar, iniciales } from "../utils/avatarPersona";
+import { fechaUtcComoLocal } from "../utils/fechas";
 import Modal from "./Modal";
 
 // "Mensajes directos" (2026-09-19, a petición de Yue: "Iván le quiere
@@ -138,7 +139,7 @@ export default function ModalMensajesDirectos({ onCerrar, contactoInicialId = nu
                   >
                     <p style={{ margin: 0 }}>{m.contenido}</p>
                     <span style={{ fontSize: "0.7rem", opacity: 0.75 }}>
-                      {new Date(m.fecha_creacion).toLocaleString("es-MX", {
+                      {fechaUtcComoLocal(m.fecha_creacion).toLocaleString("es-MX", {
                         dateStyle: "short",
                         timeStyle: "short",
                       })}

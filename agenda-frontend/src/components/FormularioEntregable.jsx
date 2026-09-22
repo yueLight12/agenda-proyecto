@@ -853,7 +853,7 @@ export default function FormularioEntregable({
               <>
                 ✓ {entregable.responsable_nombre || "El responsable"} ya vio esta tarea
                 {entregable.notificacion_vista_fecha &&
-                  ` (${new Date(entregable.notificacion_vista_fecha).toLocaleString("es-MX", {
+                  ` (${fechaUtcComoLocal(entregable.notificacion_vista_fecha).toLocaleString("es-MX", {
                     dateStyle: "medium",
                     timeStyle: "short",
                   })})`}

@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { adminApi, usuariosApi } from "../api/endpoints";
 import Modal from "../components/Modal";
 import PageHeader from "../components/PageHeader";
+import { fechaUtcComoLocal } from "../utils/fechas";
 
 function ModalReasignar({ origen, usuarios, onReasignar, onCerrar, error, guardando }) {
   const opciones = usuarios.filter((u) => u.id !== origen.id);
@@ -485,7 +486,7 @@ export default function AdminUsuarios() {
               <tbody>
                 {auditoria.map((r) => (
                   <tr key={r.id}>
-                    <td>{new Date(r.fecha).toLocaleString()}</td>
+                    <td>{fechaUtcComoLocal(r.fecha).toLocaleString()}</td>
                     <td>{r.actor_nombre}</td>
                     <td>{r.accion}</td>
                     <td>{r.objetivo_nombre || "—"}</td>
@@ -538,7 +539,7 @@ export default function AdminUsuarios() {
                 .slice(0, 200)
                 .map((f) => (
                   <tr key={f.id}>
-                    <td>{new Date(f.fecha).toLocaleString()}</td>
+                    <td>{fechaUtcComoLocal(f.fecha).toLocaleString()}</td>
                     <td>{f.usuario_nombre || f.correo_intentado || "?"}</td>
                     <td>{f.metodo}</td>
                     <td>{f.ruta}</td>
@@ -586,7 +587,7 @@ export default function AdminUsuarios() {
                 .slice(0, 200)
                 .map((a, i) => (
                   <tr key={i}>
-                    <td>{new Date(a.fecha).toLocaleString()}</td>
+                    <td>{fechaUtcComoLocal(a.fecha).toLocaleString()}</td>
                     <td>{a.usuario_nombre}</td>
                     <td>{a.tipo}</td>
                     <td>{a.descripcion}</td>
