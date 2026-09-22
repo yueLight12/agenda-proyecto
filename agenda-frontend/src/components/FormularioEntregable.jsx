@@ -1,5 +1,6 @@
 ﻿import { useEffect, useState } from "react";
 import { entregablesApi, proyectosApi } from "../api/endpoints";
+import { fechaUtcComoLocal } from "../utils/fechas";
 import { esFinDeSemana } from "../utils/finDeSemana";
 import { etiquetaRol } from "../utils/rolLabels";
 import ConfirmDialog from "./ConfirmDialog";
@@ -590,7 +591,7 @@ export default function FormularioEntregable({
                   <>
                     ✓ {responsable?.nombre || "El responsable"} ya vio esta tarea
                     {entregable.notificacion_vista_fecha &&
-                      ` (${new Date(entregable.notificacion_vista_fecha).toLocaleString("es-MX", {
+                      ` (${fechaUtcComoLocal(entregable.notificacion_vista_fecha).toLocaleString("es-MX", {
                         dateStyle: "medium",
                         timeStyle: "short",
                       })})`}

@@ -1,3 +1,18 @@
+// Timestamps que el backend genera con `datetime.utcnow()` (fecha_leida,
+// fecha_creacion de notas/mensajes, etc.) llegan como ISO SIN sufijo de
+// zona horaria (ej. "2026-09-22T15:30:00.123456") -- son hora UTC, pero
+// como el texto no trae "Z" ni offset, `new Date(...)` del navegador los
+// interpreta como si YA fueran hora local, adelantando el reloj 6 horas
+// en México (bug real reportado 2026-09-22, Beatriz Saavedra: "¿por qué
+// dice que lo revisó a las 3pm si apenas son las 11?"). Se antepone "Z"
+// solo si el string no trae ya su propia zona, para no romper el día que
+// el backend empiece a mandarla.
+export function fechaUtcComoLocal(iso) {
+  if (!iso) return null;
+  const tieneZona = /Z$|[+-]\d{2}:?\d{2}$/.test(iso);
+  return new Date(tieneZona ? iso : `${iso}Z`);
+}
+
 // `fecha_entrega` llega del backend como "YYYY-MM-DD" — se arma con
 // componentes locales (no `new Date(fecha)` directo) para no perder un día
 // por el corrimiento a UTC.
