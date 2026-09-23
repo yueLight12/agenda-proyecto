@@ -191,7 +191,9 @@ def listar_invitables_reunion(
     # obligatorio en MiembroEquipoOut pero no tiene sentido real en un
     # directorio global (un usuario no tiene un rol único) -- se manda N3
     # como valor de relleno, solo se usa para la etiqueta visual.
-    if settings.regla_todos_con_todos:
+    # `usuario.aislado` (2026-09-23) exime a este usuario de la regla
+    # abierta -- ver Usuario.aislado en app/models/usuario.py.
+    if settings.regla_todos_con_todos and not usuario.aislado:
         return [
             MiembroEquipoOut(
                 usuario_id=u.id, nombre=u.nombre, puesto=u.puesto, email=u.email, rol=RolEnum.N3

@@ -22,13 +22,14 @@ from app.core.permissions import (
     requerir_rol_minimo,
 )
 from app.models.entregable import Entregable, EstatusEntregable
+from app.models.entregable_copiado import EntregableCopiado
 from app.models.historial_avance import HistorialAvance
 from app.models.historial_responsable import HistorialResponsable
 from app.models.minuta import AcuerdoMinuta
 from app.models.notificacion import Notificacion, TipoNotificacion
 from app.models.usuario import RolEnum, Usuario
 from app.models.usuario_proyecto_rol import UsuarioProyectoRol
-from app.schemas.entregable import EntregableOut
+from app.schemas.entregable import CopiadoOut, EntregableOut
 from app.schemas.nota import NotaCrear
 from app.services.almacenamiento import eliminar_imagen, guardar_imagen
 from app.services.avisos_acceso import avisar_si_nunca_ha_entrado
@@ -141,6 +142,11 @@ def entregable_a_out(db: Session, usuario: Usuario, entregable: Entregable) -> E
         responsable_nombre=entregable.responsable.nombre if entregable.responsable else "",
         notificacion_vista=notificacion_vista,
         notificacion_vista_fecha=notificacion_vista_fecha,
+        copiados=[
+            CopiadoOut(usuario_id=c.usuario_id, nombre=c.usuario.nombre)
+            for c in entregable.copiados
+            if c.usuario is not None
+        ],
     )
 
 
@@ -170,12 +176,17 @@ def _texto_urgencia(urgente: bool) -> str:
 def mensaje_whatsapp_asignacion(asignador_nombre: str, entregable: "Entregable") -> str:
     """Texto único de "te asignaron una tarea" por WhatsApp (2026-09-03, a
     petición de Yue: que el mensaje traiga quién asigna, tarea, fecha,
-    hora, si es urgente, si requiere comprobante, el link a la app, y la
-    forma de marcarla como concluida sin abrir la app). Compartido entre
-    TODOS los caminos que asignan una tarea -- crear_entregable, reasignar
-    (ambos en este archivo) y el webhook de WhatsApp (asignar por
-    WhatsApp, ver app/routers/whatsapp_webhook.py) -- para que el mensaje
-    se vea igual sin importar desde dónde se creó la tarea."""
+    hora, si es urgente, si requiere comprobante y el link a la app).
+    Compartido entre TODOS los caminos que asignan una tarea --
+    crear_entregable, reasignar (ambos en este archivo) y el webhook de
+    WhatsApp (asignar por WhatsApp, ver app/routers/whatsapp_webhook.py)
+    -- para que el mensaje se vea igual sin importar desde dónde se creó
+    la tarea.
+
+    2026-09-22, a petición de Yue: se quitó "responde LISTO #<id> para
+    marcarla completada" -- ya no es necesario (ver
+    _PATRON_COMPLETAR/_marcar_completada_mensaje, eliminados de
+    app/routers/whatsapp_webhook.py)."""
     urgente = es_urgente(entregable)
     lineas = [
         f'📌 {asignador_nombre} te asignó una tarea nueva:',
@@ -188,7 +199,6 @@ def mensaje_whatsapp_asignacion(asignador_nombre: str, entregable: "Entregable")
     ]
     if entregable.requiere_comprobante:
         lineas.append("Requiere comprobante: Sí")
-    lineas.append(f"Cuando la termines, respóndeme aquí: LISTO #{entregable.id}")
     if settings.url_app:
         lineas.append(f"Revísala en la app: {settings.url_app}")
     return "\n".join(lineas)
@@ -285,6 +295,7 @@ def crear_entregable(
     urgente_manual: bool = False,
     requiere_comprobante: bool = False,
     hora_entrega=None,
+    copiados_ids: list[int] | None = None,
 ) -> Entregable:
     """
     N1/N2 pueden crear y asignar a cualquiera de su equipo. N3/N4 solo pueden
@@ -365,6 +376,33 @@ def crear_entregable(
             ),
             entregable_id=nuevo.id,
         )
+
+    # "Copiar a" (2026-09-22, a petición de Yue: "Bernardo asigna una
+    # tarea a Diana, pero quiere que Juan también se entere -- la tarea no
+    # es de/para Juan, solo se entera"). Se excluye al responsable (ya se
+    # le avisó arriba) y a quien crea la tarea (ya lo sabe, la está
+    # creando) -- y se deduplica, por si la misma persona viene repetida
+    # en la lista. Solo dispara UNA notificación in-app (tipo `otro`,
+    # mismo patrón que notas/reuniones) -- no push ni WhatsApp, a
+    # propósito, para no tratar un "entérate" como si fuera una tarea
+    # propia urgente.
+    copiados_ids_filtrados = [
+        c for c in dict.fromkeys(copiados_ids or []) if c not in (responsable_id, usuario.id)
+    ]
+    if copiados_ids_filtrados:
+        nombre_responsable = (
+            db.query(Usuario.nombre).filter(Usuario.id == responsable_id).scalar() or "alguien"
+        )
+        for copiado_id in copiados_ids_filtrados:
+            db.add(EntregableCopiado(entregable_id=nuevo.id, usuario_id=copiado_id))
+            crear_notificacion(
+                db,
+                copiado_id,
+                TipoNotificacion.otro,
+                f'{usuario.nombre} te copió en la tarea "{nuevo.nombre}" (de {nombre_responsable}).',
+                entregable_id=nuevo.id,
+                push=False,
+            )
 
     return nuevo
 
@@ -707,10 +745,14 @@ def reasignar_entregable(
     # LOCAL, filtra por equipo/self usando la fila de ESTE nodo exacto).
     rol_local_nuevo = obtener_rol_local_en_proyecto(db, nuevo_responsable_id, entregable.proyecto_id)
     if rol_local_nuevo is None:
-        # 2026-09-22, regla nueva a petición de Yue (SOLO USO LOCAL, ver
-        # settings.regla_todos_con_todos): se puede reasignar a CUALQUIERA,
-        # no solo a alguien que ya lidera algún otro tema.
-        if not settings.regla_todos_con_todos and not es_lider_en_algun_tema(db, nuevo_responsable_id):
+        # 2026-09-22, regla nueva a petición de Yue: se puede reasignar a
+        # CUALQUIERA, no solo a alguien que ya lidera algún otro tema.
+        # `usuario.aislado` (2026-09-23) exime a quien reasigna -- ver
+        # Usuario.aislado.
+        if (
+            not (settings.regla_todos_con_todos and not usuario.aislado)
+            and not es_lider_en_algun_tema(db, nuevo_responsable_id)
+        ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="La persona elegida no participa en este proyecto",

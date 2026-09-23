@@ -101,7 +101,10 @@ def listar_directorio(
     frontend funciona igual en producción (regla apagada, cae al
     comportamiento de siempre) y en una instancia local con la regla
     activada -- ver AgendaPlanB.jsx/ModalMensajesDirectos.jsx/BuscadorInvitados-relacionados."""
-    if not settings.regla_todos_con_todos:
+    # `usuario.aislado` (2026-09-23) exime a este usuario de la regla
+    # abierta -- ver Usuario.aislado. Mismo 404 que si la regla estuviera
+    # apagada, para que el frontend caiga de vuelta a /mi-equipo igual.
+    if not settings.regla_todos_con_todos or usuario.aislado:
         raise HTTPException(status_code=404, detail="Directorio completo no disponible")
     usuarios = db.query(Usuario).filter(Usuario.activo == True).order_by(Usuario.nombre).all()  # noqa: E712
     return [

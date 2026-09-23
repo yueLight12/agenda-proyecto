@@ -301,7 +301,9 @@ def query_entregables_visibles(
     """
     if indice is None:
         indice = arbol_proyectos.cargar_indice(db)
-    if settings.regla_todos_con_todos:
+    # `usuario.aislado` (2026-09-23) exime a ESTE usuario de la regla
+    # abierta -- ver docstring de Usuario.aislado en app/models/usuario.py.
+    if settings.regla_todos_con_todos and not usuario.aislado:
         ids_subtree_abiertos = arbol_proyectos.ids_subarbol(indice, proyecto_id)
         return (
             db.query(Entregable)
@@ -450,10 +452,10 @@ def puede_aprobar_rechazar_entregable(db: Session, usuario: Usuario, entregable:
 # (creador, N1/N2 del proyecto, o el responsable actual), en vez de
 # heredar la nueva restricción de esa función.
 def puede_reasignar_entregable(db: Session, usuario: Usuario, entregable: Entregable) -> bool:
-    # 2026-09-22, regla nueva a petición de Yue (SOLO USO LOCAL, ver
-    # settings.regla_todos_con_todos): cualquiera puede reasignar
-    # cualquier entregable a cualquiera.
-    if settings.regla_todos_con_todos:
+    # 2026-09-22, regla nueva a petición de Yue: cualquiera puede reasignar
+    # cualquier entregable a cualquiera. `usuario.aislado` (2026-09-23) lo
+    # exime -- ver Usuario.aislado.
+    if settings.regla_todos_con_todos and not usuario.aislado:
         return True
     if usuario.es_super_admin:
         return True

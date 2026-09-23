@@ -53,6 +53,19 @@ class Usuario(Base):
     # apagado por default para todos (ver componentes FabAsistenteVoz /
     # AgendaPlanB.jsx), esto es una lista blanca manual, no un rol.
     asistente_voz_habilitado = Column(Boolean, default=False, nullable=False)
+    # "Aislado" (2026-09-23, a petición de Yue: Lucila Galan Alcantara y
+    # Luis Felipe Leon Ramos son un equipo aparte, sin relación con el
+    # resto de la organización) -- cuando está activo, ESTE usuario queda
+    # EXENTO de settings.regla_todos_con_todos (el interruptor global de
+    # "todos ven/asignan a todos"): para él, el sistema vuelve a las
+    # reglas normales de siempre (permisos por proyecto/jerarquía), sin
+    # apagar la regla para nadie más. Como Lucila/Luis no comparten ningún
+    # proyecto con el resto, eso ya los aísla de forma natural entre sí --
+    # no hace falta un concepto nuevo de "organizaciones separadas" para
+    # este caso. Ver app/core/permissions.py::query_entregables_visibles,
+    # app/services/reuniones.py::listar_invitables_reunion,
+    # app/routers/usuarios.py::listar_directorio.
+    aislado = Column(Boolean, default=False, nullable=False)
 
     roles_por_proyecto = relationship(
         "UsuarioProyectoRol",

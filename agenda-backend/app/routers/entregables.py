@@ -80,7 +80,9 @@ def crear_entregable(
     decide "puede asignar a cualquiera" con `es_lider`) también queda
     abierto sin tocar esa función.
     """
-    if settings.regla_todos_con_todos:
+    # `usuario.aislado` (2026-09-23) exime a este usuario de la regla
+    # abierta -- ver Usuario.aislado en app/models/usuario.py.
+    if settings.regla_todos_con_todos and not usuario.aislado:
         rol = UsuarioProyectoRol(usuario_id=usuario.id, proyecto_id=proyecto_id, rol=RolEnum.N1)
     else:
         rol = requerir_participacion_en_proyecto(db, usuario, proyecto_id)
@@ -98,6 +100,7 @@ def crear_entregable(
         sensible=datos.sensible,
         urgente_manual=datos.urgente_manual,
         requiere_comprobante=datos.requiere_comprobante,
+        copiados_ids=datos.copiados_ids,
     )
     db.commit()
     db.refresh(nuevo)
