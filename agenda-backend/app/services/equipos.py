@@ -8,6 +8,7 @@ from typing import Optional
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.permissions import (
     obtener_rol_en_proyecto,
     requerir_participacion_en_proyecto,
@@ -22,6 +23,41 @@ from app.schemas.equipo import EquipoMiembroOut, ProyectoDeMiembroSimpleOut
 # Misma contraseña por defecto que seed_usuarios_reales.py/reset_passwords_reales.py
 # -- la persona la cambia desde "Cambiar contraseña" en su primer login.
 PASSWORD_DEFECTO_PERSONA_NUEVA = "Demo1234!"
+
+
+def resolver_supervisor_real(db: Session, usuario_id: int) -> Optional[int]:
+    """A quién le reporta REALMENTE `usuario_id`, sin importar el proyecto
+    (2026-09-23, extraído de _notificar_supervisor_de_asignacion en
+    app/services/entregables.py para reusarlo también en solicitudes de
+    ausencia -- misma lógica exacta, solo que ahí SÍ partía de un
+    proyecto_id conocido, aquí no hay ninguno). Orden de búsqueda:
+
+    1. Cualquier UsuarioProyectoRol de `usuario_id` que ya tenga
+       supervisor_id (la fuente más confiable: alguien lo declaró
+       explícitamente como su jefe en un tema real).
+    2. Si nadie lo hizo, la plantilla "Mi equipo" de quien lo tenga
+       guardado (EquipoMiembro.propietario_id).
+    3. None si no se encuentra nada -- ej. un N1/Dirección que no reporta
+       a nadie."""
+    fila_con_supervisor = (
+        db.query(UsuarioProyectoRol)
+        .filter(
+            UsuarioProyectoRol.usuario_id == usuario_id,
+            UsuarioProyectoRol.supervisor_id.isnot(None),
+        )
+        .order_by(UsuarioProyectoRol.id)
+        .first()
+    )
+    if fila_con_supervisor:
+        return fila_con_supervisor.supervisor_id
+
+    plantilla_de = (
+        db.query(EquipoMiembro)
+        .filter(EquipoMiembro.usuario_id == usuario_id)
+        .order_by(EquipoMiembro.id)
+        .first()
+    )
+    return plantilla_de.propietario_id if plantilla_de else None
 
 
 def rol_default_para_nuevo_proyecto(db: Session, usuario: Usuario) -> tuple[RolEnum, Optional[int]]:
@@ -62,17 +98,28 @@ def equipo_miembro_a_out(registro: EquipoMiembro) -> EquipoMiembroOut:
 
 
 def _proyectos_administrables_de(db: Session, viewer: Usuario, miembro_id: int) -> list[ProyectoDeMiembroSimpleOut]:
-    """Temas donde `miembro_id` participa y `viewer` puede administrar
-    (N1/N2 local, o super_admin) -- para el selector de tema de "Asignar
-    tarea a mi equipo" (2026-08-22, ver ModalAsignarTareaRapida.jsx, que
-    filtra exactamente por viewer_puede_administrar). No usa
-    listar_proyectos_visibles(viewer) porque el punto es precisamente
-    poder asignarle una tarea a alguien en un tema que el viewer administra
-    aunque él mismo no tenga entregables ahí -- solo importa su rol."""
+    """Temas donde `miembro_id` participa Y `viewer` puede asignarle una
+    tarea ahí -- para el selector de tema de "Asignar tarea a mi equipo"
+    (2026-08-22, ver ModalAsignarTareaRapida.jsx, que filtra exactamente
+    por viewer_puede_administrar). No usa listar_proyectos_visibles(viewer)
+    porque el punto es precisamente poder asignarle una tarea a alguien en
+    un tema que el viewer administra aunque él mismo no tenga entregables
+    ahí -- solo importa su rol.
+
+    SIEMPRE se parte de los proyectos REALES de `miembro_id` (su fila en
+    UsuarioProyectoRol) -- eso nunca se abre, ni con
+    settings.regla_todos_con_todos activa (2026-09-23, aclarado por Yue
+    tras un bug real: "todos con todos" es sobre poder asignar/ver tareas
+    entre cualquiera, NO sobre que los proyectos en sí se vuelvan visibles
+    para quien no participa -- cada quien sigue teniendo sus propios
+    proyectos). Lo único que la regla abre es el REQUISITO de que `viewer`
+    sea N1/N2 local en ESE proyecto -- con la regla activa (y viewer no
+    aislado), puede asignar ahí sin serlo, igual que ya hace
+    crear_entregable/reasignar_entregable."""
     filas = db.query(UsuarioProyectoRol).filter(UsuarioProyectoRol.usuario_id == miembro_id).all()
     resultado = []
     for fila in filas:
-        if viewer.es_super_admin:
+        if viewer.es_super_admin or (settings.regla_todos_con_todos and not viewer.aislado):
             puede_administrar = True
         else:
             rol_viewer = obtener_rol_en_proyecto(db, viewer.id, fila.proyecto_id)
@@ -87,6 +134,16 @@ def _proyectos_administrables_de(db: Session, viewer: Usuario, miembro_id: int) 
             )
         )
     return resultado
+
+
+def proyectos_administrables_de(db: Session, viewer: Usuario, miembro_id: int) -> list[ProyectoDeMiembroSimpleOut]:
+    """Envoltura pública de _proyectos_administrables_de (2026-09-23) --
+    para reusarla desde GET /usuarios/directorio (app/routers/usuarios.py),
+    donde antes cada persona del directorio abierto no traía NINGÚN
+    proyecto (UsuarioDirectorioOut no tenía ese campo), dejando el selector
+    de tema de ModalAsignarTareaRapida.jsx siempre vacío bajo
+    settings.regla_todos_con_todos -- bug real reportado por Yue."""
+    return _proyectos_administrables_de(db, viewer, miembro_id)
 
 
 def listar_mi_equipo_efectivo(

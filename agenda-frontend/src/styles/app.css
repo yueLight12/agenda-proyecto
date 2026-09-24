@@ -1237,6 +1237,9 @@
 .vsem-evento--empresa {
   background: var(--color-teal-500);
 }
+.vsem-evento--ausencia {
+  background: var(--color-purple-500, #7c5cbf);
+}
 
 .list-inline {
   display: flex;

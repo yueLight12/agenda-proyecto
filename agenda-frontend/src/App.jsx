@@ -5,6 +5,7 @@ import AvisoInstalarIos from "./components/AvisoInstalarIos";
 import AvisoNuevaVersion from "./components/AvisoNuevaVersion";
 import AvisoVerComo from "./components/AvisoVerComo";
 import Login from "./pages/Login";
+import RestablecerPassword from "./pages/RestablecerPassword";
 import SsoCallback from "./pages/SsoCallback";
 import AgendaPlanB from "./pages/AgendaPlanB";
 import TableroProyecto from "./pages/TableroProyecto";
@@ -22,6 +23,9 @@ export default function App() {
         <AvisoVerComo />
         <Routes>
           <Route path="/login" element={<Login />} />
+          {/* Destino del link de "recuperar contraseña" (2026-09-23) -- ver
+              RestablecerPassword.jsx y /auth/restablecer-password. */}
+          <Route path="/restablecer-password" element={<RestablecerPassword />} />
           {/* Callback de login corporativo (SSO/SAML, 2026-09-15) -- ver
               SsoCallback.jsx y app/routers/saml_sso.py::acs. */}
           <Route path="/sso/callback" element={<SsoCallback />} />

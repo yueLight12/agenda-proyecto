@@ -40,6 +40,7 @@ from app.routers import (
     reuniones,
     saml_sso,
     series_reunion,
+    solicitudes_ausencia,
     ultramsg_webhook,
     usuarios,
 )
@@ -229,6 +230,7 @@ app.include_router(admin.router)
 app.include_router(chatbot.router)
 app.include_router(asistente.router)
 app.include_router(series_reunion.router)
+app.include_router(solicitudes_ausencia.router)
 app.include_router(eventos_tiempo_real.router)
 app.include_router(ultramsg_webhook.router)
 app.include_router(saml_sso.router)

@@ -29,7 +29,49 @@ class EntregableBase(BaseModel):
 
 
 class EntregableCrear(EntregableBase):
-    pass
+    # "Copiar a" (2026-09-22, a petición de Yue): personas que solo se
+    # enteran de la tarea, sin ser responsables -- ver
+    # app/models/entregable_copiado.py. Opcional, lista vacía = nadie.
+    copiados_ids: list[int] = []
+
+
+class EntregableCrearMultiple(BaseModel):
+    """"Asignar a varios" (2026-09-23, a petición de Yue: "asignar la tarea
+    de mandar los reportes semanales a todo mi equipo sin ir uno por uno")
+    -- a diferencia de EntregableCrear, NO crea una sola tarea compartida:
+    crea una tarea INDEPENDIENTE por cada responsable en responsables_ids
+    (mismo modelo de un responsable por tarea de siempre, ver
+    Entregable.responsable_id), cada una con su propio avance/aprobación.
+    Ver app/services/entregables.py::crear_entregables_multiple."""
+
+    nombre: str
+    descripcion: Optional[str] = None
+    responsables_ids: list[int] = Field(min_length=1)
+    fecha_entrega: date
+    hora_entrega: Optional[time] = None
+    sensible: bool = False
+    urgente_manual: bool = False
+    requiere_comprobante: bool = False
+    copiados_ids: list[int] = []
+
+
+class CopiadosActualizarRequest(BaseModel):
+    """Reemplaza la lista completa de copiados de una tarea ya creada
+    (2026-09-23, a petición de Yue: "después de crear la tarea, poder
+    copiar a alguien más") -- ver
+    app/services/entregables.py::actualizar_copiados."""
+
+    copiados_ids: list[int] = []
+
+
+class ClonarEntregableRequest(BaseModel):
+    """"Asignar también a..." desde una tarea ya existente (2026-09-23, a
+    petición de Yue: "me doy cuenta después de que esa tarea va también
+    para alguien más") -- crea tareas independientes nuevas para cada
+    persona, SIN tocar la tarea original ni a su responsable actual. Ver
+    app/services/entregables.py::clonar_entregable_a."""
+
+    responsables_ids: list[int] = Field(min_length=1)
 
 
 class EntregableActualizar(BaseModel):
@@ -71,6 +113,14 @@ class RechazarEntregableRequest(BaseModel):
 
 class MoverEntregableRequest(BaseModel):
     direccion: str  # "arriba" | "abajo"
+
+
+class CopiadoOut(BaseModel):
+    usuario_id: int
+    nombre: str
+
+    class Config:
+        from_attributes = True
 
 
 class HistorialAvanceOut(BaseModel):
@@ -136,6 +186,9 @@ class EntregableOut(EntregableBase):
     # ligada a este entregable. Ver app/services/entregables.py::entregable_a_out.
     notificacion_vista: Optional[bool] = None
     notificacion_vista_fecha: Optional[datetime] = None
+    # "Copiados" (2026-09-22) -- ver CopiadoOut arriba. Ver
+    # app/services/entregables.py::entregable_a_out.
+    copiados: list[CopiadoOut] = []
 
     class Config:
         from_attributes = True

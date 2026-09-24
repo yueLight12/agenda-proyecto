@@ -15,5 +15,10 @@ export function colorDeEvento(evento) {
   if (evento.resource.tipo === "evento_empresa") {
     return "var(--color-teal-500)";
   }
+  // Ausencia aprobada (2026-09-23) -- morado, para distinguirla de un
+  // entregable/reunión/evento de empresa a simple vista.
+  if (evento.resource.tipo === "ausencia") {
+    return "var(--color-purple-500, #7c5cbf)";
+  }
   return COLOR_ESTATUS[evento.resource.datos.estatus] || COLOR_ESTATUS.pendiente;
 }

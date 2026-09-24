@@ -7,6 +7,7 @@ from typing import Optional
 from pydantic import BaseModel, EmailStr
 
 from app.models.usuario import RolEnum
+from app.schemas.equipo import ProyectoDeMiembroSimpleOut
 
 
 class UsuarioBase(BaseModel):
@@ -84,6 +85,14 @@ class UsuarioDirectorioOut(BaseModel):
     nombre: str
     puesto: Optional[str] = None
     email: EmailStr
+    # 2026-09-23, bug real corregido (Yue: "todos con todos" NO vuelve
+    # visibles los proyectos ajenos -- cada quien sigue viendo solo los
+    # suyos): temas/subtemas donde esta persona REALMENTE participa y
+    # quien pregunta puede asignarle una tarea ahí (ver
+    # app/services/equipos.py::proyectos_administrables_de). Sin esto, el
+    # selector de tema de ModalAsignarTareaRapida.jsx quedaba siempre
+    # vacío para cualquiera cargado desde el directorio abierto.
+    proyectos: list[ProyectoDeMiembroSimpleOut] = []
 
     class Config:
         from_attributes = True
@@ -111,4 +120,13 @@ class LoginRequest(BaseModel):
 
 class CambiarPasswordRequest(BaseModel):
     password_actual: str
+    password_nueva: str
+
+
+class OlvidePasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class RestablecerPasswordRequest(BaseModel):
+    token: str
     password_nueva: str

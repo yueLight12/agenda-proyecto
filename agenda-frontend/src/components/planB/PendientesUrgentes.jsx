@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { dashboardApi, entregablesApi, notificacionesApi } from "../../api/endpoints";
+import { dashboardApi, entregablesApi, notificacionesApi, solicitudesAusenciaApi } from "../../api/endpoints";
 import { useEventosTiempoReal } from "../../hooks/useEventosTiempoReal";
 import BadgeUrgente from "../BadgeUrgente";
 import { IconoCheck } from "./IconosPlanB";
+
+const ETIQUETA_TIPO_AUSENCIA = { vacaciones: "vacaciones", permiso: "permiso", incapacidad: "incapacidad" };
 
 // "Pendientes / Por hacer" de Agenda Plan B (2026-08-20) -- no hay endpoint
 // nuevo: se componen las frases en el frontend a partir de datos que YA
@@ -15,8 +17,17 @@ export default function PendientesUrgentes({ recargarSenal, onAbrirEntregable, o
   const [notificaciones, setNotificaciones] = useState([]);
   const [entregablesAtencion, setEntregablesAtencion] = useState([]);
   const [reunionesHoy, setReunionesHoy] = useState([]);
+  // Solicitudes de ausencia que ME toca aprobar (2026-09-23, a petición de
+  // Yue) -- mismo patrón que entregablesAtencion/reunionesHoy: se pide
+  // aparte del genérico `notificaciones` porque necesitamos el id/datos
+  // completos de la solicitud para los botones Aprobar/Rechazar, no solo
+  // el texto de un aviso.
+  const [solicitudesPorAprobar, setSolicitudesPorAprobar] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
+  const [resolviendoId, setResolviendoId] = useState(null);
+  const [rechazandoId, setRechazandoId] = useState(null);
+  const [notaRechazo, setNotaRechazo] = useState("");
   // Marcar concluido es por-fila (2026-08-20, a petición de Yue: "un clic
   // directo, sin confirmar") -- se deshabilita solo el botón de ESA fila
   // mientras corre, no toda la lista.
@@ -29,10 +40,13 @@ export default function PendientesUrgentes({ recargarSenal, onAbrirEntregable, o
   const cargar = useCallback(({ silencioso = false } = {}) => {
     if (!silencioso) setCargando(true);
     setError("");
-    return Promise.all([notificacionesApi.listar(true), dashboardApi.resumen()])
-      .then(([notifs, dashboard]) => {
+    return Promise.all([notificacionesApi.listar(true), dashboardApi.resumen(), solicitudesAusenciaApi.listar()])
+      .then(([notifs, dashboard, solicitudes]) => {
         setNotificaciones(notifs);
         setEntregablesAtencion(dashboard.entregables_atencion || []);
+        setSolicitudesPorAprobar(
+          solicitudes.filter((s) => s.estatus === "pendiente" && s.puede_resolver)
+        );
         const hoy = new Date();
         setReunionesHoy(
           (dashboard.reuniones_proximas || []).filter((r) => {
@@ -99,6 +113,35 @@ export default function PendientesUrgentes({ recargarSenal, onAbrirEntregable, o
     }
   };
 
+  // Aprobar/rechazar solicitudes de ausencia (2026-09-23) -- directo aquí,
+  // sin pantalla aparte, mismo criterio que "✓ Concluido" arriba.
+  const aprobarSolicitud = async (id) => {
+    setResolviendoId(id);
+    try {
+      await solicitudesAusenciaApi.aprobar(id);
+      await cargar();
+    } catch (err) {
+      setError(err.response?.data?.detail || "No se pudo aprobar la solicitud.");
+    } finally {
+      setResolviendoId(null);
+    }
+  };
+
+  const confirmarRechazo = async (id) => {
+    if (!notaRechazo.trim()) return;
+    setResolviendoId(id);
+    try {
+      await solicitudesAusenciaApi.rechazar(id, notaRechazo.trim());
+      setRechazandoId(null);
+      setNotaRechazo("");
+      await cargar();
+    } catch (err) {
+      setError(err.response?.data?.detail || "No se pudo rechazar la solicitud.");
+    } finally {
+      setResolviendoId(null);
+    }
+  };
+
   if (cargando) return <p>Cargando pendientes...</p>;
   if (error) return <p className="error-text">{error}</p>;
 
@@ -124,12 +167,19 @@ export default function PendientesUrgentes({ recargarSenal, onAbrirEntregable, o
     // "pendiente / por hacer" -- se muestran en otro lado, no aquí
     // (2026-08-21, a petición de Yue).
     if (typeof n.mensaje === "string" && n.mensaje.startsWith("🎂")) return false;
+    // Mismo dedup que arriba, para la notificación genérica de "fulano
+    // solicitó X -- necesita tu aprobación" (2026-09-23) -- ya se muestra
+    // como fila propia con botones Aprobar/Rechazar más abajo. No hay un
+    // id de solicitud en la notificación para matchear exacto (Notificacion
+    // no tiene esa FK), así que se filtra por el sufijo fijo del mensaje.
+    if (typeof n.mensaje === "string" && n.mensaje.endsWith("necesita tu aprobación.")) return false;
     if (n.entregable_id != null) return !idsEntregableMostrado.has(n.entregable_id);
     if (n.reunion_id != null) return !idsReunionMostrada.has(n.reunion_id);
     return true;
   });
 
-  const totalPendientes = notificacionesVisibles.length + reunionesHoy.length;
+  const totalPendientes =
+    notificacionesVisibles.length + reunionesHoy.length + solicitudesPorAprobar.length;
 
   return (
     <div className="card">
@@ -190,6 +240,71 @@ export default function PendientesUrgentes({ recargarSenal, onAbrirEntregable, o
               Reunión "{r.titulo}" con {r.organizador_nombre} — hoy
             </button>
           </FilaPendiente>
+        ))}
+
+        {solicitudesPorAprobar.map((s) => (
+          <div key={`sol-${s.id}`} className="planb__pendiente-fila" style={{ flexWrap: "wrap" }}>
+            <BadgeUrgente urgente />
+            <span style={{ flex: 1 }}>
+              {s.solicitante_nombre} solicitó {ETIQUETA_TIPO_AUSENCIA[s.tipo] || s.tipo} del{" "}
+              {s.fecha_inicio} al {s.fecha_fin}
+            </span>
+            {rechazandoId === s.id ? (
+              <div className="stack" style={{ gap: 4, width: "100%" }}>
+                <input
+                  className="input"
+                  type="text"
+                  placeholder="Motivo del rechazo..."
+                  value={notaRechazo}
+                  onChange={(e) => setNotaRechazo(e.target.value)}
+                  autoFocus
+                />
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button
+                    type="button"
+                    className="btn btn--ghost"
+                    style={{ fontSize: "0.75rem", padding: "2px 8px" }}
+                    disabled={resolviendoId === s.id || !notaRechazo.trim()}
+                    onClick={() => confirmarRechazo(s.id)}
+                  >
+                    Confirmar rechazo
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--ghost"
+                    style={{ fontSize: "0.75rem", padding: "2px 8px" }}
+                    onClick={() => {
+                      setRechazandoId(null);
+                      setNotaRechazo("");
+                    }}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  style={{ fontSize: "0.75rem", padding: "2px 8px" }}
+                  disabled={resolviendoId === s.id}
+                  onClick={() => aprobarSolicitud(s.id)}
+                >
+                  {resolviendoId === s.id ? "..." : "✓ Aprobar"}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  style={{ fontSize: "0.75rem", padding: "2px 8px" }}
+                  disabled={resolviendoId === s.id}
+                  onClick={() => setRechazandoId(s.id)}
+                >
+                  ✕ Rechazar
+                </button>
+              </>
+            )}
+          </div>
         ))}
 
         {notificacionesVisibles.map((n) => {

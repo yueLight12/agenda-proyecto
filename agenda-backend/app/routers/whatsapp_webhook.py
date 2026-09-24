@@ -31,20 +31,13 @@ Piloto DELIBERADAMENTE acotado (confirmado por Yue el 2026-08-27):
 Al responsable SIEMPRE le llega un WhatsApp con la tarea (sin importar si
 es "urgente" -- a diferencia del resto del sistema, ver
 app/services/entregables.py::crear_entregable, que solo manda WhatsApp si
-es urgente) con un código de referencia para poder marcarla completada
-sin abrir la app: responder "LISTO #<id>". A diferencia de "asignar", esto
-NO está restringido a ningún allowlist -- cualquier persona con
-telefono_whatsapp configurado puede completar sus PROPIAS tareas así,
-porque reusa el mismo permiso real de siempre (actualizar_avance exige ser
-el responsable o N1/N2 del proyecto, ver puede_actualizar_avance_entregable
-en app/core/permissions.py) -- no es una puerta nueva, solo un canal nuevo
-para una acción que la persona ya podía hacer.
+es urgente).
 
-Nota conocida del piloto: si la tarea también resulta "urgente" por la
-regla ya existente (vence en ≤3 días), el responsable puede recibir DOS
-WhatsApp -- el genérico de siempre (sin código) más este (con código) --
-se aceptó como limitación menor en vez de tocar la lógica de urgencia
-compartida por todos los canales (voz, UI, WhatsApp) solo para este caso.
+2026-09-22, a petición de Yue: se quitó "responde LISTO #<id> para
+marcarla completada sin abrir la app" -- ya no es necesario. Ese texto ya
+no aparece en el WhatsApp de asignación (ver
+app/services/entregables.py::mensaje_whatsapp_asignacion), y este webhook
+ya no interpreta ese patrón entrante.
 
 Reusa el MISMO pipeline del asistente de voz (interpretar_instruccion +
 TOOLS["crear_entregable"], ver app/services/asistente/) -- no hay NLU
@@ -64,17 +57,14 @@ URL y se haga pasar por un mensaje entrante) es responsabilidad de cada
 router de proveedor (ver ultramsg_webhook.py::ultramsg_webhook_secreto).
 """
 import logging
-import re
 from typing import Optional
 
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models.entregable import Entregable
 from app.models.usuario import Usuario
 from app.services.asistente.interprete import interpretar_instruccion
 from app.services.asistente.tools import TOOLS
-from app.services.entregables import actualizar_avance
 from app.services.equipos import listar_equipo_de_subordinado, listar_mi_equipo_efectivo
 from fastapi import HTTPException
 
@@ -84,12 +74,6 @@ _MENSAJE_AYUDA = (
     'Por ahora, desde WhatsApp solo puedo crear tareas nuevas para tu equipo. '
     'Intenta algo como: "Crea una tarea para Juan: revisar el reporte, para el viernes".'
 )
-
-# "LISTO #123" (con o sin "#", espacios de más, mayúsculas/minúsculas) para
-# marcar una tarea como completada sin abrir la app -- el código es el id
-# del entregable, el mismo que se le manda a la persona en el WhatsApp de
-# asignación.
-_PATRON_COMPLETAR = re.compile(r"^\s*listo\s*#?\s*(\d+)\s*$", re.IGNORECASE)
 
 
 def _telefonos_permitidos() -> set[str]:
@@ -113,25 +97,6 @@ def _en_equipo_extendido(db: Session, usuario: Usuario, responsable_id: int) -> 
         if any(sm.usuario_id == responsable_id for sm in subequipo):
             return True
     return False
-
-
-def _marcar_completada_mensaje(db: Session, usuario: Usuario, entregable_id: int) -> str:
-    entregable = db.query(Entregable).filter(Entregable.id == entregable_id).first()
-    if entregable is None:
-        return f"No encontré ninguna tarea con el número #{entregable_id}."
-    if entregable.responsable_id != usuario.id:
-        # No revela si la tarea existe/de quién es -- mismo criterio de
-        # discreción que el resto del sistema con lo que no te toca ver.
-        return f"La tarea #{entregable_id} no está asignada a ti."
-
-    try:
-        actualizado = actualizar_avance(db, usuario, entregable_id, 100)
-        db.commit()
-    except HTTPException as exc:
-        db.rollback()
-        return str(exc.detail)
-
-    return f'Listo, marqué "{actualizado.nombre}" como completada. ¡Bien hecho!'
 
 
 def _procesar_asignar_tarea(db: Session, usuario: Usuario, texto: str) -> str:
@@ -189,13 +154,10 @@ def procesar_mensaje_whatsapp(db: Session, numero: str, texto: str) -> Optional[
 
     texto = texto.strip()
 
-    # "Completar" no tiene allowlist -- cualquiera con telefono_whatsapp
-    # configurado puede marcar SUS PROPIAS tareas, ver docstring del módulo.
-    coincidencia = _PATRON_COMPLETAR.match(texto)
-    if coincidencia:
-        return _marcar_completada_mensaje(db, usuario, int(coincidencia.group(1)))
-
-    # A partir de aquí, solo "asignar" -- sí tiene allowlist (hoy: Bernardo).
+    # 2026-09-22, a petición de Yue: se quitó "LISTO #<id>" (marcar
+    # completada por WhatsApp sin abrir la app) -- ya no es necesario. Todo
+    # mensaje entrante pasa ahora por el flujo de "asignar" -- sí tiene
+    # allowlist (hoy: Bernardo).
     if numero not in _telefonos_permitidos():
         logger.warning("WhatsApp entrante de número no habilitado para asignar tareas: %s", numero)
         return None

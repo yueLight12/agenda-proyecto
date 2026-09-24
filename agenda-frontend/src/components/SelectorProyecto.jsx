@@ -72,6 +72,21 @@ export default function SelectorProyecto({
     setBusqueda("");
   };
 
+  // Bug real (2026-09-23, reportado por Yue varias veces sin poder
+  // reproducirlo hasta ahora): elegir una opción no cerraba el panel,
+  // aunque un clic FUERA sí lo cerraba (ese usa 'mousedown', ver el
+  // useEffect de arriba). La causa: con onClick, entre que el botón baja
+  // (mousedown) y sube (click) puede haber un re-render de por medio (ej.
+  // un refresco en tiempo real de la lista) que cambia el elemento bajo el
+  // cursor, así que el click nunca llega a disparar elegir(). Se resuelve
+  // seleccionando en el mousedown mismo, igual que el cierre por fuera --
+  // preventDefault evita que el mousedown también dispare un blur/focus
+  // raro en el buscador de texto.
+  const elegirEnMouseDown = (e, id) => {
+    e.preventDefault();
+    elegir(id);
+  };
+
   return (
     <div className="selector-proyecto" ref={contenedorRef}>
       <button
@@ -102,7 +117,7 @@ export default function SelectorProyecto({
               className={`selector-proyecto__opcion${!value ? " selector-proyecto__opcion--activa" : ""}`}
               role="option"
               aria-selected={!value}
-              onClick={() => elegir("")}
+              onMouseDown={(e) => elegirEnMouseDown(e, "")}
             >
               {placeholder}
             </div>
@@ -118,7 +133,7 @@ export default function SelectorProyecto({
                 style={busqueda.trim() ? undefined : { paddingLeft: `${12 + calcularProfundidad(p.ruta) * 18}px` }}
                 role="option"
                 aria-selected={String(p.id) === String(value)}
-                onClick={() => elegir(String(p.id))}
+                onMouseDown={(e) => elegirEnMouseDown(e, String(p.id))}
                 title={p.ruta}
               >
                 {busqueda.trim() ? p.ruta : p.nombre}

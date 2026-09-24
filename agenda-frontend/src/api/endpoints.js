@@ -30,6 +30,12 @@ export const authApi = {
     const { data } = await api.post("/auth/ticket/canjear", { ticket });
     return data; // { access_token, token_type }
   },
+  // Recuperar contraseña (2026-09-23) -- ver /auth/olvide-password y
+  // /auth/restablecer-password en app/routers/auth.py. olvidePassword
+  // siempre "tiene éxito" (204) exista o no ese correo, a propósito.
+  olvidePassword: async (email) => api.post("/auth/olvide-password", { email }),
+  restablecerPassword: async (token, passwordNueva) =>
+    api.post("/auth/restablecer-password", { token, password_nueva: passwordNueva }),
 };
 
 export const proyectosApi = {
@@ -73,8 +79,19 @@ export const entregablesApi = {
     (await api.get(`/proyectos/${proyectoId}/entregables`)).data,
   crear: async (proyectoId, datos) =>
     (await api.post(`/proyectos/${proyectoId}/entregables`, datos)).data,
+  // "Asignar a varios" (2026-09-23) -- una tarea independiente por cada
+  // responsable, en un solo paso.
+  crearMultiple: async (proyectoId, datos) =>
+    (await api.post(`/proyectos/${proyectoId}/entregables/multiple`, datos)).data,
   actualizar: async (entregableId, datos) =>
     (await api.patch(`/entregables/${entregableId}`, datos)).data,
+  // Reemplaza la lista completa de copiados de una tarea ya creada.
+  actualizarCopiados: async (entregableId, copiadosIds) =>
+    (await api.patch(`/entregables/${entregableId}/copiados`, { copiados_ids: copiadosIds })).data,
+  // "Asignar también a..." -- crea tareas nuevas independientes para otras
+  // personas, sin tocar la tarea original.
+  clonarA: async (entregableId, responsablesIds) =>
+    (await api.post(`/entregables/${entregableId}/clonar-a`, { responsables_ids: responsablesIds })).data,
   actualizarAvance: async (entregableId, porcentaje_avance) =>
     (await api.patch(`/entregables/${entregableId}/avance`, { porcentaje_avance })).data,
   mover: async (entregableId, direccion) =>
@@ -247,6 +264,14 @@ export const rendimientoApi = {
         responseType: "blob",
       })
     ).data,
+};
+
+export const solicitudesAusenciaApi = {
+  listar: async () => (await api.get("/solicitudes-ausencia")).data,
+  crear: async (datos) => (await api.post("/solicitudes-ausencia", datos)).data,
+  aprobar: async (id) => (await api.patch(`/solicitudes-ausencia/${id}/aprobar`)).data,
+  rechazar: async (id, notaRechazo) =>
+    (await api.patch(`/solicitudes-ausencia/${id}/rechazar`, { nota_rechazo: notaRechazo })).data,
 };
 
 export const minutasApi = {

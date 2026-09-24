@@ -1,4 +1,4 @@
-import { IconoAgenda, IconoPersona, IconoProyecto, IconoRendimiento, IconoTarea } from "./IconosPlanB";
+import { IconoAgenda, IconoAusencia, IconoPersona, IconoProyecto, IconoRendimiento, IconoTarea } from "./IconosPlanB";
 
 // Grid 2x2 "Quiero asignar" de Agenda Plan B (2026-08-20) -- solo UI +
 // callback, sin lógica de datos propia. Cada tarjeta abre un modal distinto
@@ -15,6 +15,7 @@ const TARJETAS = [
   { tipo: "persona", Icono: IconoPersona, titulo: "Persona", texto: "Elegir a alguien y asignarle una tarea." },
   { tipo: "agenda", Icono: IconoAgenda, titulo: "Agenda (calendario)", texto: "Ver y reprogramar el calendario." },
   { tipo: "rendimiento", Icono: IconoRendimiento, titulo: "Rendimiento", texto: "Ver métricas de tu equipo: quién entrega más y a tiempo." },
+  { tipo: "ausencia", Icono: IconoAusencia, titulo: "Solicitar ausencia", texto: "Pedir vacaciones, permiso o incapacidad." },
 ];
 
 // cardOrder (2026-08-26, panel "Personalizar apariencia") -- array opcional

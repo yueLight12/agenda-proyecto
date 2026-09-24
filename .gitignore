@@ -39,3 +39,4 @@ agenda-frontend/.env.local
 .DS_Store
 *.log
 /.env
+agenda-frontend/dist-pruebas-todos/

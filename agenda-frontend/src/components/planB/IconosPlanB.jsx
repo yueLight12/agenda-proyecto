@@ -59,6 +59,17 @@ export function IconoRendimiento() {
   );
 }
 
+// Maleta -- "Solicitar ausencia" (2026-09-23, a petición de Yue).
+export function IconoAusencia() {
+  return (
+    <svg {...props}>
+      <rect x="4" y="8" width="16" height="11" rx="2" />
+      <path d="M9 8V6c0-.9.7-1.6 1.6-1.6h2.8c.9 0 1.6.7 1.6 1.6v2" />
+      <path d="M4 13h16" />
+    </svg>
+  );
+}
+
 export function IconoCheck() {
   return (
     <svg {...props}>

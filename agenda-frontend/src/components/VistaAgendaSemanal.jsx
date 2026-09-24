@@ -24,6 +24,7 @@ export default function VistaAgendaSemanal({
   onEntregableClick,
   onReunionClick,
   onEventoEmpresaClick,
+  onAusenciaClick,
   onDiaClick,
 }) {
   const filas = agruparEventosEnFilas(eventos);
@@ -32,6 +33,7 @@ export default function VistaAgendaSemanal({
     if (evento.resource.tipo === "reunion") onReunionClick?.(evento.resource.datos);
     else if (evento.resource.tipo === "entregable") onEntregableClick?.(evento.resource.datos);
     else if (evento.resource.tipo === "evento_empresa") onEventoEmpresaClick?.(evento.resource.datos);
+    else if (evento.resource.tipo === "ausencia") onAusenciaClick?.(evento.resource.datos);
   };
 
   return (

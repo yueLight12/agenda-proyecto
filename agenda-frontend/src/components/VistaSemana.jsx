@@ -40,16 +40,18 @@ function horaFmt(fecha) {
 function claseDeEvento(evento) {
   if (evento.resource.tipo === "reunion") return "vsem-evento--reunion";
   if (evento.resource.tipo === "evento_empresa") return "vsem-evento--empresa";
+  if (evento.resource.tipo === "ausencia") return "vsem-evento--ausencia";
   const estatus = evento.resource.datos.estatus;
   if (estatus === "en_progreso") return "vsem-evento--en_progreso";
   if (estatus === "cumplido") return "vsem-evento--cumplido";
   return "vsem-evento--pendiente";
 }
 
-function manejarClick(evento, { onEntregableClick, onReunionClick, onEventoEmpresaClick }) {
+function manejarClick(evento, { onEntregableClick, onReunionClick, onEventoEmpresaClick, onAusenciaClick }) {
   if (evento.resource.tipo === "reunion") onReunionClick?.(evento.resource.datos);
   else if (evento.resource.tipo === "entregable") onEntregableClick?.(evento.resource.datos);
   else if (evento.resource.tipo === "evento_empresa") onEventoEmpresaClick?.(evento.resource.datos);
+  else if (evento.resource.tipo === "ausencia") onAusenciaClick?.(evento.resource.datos);
 }
 
 export default function VistaSemana({
@@ -57,6 +59,7 @@ export default function VistaSemana({
   onEntregableClick,
   onReunionClick,
   onEventoEmpresaClick,
+  onAusenciaClick,
   onSeleccionarFranja,
   columnasFijas = false,
 }) {
@@ -104,7 +107,7 @@ export default function VistaSemana({
 
   const eventosDeDia = (dia) => eventos.filter((e) => isSameDay(e.start, dia));
 
-  const handlers = { onEntregableClick, onReunionClick, onEventoEmpresaClick };
+  const handlers = { onEntregableClick, onReunionClick, onEventoEmpresaClick, onAusenciaClick };
 
   const seleccionarFranja = (dia, hora) => {
     if (!onSeleccionarFranja) return;

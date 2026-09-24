@@ -9,6 +9,7 @@ import ModalMensajesDirectos from "../components/ModalMensajesDirectos";
 import ListaProyectos from "../components/planB/ListaProyectos";
 import FormularioEntregable from "../components/FormularioEntregable";
 import ModalReunion from "../components/ModalReunion";
+import ModalSolicitarAusencia from "../components/ModalSolicitarAusencia";
 import CalendarioGlobal from "./CalendarioGlobal";
 import FabAsistenteVoz from "../components/FabAsistenteVoz";
 import BotonNotificacionesPush from "../components/BotonNotificacionesPush";
@@ -435,6 +436,17 @@ export default function AgendaPlanB() {
         <Modal titulo="Mis proyectos" onCerrar={cerrarModal}>
           <ListaProyectos />
         </Modal>
+      )}
+
+      {modalActivo === "ausencia" && (
+        <ModalSolicitarAusencia
+          equipo={equipo}
+          onCerrar={cerrarModal}
+          onCreado={() => {
+            cerrarModal();
+            setRecargarPendientes((n) => n + 1);
+          }}
+        />
       )}
 
       {mostrarMensajes && (

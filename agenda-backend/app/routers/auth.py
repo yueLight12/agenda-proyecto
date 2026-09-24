@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.rate_limit import limiter
 from app.core.security import crear_access_token, hash_password, verificar_password
 from app.database import get_db
@@ -16,11 +17,14 @@ from app.models.usuario import Usuario
 from app.schemas.usuario import (
     CambiarPasswordRequest,
     CanjearTicketRequest,
+    OlvidePasswordRequest,
+    RestablecerPasswordRequest,
     TicketOut,
     Token,
     UsuarioConRolesOut,
 )
-from app.services import intentos_fallidos, tickets_temporales
+from app.services import intentos_fallidos, reset_password_tokens, tickets_temporales
+from app.services.email_cliente import enviar_correo
 from app.services.usuarios import usuario_con_roles_a_out
 
 router = APIRouter(prefix="/auth", tags=["Autenticación"])
@@ -143,6 +147,68 @@ def cambiar_password(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="La nueva contraseña debe tener al menos 8 caracteres",
         )
+
+    usuario.password_hash = hash_password(datos.password_nueva)
+    db.commit()
+
+
+@router.post("/olvide-password", status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit("5/minute")
+def olvide_password(request: Request, datos: OlvidePasswordRequest, db: Session = Depends(get_db)):
+    """"Recuperar contraseña" (2026-09-23, a petición de Yue: "algo rápido
+    que no requiera mucho trabajo") -- reusa el envío de correo ya
+    existente (app/services/email_cliente.py, SMTP ya configurado) y el
+    mismo patrón de token de un solo uso que /auth/ticket (ver
+    app/services/reset_password_tokens.py), solo que con un TTL de 30 min
+    en vez de 60s, porque aquí la persona tiene que abrir su correo y
+    volver.
+
+    SIEMPRE responde 204, exista o no ese correo (mismo criterio de
+    discreción que el resto del sistema con "no revelar qué no te toca
+    ver") -- así no se puede usar este endpoint para averiguar qué correos
+    están registrados. También busca en correos alternos, igual que
+    /auth/login."""
+    usuario = db.query(Usuario).filter(Usuario.email == datos.email).first()
+    if not usuario:
+        alterno = db.query(CorreoAlterno).filter(CorreoAlterno.email == datos.email).first()
+        if alterno:
+            usuario = alterno.usuario
+
+    if usuario and usuario.activo:
+        token = reset_password_tokens.crear_token(usuario.id)
+        enlace = f"{settings.url_app}/restablecer-password?token={token}"
+        enviar_correo(
+            usuario.email,
+            "Recupera tu contraseña -- Agenda Inteligente",
+            (
+                f"Hola {usuario.nombre},\n\n"
+                "Alguien (con suerte tú) pidió restablecer tu contraseña. Entra a este link "
+                f"en los próximos 30 minutos para poner una nueva:\n\n{enlace}\n\n"
+                "Si tú no pediste esto, ignora este correo -- tu contraseña actual sigue "
+                "funcionando igual."
+            ),
+        )
+
+
+@router.post("/restablecer-password", status_code=status.HTTP_204_NO_CONTENT)
+def restablecer_password(datos: RestablecerPasswordRequest, db: Session = Depends(get_db)):
+    """Canjea el token de /auth/olvide-password (un solo uso, 30 min) por
+    una contraseña nueva. Sin autenticación previa -- el token ES la
+    credencial, por eso expira rápido y solo sirve una vez."""
+    usuario_id = reset_password_tokens.canjear_token(datos.token)
+    if usuario_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Este link ya no es válido -- pide uno nuevo desde \"¿Olvidaste tu contraseña?\".",
+        )
+    if len(datos.password_nueva) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La nueva contraseña debe tener al menos 8 caracteres",
+        )
+    usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    if usuario is None or not usuario.activo:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cuenta no disponible")
 
     usuario.password_hash = hash_password(datos.password_nueva)
     db.commit()

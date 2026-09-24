@@ -61,6 +61,18 @@ export default function ModalEditarProyecto({ proyecto = null, parentId = null, 
   const [participantesIds, setParticipantesIds] = useState([]);
   const [idsOriginales, setIdsOriginales] = useState([]);
 
+  // "Nuevo subtema" desde aquí mismo (2026-09-23, a petición de Yue tras
+  // encontrar que no había forma de llegar a crear un subtema: desde el
+  // rediseño de "Mis proyectos" (2026-09-18, ver FilaProyecto.jsx) la fila
+  // de un proyecto abre este modal de edición en vez de navegar a
+  // TableroProyecto.jsx -- que es donde vivía el único botón "Nuevo
+  // subtema" -- dejando esa pantalla, y ese botón, inalcanzables desde el
+  // flujo normal. Se resuelve montando OTRO ModalEditarProyecto encima,
+  // con parentId=proyecto.id (modo creación de subtema); al guardar, se
+  // cierra el anidado y se reusa el mismo onGuardado de este modal (misma
+  // recarga/cierre que ya dispara "Guardar cambios").
+  const [mostrarNuevoSubtema, setMostrarNuevoSubtema] = useState(false);
+
   useEffect(() => {
     let cancelado = false;
     miEquipoApi
@@ -187,6 +199,15 @@ export default function ModalEditarProyecto({ proyecto = null, parentId = null, 
           <button className="btn btn--primary" type="submit" disabled={guardando}>
             {guardando ? "Guardando..." : esEdicion ? "Guardar cambios" : "Crear y cerrar"}
           </button>
+          {esEdicion && (
+            <button
+              className="btn btn--ghost"
+              type="button"
+              onClick={() => setMostrarNuevoSubtema(true)}
+            >
+              Nuevo subtema
+            </button>
+          )}
           {esEdicion && onEliminar && proyecto.parent_id !== null && (
             <button
               className="btn btn--ghost"
@@ -199,6 +220,17 @@ export default function ModalEditarProyecto({ proyecto = null, parentId = null, 
           )}
         </div>
       </form>
+
+      {mostrarNuevoSubtema && (
+        <ModalEditarProyecto
+          parentId={proyecto.id}
+          onGuardado={async () => {
+            setMostrarNuevoSubtema(false);
+            await onGuardado();
+          }}
+          onCerrar={() => setMostrarNuevoSubtema(false)}
+        />
+      )}
     </Modal>
   );
 }

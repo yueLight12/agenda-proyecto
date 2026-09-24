@@ -87,12 +87,14 @@ export default function CalendarioEntregables({
   entregables,
   reuniones = [],
   eventosEmpresa = [],
+  ausencias = [],
   editable = false,
   puedeEditar = () => true,
   onReprogramar,
   onEntregableClick,
   onReunionClick,
   onEventoEmpresaClick,
+  onAusenciaClick,
   onSeleccionarFranja,
   alto = 600,
 }) {
@@ -147,7 +149,33 @@ export default function CalendarioEntregables({
     };
   });
 
-  const eventos = [...eventosEntregables, ...eventosReuniones, ...eventosDeEmpresa];
+  // Ausencias aprobadas (2026-09-23, a petición de Yue) -- un bloque por
+  // CADA DÍA del rango (no un solo evento "de varios días") a propósito:
+  // VistaSemana.jsx/VistaAgendaSemanal.jsx son vistas propias (no
+  // react-big-calendar) que no saben dibujar un evento que abarca varias
+  // columnas -- repetirlo por día garantiza que se vea bien en las 3
+  // vistas (Semana/Agenda/Mes) sin tener que enseñarles ese concepto
+  // nuevo. `id` incluye el offset del día para que cada copia sea única.
+  const ICONO_TIPO_AUSENCIA = { vacaciones: "🏖️", permiso: "📋", incapacidad: "🩺" };
+  const eventosAusencias = ausencias.flatMap((a) => {
+    const inicio = fechaLocalDesdeISO(a.fecha_inicio);
+    const fin = fechaLocalDesdeISO(a.fecha_fin);
+    const dias = [];
+    for (let f = new Date(inicio); f <= fin; f.setDate(f.getDate() + 1)) {
+      dias.push(new Date(f));
+    }
+    const icono = ICONO_TIPO_AUSENCIA[a.tipo] || "🏖️";
+    return dias.map((dia, i) => ({
+      id: `ausencia-${a.id}-${i}`,
+      title: `${icono} ${a.solicitante_nombre} (${a.tipo})`,
+      start: dia,
+      end: dia,
+      allDay: true,
+      resource: { tipo: "ausencia", datos: a },
+    }));
+  });
+
+  const eventos = [...eventosEntregables, ...eventosReuniones, ...eventosDeEmpresa, ...eventosAusencias];
 
   const eventPropGetter = (evento) => ({
     style: {
@@ -203,6 +231,7 @@ export default function CalendarioEntregables({
             onEntregableClick={onEntregableClick}
             onReunionClick={onReunionClick}
             onEventoEmpresaClick={onEventoEmpresaClick}
+            onAusenciaClick={onAusenciaClick}
             onDiaClick={
               onSeleccionarFranja
                 ? (fecha) => onSeleccionarFranja({ fecha: isoDesdeFechaLocal(fecha), hora: null, duracionMinutos: 30 })
@@ -215,6 +244,7 @@ export default function CalendarioEntregables({
             onEntregableClick={onEntregableClick}
             onReunionClick={onReunionClick}
             onEventoEmpresaClick={onEventoEmpresaClick}
+            onAusenciaClick={onAusenciaClick}
             onSeleccionarFranja={onSeleccionarFranja}
             columnasFijas={!esPantallaAngosta}
           />
@@ -240,6 +270,7 @@ export default function CalendarioEntregables({
               if (evento.resource.tipo === "reunion") onReunionClick?.(evento.resource.datos);
               else if (evento.resource.tipo === "entregable") onEntregableClick?.(evento.resource.datos);
               else if (evento.resource.tipo === "evento_empresa") onEventoEmpresaClick?.(evento.resource.datos);
+              else if (evento.resource.tipo === "ausencia") onAusenciaClick?.(evento.resource.datos);
             }}
             components={{ toolbar: ToolbarSoloNav }}
           />

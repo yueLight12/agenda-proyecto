@@ -38,6 +38,7 @@ from app.schemas.usuario import (
     UsuarioOut,
 )
 from app.services import auditoria
+from app.services.equipos import proyectos_administrables_de
 from app.services.preferencias import actualizar_preferencias, obtener_o_crear_preferencias
 from app.services.usuarios import (
     obtener_usuario_o_404,
@@ -108,7 +109,13 @@ def listar_directorio(
         raise HTTPException(status_code=404, detail="Directorio completo no disponible")
     usuarios = db.query(Usuario).filter(Usuario.activo == True).order_by(Usuario.nombre).all()  # noqa: E712
     return [
-        UsuarioDirectorioOut(usuario_id=u.id, nombre=u.nombre, puesto=u.puesto, email=u.email)
+        UsuarioDirectorioOut(
+            usuario_id=u.id,
+            nombre=u.nombre,
+            puesto=u.puesto,
+            email=u.email,
+            proyectos=proyectos_administrables_de(db, usuario, u.id),
+        )
         for u in usuarios
     ]
 

@@ -20,8 +20,11 @@ from app.models.usuario import RolEnum, Usuario
 from app.models.usuario_proyecto_rol import UsuarioProyectoRol
 from app.schemas.entregable import (
     ActualizarAvanceRequest,
+    ClonarEntregableRequest,
+    CopiadosActualizarRequest,
     EntregableActualizar,
     EntregableCrear,
+    EntregableCrearMultiple,
     EntregableOut,
     HistorialAvanceOut,
     MoverEntregableRequest,
@@ -30,10 +33,13 @@ from app.schemas.entregable import (
 )
 from app.services.almacenamiento import ruta_absoluta
 from app.services.entregables import actualizar_avance as actualizar_avance_servicio
+from app.services.entregables import actualizar_copiados as actualizar_copiados_servicio
 from app.services.entregables import actualizar_entregable as actualizar_entregable_servicio
 from app.services.entregables import agregar_comprobante as agregar_comprobante_servicio
 from app.services.entregables import aprobar_entregable as aprobar_entregable_servicio
+from app.services.entregables import clonar_entregable_a as clonar_entregable_a_servicio
 from app.services.entregables import crear_entregable as crear_entregable_servicio
+from app.services.entregables import crear_entregables_multiple as crear_entregables_multiple_servicio
 from app.services.entregables import eliminar_entregable as eliminar_entregable_servicio
 from app.services.entregables import entregable_a_out
 from app.services.entregables import mover_entregable as mover_entregable_servicio
@@ -105,6 +111,84 @@ def crear_entregable(
     db.commit()
     db.refresh(nuevo)
     return entregable_a_out(db, usuario, nuevo)
+
+
+@router.post(
+    "/proyectos/{proyecto_id}/entregables/multiple",
+    response_model=list[EntregableOut],
+    status_code=status.HTTP_201_CREATED,
+)
+def crear_entregables_multiple(
+    proyecto_id: int,
+    datos: EntregableCrearMultiple,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """"Asignar a varios" (2026-09-23, a petición de Yue: "mandar reportes
+    semanales a todo mi equipo sin ir uno por uno") -- crea una tarea
+    independiente por cada responsable en datos.responsables_ids. Mismo
+    criterio de permisos que POST /proyectos/{id}/entregables."""
+    if settings.regla_todos_con_todos and not usuario.aislado:
+        rol = UsuarioProyectoRol(usuario_id=usuario.id, proyecto_id=proyecto_id, rol=RolEnum.N1)
+    else:
+        rol = requerir_participacion_en_proyecto(db, usuario, proyecto_id)
+
+    nuevos = crear_entregables_multiple_servicio(
+        db,
+        proyecto_id,
+        usuario,
+        rol,
+        nombre=datos.nombre,
+        descripcion=datos.descripcion,
+        responsables_ids=datos.responsables_ids,
+        fecha_entrega=datos.fecha_entrega,
+        hora_entrega=datos.hora_entrega,
+        sensible=datos.sensible,
+        urgente_manual=datos.urgente_manual,
+        requiere_comprobante=datos.requiere_comprobante,
+        copiados_ids=datos.copiados_ids,
+    )
+    db.commit()
+    for nuevo in nuevos:
+        db.refresh(nuevo)
+    return [entregable_a_out(db, usuario, nuevo) for nuevo in nuevos]
+
+
+@router.patch("/entregables/{entregable_id}/copiados", response_model=EntregableOut)
+def actualizar_copiados(
+    entregable_id: int,
+    datos: CopiadosActualizarRequest,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Agrega/quita copiados de una tarea ya creada (2026-09-23, a petición
+    de Yue: "después de crear la tarea, poder copiar a alguien más")."""
+    entregable = actualizar_copiados_servicio(db, usuario, entregable_id, datos.copiados_ids)
+    db.commit()
+    db.refresh(entregable)
+    return entregable_a_out(db, usuario, entregable)
+
+
+@router.post(
+    "/entregables/{entregable_id}/clonar-a",
+    response_model=list[EntregableOut],
+    status_code=status.HTTP_201_CREATED,
+)
+def clonar_entregable(
+    entregable_id: int,
+    datos: ClonarEntregableRequest,
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """"Asignar también a..." (2026-09-23, a petición de Yue: "me doy
+    cuenta después de que esa tarea va también para alguien más") -- crea
+    tareas nuevas independientes para cada persona, sin tocar la tarea
+    original."""
+    nuevos = clonar_entregable_a_servicio(db, usuario, entregable_id, datos.responsables_ids)
+    db.commit()
+    for nuevo in nuevos:
+        db.refresh(nuevo)
+    return [entregable_a_out(db, usuario, nuevo) for nuevo in nuevos]
 
 
 @router.get("/entregables/{entregable_id}", response_model=EntregableOut)

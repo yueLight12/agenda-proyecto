@@ -93,3 +93,9 @@ class Entregable(Base):
     historial_responsables = relationship(
         "HistorialResponsable", back_populates="entregable", cascade="all, delete-orphan"
     )
+    # "Copiados" (2026-09-22, a petición de Yue): personas que solo se
+    # enteran de la tarea, sin ser responsables -- ver
+    # app/models/entregable_copiado.py.
+    copiados = relationship(
+        "EntregableCopiado", back_populates="entregable", cascade="all, delete-orphan"
+    )

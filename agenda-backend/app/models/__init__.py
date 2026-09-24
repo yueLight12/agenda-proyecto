@@ -27,3 +27,10 @@ from app.models.termino_sensible import TerminoSensible  # noqa: F401
 from app.models.correo_alterno import CorreoAlterno  # noqa: F401
 from app.models.intento_fallido import IntentoFallido  # noqa: F401
 from app.models.mensaje_directo import MensajeDirecto  # noqa: F401
+from app.models.entregable_copiado import EntregableCopiado  # noqa: F401
+from app.models.solicitud_ausencia import (  # noqa: F401
+    SolicitudAusencia,
+    SolicitudAusenciaCopiado,
+    TipoAusencia,
+    EstatusSolicitudAusencia,
+)

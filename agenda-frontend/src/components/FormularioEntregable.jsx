@@ -3,6 +3,7 @@ import { entregablesApi, proyectosApi } from "../api/endpoints";
 import { fechaUtcComoLocal } from "../utils/fechas";
 import { esFinDeSemana } from "../utils/finDeSemana";
 import { etiquetaRol } from "../utils/rolLabels";
+import BuscadorInvitados from "./BuscadorInvitados";
 import ConfirmDialog from "./ConfirmDialog";
 import HistorialAvance from "./HistorialAvance";
 import Modal from "./Modal";
@@ -110,6 +111,135 @@ function SeccionVistoBueno({
         </div>
       )}
       {error && <p className="error-text">{error}</p>}
+    </div>
+  );
+}
+
+// "Copiar a alguien más" y "Asignar también a otros" sobre una tarea YA
+// CREADA (2026-09-23, a petición de Yue: "después de crear una tarea, que
+// se pueda copiar a alguien o asignar a más de una persona") -- solo se
+// muestra a quien puede editar el entregable (su creador, o super_admin,
+// mismo permiso que entregable.puede_editar). "Copiar a" reemplaza la
+// lista de copiados existente; "Asignar también a" NO toca esta tarea, crea
+// tareas independientes nuevas para cada persona elegida.
+function SeccionCopiadosYAsignarTambien({ entregable, miembros, onCambiado }) {
+  const [copiadosIds, setCopiadosIds] = useState(
+    (entregable.copiados || []).map((c) => c.usuario_id)
+  );
+  const [guardandoCopiados, setGuardandoCopiados] = useState(false);
+  const [errorCopiados, setErrorCopiados] = useState("");
+
+  const [asignandoTambien, setAsignandoTambien] = useState(false);
+  const [tambienIds, setTambienIds] = useState([]);
+  const [guardandoTambien, setGuardandoTambien] = useState(false);
+  const [errorTambien, setErrorTambien] = useState("");
+
+  const candidatosCopiados = miembros.filter(
+    (m) => m.usuario_id !== entregable.responsable_id
+  );
+  const candidatosAsignarTambien = miembros.filter(
+    (m) => m.usuario_id !== entregable.responsable_id && !tambienIds.includes(m.usuario_id)
+  );
+
+  const handleGuardarCopiados = async () => {
+    setErrorCopiados("");
+    setGuardandoCopiados(true);
+    try {
+      await entregablesApi.actualizarCopiados(entregable.id, copiadosIds);
+      onCambiado();
+    } catch (err) {
+      setErrorCopiados(err.response?.data?.detail || "No se pudieron guardar los copiados.");
+    } finally {
+      setGuardandoCopiados(false);
+    }
+  };
+
+  const handleAsignarTambien = async () => {
+    if (tambienIds.length === 0) return;
+    setErrorTambien("");
+    setGuardandoTambien(true);
+    try {
+      await entregablesApi.clonarA(entregable.id, tambienIds);
+      setTambienIds([]);
+      setAsignandoTambien(false);
+      onCambiado();
+    } catch (err) {
+      setErrorTambien(err.response?.data?.detail || "No se pudo asignar también a otros.");
+    } finally {
+      setGuardandoTambien(false);
+    }
+  };
+
+  return (
+    <div className="stack" style={{ gap: 12 }}>
+      <div className="stack" style={{ gap: 4 }}>
+        <span style={{ fontSize: "0.85rem" }}>Copiar a (opcional)</span>
+        <p style={{ color: "var(--color-text-muted)", fontSize: "0.78rem", margin: 0 }}>
+          Solo se enteran de que existe la tarea -- no son responsables de nada.
+        </p>
+        <BuscadorInvitados
+          candidatos={candidatosCopiados}
+          seleccionadosIds={copiadosIds}
+          onCambiar={setCopiadosIds}
+        />
+        <div>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={handleGuardarCopiados}
+            disabled={guardandoCopiados}
+          >
+            {guardandoCopiados ? "Guardando..." : "Guardar copiados"}
+          </button>
+        </div>
+        {errorCopiados && <p className="error-text">{errorCopiados}</p>}
+      </div>
+
+      <div className="stack" style={{ gap: 4 }}>
+        {!asignandoTambien ? (
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={() => setAsignandoTambien(true)}
+          >
+            Asignar también a otras personas...
+          </button>
+        ) : (
+          <>
+            <span style={{ fontSize: "0.85rem" }}>Asignar también a</span>
+            <p style={{ color: "var(--color-text-muted)", fontSize: "0.78rem", margin: 0 }}>
+              Crea una tarea independiente para cada persona -- esta tarea no cambia.
+            </p>
+            <BuscadorInvitados
+              candidatos={candidatosAsignarTambien}
+              seleccionadosIds={tambienIds}
+              onCambiar={setTambienIds}
+            />
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                type="button"
+                className="btn btn--primary"
+                onClick={handleAsignarTambien}
+                disabled={guardandoTambien || tambienIds.length === 0}
+              >
+                {guardandoTambien ? "Asignando..." : "Confirmar"}
+              </button>
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => {
+                  setAsignandoTambien(false);
+                  setTambienIds([]);
+                }}
+                disabled={guardandoTambien}
+              >
+                Cancelar
+              </button>
+            </div>
+            {errorTambien && <p className="error-text">{errorTambien}</p>}
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -405,6 +535,11 @@ export default function FormularioEntregable({
                 <strong>Asignado por:</strong> {creador.nombre}
               </p>
             )}
+            {entregable.copiados?.length > 0 && (
+              <p style={{ margin: 0, fontSize: "0.85rem" }}>
+                <strong>Copiados:</strong> {entregable.copiados.map((c) => c.nombre).join(", ")}
+              </p>
+            )}
             <p style={{ margin: 0, fontSize: "0.85rem" }}>
               <strong>Fecha límite:</strong>{" "}
               {new Date(`${entregable.fecha_entrega}T00:00:00`).toLocaleDateString("es-MX", {
@@ -575,6 +710,11 @@ export default function FormularioEntregable({
                 <strong>Asignado por:</strong> {creador.nombre}
               </p>
             )}
+            {entregable.copiados?.length > 0 && (
+              <p style={{ margin: 0, fontSize: "0.85rem" }}>
+                <strong>Copiados:</strong> {entregable.copiados.map((c) => c.nombre).join(", ")}
+              </p>
+            )}
             <p style={{ margin: 0, fontSize: "0.85rem" }}>
               <strong>Fecha límite:</strong>{" "}
               {new Date(`${entregable.fecha_entrega}T00:00:00`).toLocaleDateString("es-MX", {
@@ -676,6 +816,11 @@ export default function FormularioEntregable({
               Asignado por: {creador.nombre}
             </p>
           )}
+          {entregable.copiados?.length > 0 && (
+            <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem", margin: 0 }}>
+              Copiados: {entregable.copiados.map((c) => c.nombre).join(", ")}
+            </p>
+          )}
 
           <p style={{ margin: 0, color: "var(--color-success)", fontWeight: 600 }}>
             ✓ Esta tarea ya fue concluida -- solo se puede consultar.
@@ -769,6 +914,20 @@ export default function FormularioEntregable({
       {esEdicion && creador && (
         <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem", marginTop: 0 }}>
           Asignado por: {creador.nombre}
+        </p>
+      )}
+      {esEdicion && entregable.puede_editar && (
+        <div style={{ marginBottom: 12 }}>
+          <SeccionCopiadosYAsignarTambien
+            entregable={entregable}
+            miembros={opcionesResponsable}
+            onCambiado={onGuardado}
+          />
+        </div>
+      )}
+      {esEdicion && !entregable.puede_editar && entregable.copiados?.length > 0 && (
+        <p style={{ color: "var(--color-text-muted)", fontSize: "0.85rem", marginTop: 0 }}>
+          Copiados: {entregable.copiados.map((c) => c.nombre).join(", ")}
         </p>
       )}
 
@@ -940,12 +1099,28 @@ export default function FormularioEntregable({
 
         <label className="stack" style={{ gap: 4 }}>
           <span style={{ fontSize: "0.85rem" }}>Hora (opcional)</span>
-          <input
-            className="input"
-            type="time"
-            value={horaEntrega}
-            onChange={(e) => setHoraEntrega(e.target.value)}
-          />
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input
+              className="input"
+              type="time"
+              value={horaEntrega}
+              onChange={(e) => setHoraEntrega(e.target.value)}
+              style={{ flex: 1 }}
+            />
+            {/* El "x" nativo del navegador para limpiar un <input type="time">
+                solo aparece al pasar el mouse justo encima -- fácil de no ver
+                (2026-09-23, duda real de Yue, mismo botón que
+                ModalAsignarTareaRapida.jsx). */}
+            {horaEntrega && (
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => setHoraEntrega("")}
+              >
+                Quitar hora
+              </button>
+            )}
+          </div>
         </label>
 
         <label style={{ display: "flex", alignItems: "center", gap: 8 }}>

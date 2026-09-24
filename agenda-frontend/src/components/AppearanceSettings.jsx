@@ -21,6 +21,7 @@ const TARJETAS_INFO = {
   persona: "Persona",
   agenda: "Agenda (calendario)",
   rendimiento: "Rendimiento",
+  ausencia: "Solicitar ausencia",
 };
 
 export default function AppearanceSettings({ onCerrar }) {

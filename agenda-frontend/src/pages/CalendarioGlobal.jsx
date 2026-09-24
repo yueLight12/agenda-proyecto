@@ -1,14 +1,18 @@
 import { useEffect, useState } from "react";
 import CalendarioEntregables from "../components/CalendarioEntregables";
 import FormularioEntregable from "../components/FormularioEntregable";
+import Modal from "../components/Modal";
 import ModalEventoEmpresa from "../components/ModalEventoEmpresa";
 import ModalReunion from "../components/ModalReunion";
+
+const ETIQUETA_TIPO_AUSENCIA = { vacaciones: "Vacaciones", permiso: "Permiso", incapacidad: "Incapacidad" };
 import {
   entregablesApi,
   eventosEmpresaApi,
   miEquipoApi,
   proyectosApi,
   reunionesApi,
+  solicitudesAusenciaApi,
   usuariosApi,
 } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
@@ -40,6 +44,13 @@ export default function CalendarioGlobal({ altoCalendario } = {}) {
   const [modalEntregable, setModalEntregable] = useState(null);
   const [modalReunion, setModalReunion] = useState(null);
   const [modalEventoEmpresa, setModalEventoEmpresa] = useState(null);
+  // Ausencias aprobadas (2026-09-23, a petición de Yue) -- ya vienen
+  // filtradas por el backend a exactamente lo que este usuario debe ver
+  // (solicitante, aprobador, o copiado -- ver listar_visibles en
+  // app/services/solicitudes_ausencia.py); aquí solo se filtra "aprobada"
+  // (las pendientes/rechazadas no van al calendario).
+  const [ausencias, setAusencias] = useState([]);
+  const [modalAusencia, setModalAusencia] = useState(null);
   const [modo, setModo] = useState("general"); // "personal" | "general" | "empresa"
   const [eventosEmpresa, setEventosEmpresa] = useState([]);
   // Franja de hora elegida al arrastrar en la vista semana/día (2026-08-22,
@@ -71,6 +82,13 @@ export default function CalendarioGlobal({ altoCalendario } = {}) {
           proyectosApi.arbolVisible(),
           eventosEmpresaApi.listar(),
         ]);
+      // Ausencias aprobadas (aparte del Promise.all de arriba: endpoint
+      // nuevo, sin fallback necesario -- si algún día se retira la regla
+      // completa esto simplemente devuelve lista vacía, no rompe nada).
+      solicitudesAusenciaApi
+        .listar()
+        .then((solicitudes) => setAusencias(solicitudes.filter((s) => s.estatus === "aprobada")))
+        .catch(() => {});
       const todosEntregables = listasEntregables.flat();
       const todosReuniones = [...listasReuniones.flat(), ...reunionesGenerales];
 
@@ -233,12 +251,14 @@ export default function CalendarioGlobal({ altoCalendario } = {}) {
           entregables={entregablesMostrados}
           reuniones={reunionesMostradas}
           eventosEmpresa={eventosEmpresaMostrados}
+          ausencias={modo === "empresa" ? [] : ausencias}
           editable
           puedeEditar={puedeEditar}
           onReprogramar={reprogramarEntregable}
           onEntregableClick={abrirModalEntregable}
           onReunionClick={abrirModalReunion}
           onEventoEmpresaClick={(ev) => setModalEventoEmpresa(ev)}
+          onAusenciaClick={(a) => setModalAusencia(a)}
           onSeleccionarFranja={(franja) => {
             setFranjaSugerida(franja);
             setModalReunion("nueva-general");
@@ -269,6 +289,23 @@ export default function CalendarioGlobal({ altoCalendario } = {}) {
 
       {modalEventoEmpresa && (
         <ModalEventoEmpresa evento={modalEventoEmpresa} onCerrar={() => setModalEventoEmpresa(null)} />
+      )}
+
+      {modalAusencia && (
+        <Modal titulo="Ausencia aprobada" onCerrar={() => setModalAusencia(null)}>
+          <div className="stack">
+            <p style={{ margin: 0 }}>
+              <strong>{modalAusencia.solicitante_nombre}</strong> —{" "}
+              {ETIQUETA_TIPO_AUSENCIA[modalAusencia.tipo] || modalAusencia.tipo}
+            </p>
+            <p style={{ margin: 0, color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
+              Del {modalAusencia.fecha_inicio} al {modalAusencia.fecha_fin}
+            </p>
+            <p style={{ margin: 0, color: "var(--color-text-muted)", fontSize: "0.85rem" }}>
+              Aprobó: {modalAusencia.aprobador_nombre || "—"}
+            </p>
+          </div>
+        </Modal>
       )}
 
       {/* onGuardado va SIEMPRE con silencioso:true (2026-09-21, bug real:

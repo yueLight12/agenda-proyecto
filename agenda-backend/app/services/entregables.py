@@ -407,6 +407,115 @@ def crear_entregable(
     return nuevo
 
 
+def crear_entregables_multiple(
+    db: Session,
+    proyecto_id: int,
+    usuario: Usuario,
+    rol: UsuarioProyectoRol,
+    nombre: str,
+    descripcion: str | None,
+    responsables_ids: list[int],
+    fecha_entrega,
+    sensible: bool,
+    urgente_manual: bool = False,
+    requiere_comprobante: bool = False,
+    hora_entrega=None,
+    copiados_ids: list[int] | None = None,
+) -> list[Entregable]:
+    """"Asignar a varios" (2026-09-23, a petición de Yue) -- crea una tarea
+    INDEPENDIENTE por cada responsable (no una tarea compartida), llamando
+    a crear_entregable() una vez por persona. Así cada quien tiene su
+    propio avance/aprobación/notificación, igual que si se hubiera creado
+    una por una."""
+    return [
+        crear_entregable(
+            db, proyecto_id, usuario, rol, nombre, descripcion, responsable_id,
+            fecha_entrega, sensible, urgente_manual, requiere_comprobante,
+            hora_entrega, copiados_ids,
+        )
+        for responsable_id in dict.fromkeys(responsables_ids)
+    ]
+
+
+def actualizar_copiados(
+    db: Session, usuario: Usuario, entregable_id: int, copiados_ids: list[int] | None
+) -> Entregable:
+    """Reemplaza la lista completa de copiados de una tarea YA CREADA
+    (2026-09-23, a petición de Yue: "después de crear la tarea, poder
+    copiar a alguien más") -- solo notifica a los copiados NUEVOS, no
+    reenvía aviso a quien ya estaba. Mismo permiso que editar el
+    entregable (quien lo creó, o super_admin)."""
+    entregable = obtener_entregable_o_404(db, entregable_id)
+    if not puede_editar_entregable(db, usuario, entregable):
+        raise HTTPException(
+            status_code=403, detail="Solo quien creó este entregable puede editar sus copiados"
+        )
+
+    actuales_ids = {c.usuario_id for c in entregable.copiados}
+    nuevos_ids = {
+        c for c in dict.fromkeys(copiados_ids or [])
+        if c not in (entregable.responsable_id, usuario.id)
+    }
+
+    for copiado in list(entregable.copiados):
+        if copiado.usuario_id not in nuevos_ids:
+            db.delete(copiado)
+
+    agregados = nuevos_ids - actuales_ids
+    if agregados:
+        nombre_responsable = (
+            db.query(Usuario.nombre).filter(Usuario.id == entregable.responsable_id).scalar()
+            or "alguien"
+        )
+        for copiado_id in agregados:
+            db.add(EntregableCopiado(entregable_id=entregable.id, usuario_id=copiado_id))
+            crear_notificacion(
+                db,
+                copiado_id,
+                TipoNotificacion.otro,
+                f'{usuario.nombre} te copió en la tarea "{entregable.nombre}" (de {nombre_responsable}).',
+                entregable_id=entregable.id,
+                push=False,
+            )
+
+    return entregable
+
+
+def clonar_entregable_a(
+    db: Session, usuario: Usuario, entregable_id: int, responsables_ids: list[int]
+) -> list[Entregable]:
+    """"Asignar también a..." desde una tarea ya existente (2026-09-23, a
+    petición de Yue: "me doy cuenta después de que esa tarea va también
+    para alguien más") -- crea tareas independientes nuevas (mismo
+    nombre/descripción/fecha/tema/sensible/urgente/comprobante) para cada
+    persona en responsables_ids, SIN tocar la tarea original ni a su
+    responsable actual. No es una reasignación (ver reasignar_entregable) --
+    la tarea de origen se queda exactamente como estaba."""
+    original = obtener_entregable_o_404(db, entregable_id)
+    if not puede_editar_entregable(db, usuario, original):
+        raise HTTPException(
+            status_code=403,
+            detail="Solo quien creó este entregable puede asignarlo también a alguien más",
+        )
+
+    if settings.regla_todos_con_todos and not usuario.aislado:
+        rol = UsuarioProyectoRol(usuario_id=usuario.id, proyecto_id=original.proyecto_id, rol=RolEnum.N1)
+    else:
+        rol = requerir_participacion_en_proyecto(db, usuario, original.proyecto_id)
+
+    return [
+        crear_entregable(
+            db, original.proyecto_id, usuario, rol,
+            nombre=original.nombre, descripcion=original.descripcion,
+            responsable_id=responsable_id, fecha_entrega=original.fecha_entrega,
+            sensible=original.sensible, urgente_manual=original.urgente_manual,
+            requiere_comprobante=original.requiere_comprobante, hora_entrega=original.hora_entrega,
+        )
+        for responsable_id in dict.fromkeys(responsables_ids)
+        if responsable_id != original.responsable_id
+    ]
+
+
 def obtener_entregable_o_404(db: Session, entregable_id: int) -> Entregable:
     entregable = db.query(Entregable).filter(Entregable.id == entregable_id).first()
     if not entregable:

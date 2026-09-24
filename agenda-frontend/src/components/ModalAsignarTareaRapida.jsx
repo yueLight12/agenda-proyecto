@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { entregablesApi, proyectosApi } from "../api/endpoints";
 import { esFinDeSemana } from "../utils/finDeSemana";
+import BuscadorInvitados from "./BuscadorInvitados";
 import Modal from "./Modal";
 import ModalFinDeSemana from "./ModalFinDeSemana";
 import SelectorProyecto from "./SelectorProyecto";
@@ -31,12 +32,27 @@ import SelectorProyecto from "./SelectorProyecto";
 // mostrar de nuevo el select de persona.
 export default function ModalAsignarTareaRapida({ equipo, personaInicialId, onCerrar, onCreado }) {
   const [personaId, setPersonaId] = useState(personaInicialId || "");
+  // "Asignar a varios" (2026-09-23, a petición de Yue: "mandar reportes
+  // semanales a todo mi equipo sin ir uno por uno") -- crea una tarea
+  // INDEPENDIENTE por cada persona elegida, no una tarea compartida. Solo
+  // disponible cuando no viene una persona ya fija desde afuera
+  // (personaInicialId), y sin selector de proyecto (cada persona puede
+  // participar en proyectos distintos) -- cae en "Tareas sueltas" de cada
+  // quien, igual que el caso de una sola persona sin tema elegido.
+  const [modoMultiple, setModoMultiple] = useState(false);
+  const [personasIds, setPersonasIds] = useState([]);
   const [proyectoId, setProyectoId] = useState("");
   const [nombre, setNombre] = useState("");
   const [fechaEntrega, setFechaEntrega] = useState("");
   const [horaEntrega, setHoraEntrega] = useState("");
   const [urgenteManual, setUrgenteManual] = useState(false);
   const [requiereComprobante, setRequiereComprobante] = useState(false);
+  // "Copiar a" (2026-09-22, a petición de Yue: "Bernardo asigna una tarea
+  // a Diana, pero quiere que Juan también se entere -- no es de/para
+  // Juan, solo se entera") -- varias personas, solo reciben una
+  // notificación in-app, no son responsables de nada. Mismo buscador tipo
+  // Teams que ya se usa para invitar a una reunión.
+  const [copiadosIds, setCopiadosIds] = useState([]);
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
 
@@ -60,21 +76,46 @@ export default function ModalAsignarTareaRapida({ equipo, personaInicialId, onCe
     setError("");
     setGuardando(true);
     try {
-      let idProyectoFinal = proyectoId ? Number(proyectoId) : null;
-      if (!idProyectoFinal) {
-        const temaSueltas = await proyectosApi.tareasSueltas(Number(personaId));
-        idProyectoFinal = temaSueltas.id;
+      if (modoMultiple) {
+        // Cada persona puede no compartir proyecto -- siempre cae en su
+        // propio tema "Tareas sueltas", igual que el caso de una sola
+        // persona sin tema elegido. Se usa el tema de la PRIMERA persona
+        // solo para poder llamar al endpoint (que cuelga de un proyecto),
+        // pero como no hay tema elegido en modo múltiple, el backend
+        // simplemente crea cada tarea en el proyecto indicado -- así que
+        // resolvemos "tareas sueltas" por cada quien antes de mandar.
+        for (const idPersona of personasIds) {
+          const temaSueltas = await proyectosApi.tareasSueltas(Number(idPersona));
+          await entregablesApi.crear(temaSueltas.id, {
+            nombre,
+            descripcion: null,
+            responsable_id: Number(idPersona),
+            fecha_entrega: fechaFinal,
+            hora_entrega: horaEntrega || null,
+            sensible: false,
+            urgente_manual: urgenteManual,
+            requiere_comprobante: requiereComprobante,
+            copiados_ids: copiadosIds.map(Number),
+          });
+        }
+      } else {
+        let idProyectoFinal = proyectoId ? Number(proyectoId) : null;
+        if (!idProyectoFinal) {
+          const temaSueltas = await proyectosApi.tareasSueltas(Number(personaId));
+          idProyectoFinal = temaSueltas.id;
+        }
+        await entregablesApi.crear(idProyectoFinal, {
+          nombre,
+          descripcion: null,
+          responsable_id: Number(personaId),
+          fecha_entrega: fechaFinal,
+          hora_entrega: horaEntrega || null,
+          sensible: false,
+          urgente_manual: urgenteManual,
+          requiere_comprobante: requiereComprobante,
+          copiados_ids: copiadosIds.map(Number),
+        });
       }
-      await entregablesApi.crear(idProyectoFinal, {
-        nombre,
-        descripcion: null,
-        responsable_id: Number(personaId),
-        fecha_entrega: fechaFinal,
-        hora_entrega: horaEntrega || null,
-        sensible: false,
-        urgente_manual: urgenteManual,
-        requiere_comprobante: requiereComprobante,
-      });
       onCreado();
     } catch (err) {
       setError(err.response?.data?.detail || "No se pudo asignar la tarea.");
@@ -106,27 +147,57 @@ export default function ModalAsignarTareaRapida({ equipo, personaInicialId, onCe
             Para: <strong>{persona?.nombre}</strong>
           </p>
         ) : (
-          <label className="stack" style={{ gap: 4 }}>
-            <span style={{ fontSize: "0.85rem" }}>Persona</span>
-            <select
-              className="input"
-              value={personaId}
-              onChange={(e) => handleCambiarPersona(e.target.value)}
-              required
-            >
-              <option value="" disabled>
-                Selecciona una persona de tu equipo
-              </option>
-              {equipo.map((m) => (
-                <option key={m.usuario_id} value={m.usuario_id}>
-                  {m.nombre}
-                </option>
-              ))}
-            </select>
-          </label>
+          <>
+            <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <input
+                type="checkbox"
+                checked={modoMultiple}
+                onChange={(e) => {
+                  setModoMultiple(e.target.checked);
+                  setPersonaId("");
+                  setPersonasIds([]);
+                  setProyectoId("");
+                }}
+              />
+              <span style={{ fontSize: "0.85rem" }}>Asignar a varias personas</span>
+            </label>
+
+            {modoMultiple ? (
+              <div className="stack" style={{ gap: 4 }}>
+                <span style={{ fontSize: "0.85rem" }}>Personas</span>
+                <p style={{ color: "var(--color-text-muted)", fontSize: "0.78rem", margin: 0 }}>
+                  Cada una recibe su propia tarea individual, no una tarea compartida.
+                </p>
+                <BuscadorInvitados
+                  candidatos={equipo}
+                  seleccionadosIds={personasIds}
+                  onCambiar={setPersonasIds}
+                />
+              </div>
+            ) : (
+              <label className="stack" style={{ gap: 4 }}>
+                <span style={{ fontSize: "0.85rem" }}>Persona</span>
+                <select
+                  className="input"
+                  value={personaId}
+                  onChange={(e) => handleCambiarPersona(e.target.value)}
+                  required
+                >
+                  <option value="" disabled>
+                    Selecciona una persona de tu equipo
+                  </option>
+                  {equipo.map((m) => (
+                    <option key={m.usuario_id} value={m.usuario_id}>
+                      {m.nombre}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </>
         )}
 
-        {personaId && (
+        {!modoMultiple && personaId && (
           <label className="stack" style={{ gap: 4 }}>
             <span style={{ fontSize: "0.85rem" }}>Proyecto (opcional)</span>
             <SelectorProyecto
@@ -165,12 +236,28 @@ export default function ModalAsignarTareaRapida({ equipo, personaInicialId, onCe
 
         <label className="stack" style={{ gap: 4 }}>
           <span style={{ fontSize: "0.85rem" }}>Hora (opcional)</span>
-          <input
-            className="input"
-            type="time"
-            value={horaEntrega}
-            onChange={(e) => setHoraEntrega(e.target.value)}
-          />
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input
+              className="input"
+              type="time"
+              value={horaEntrega}
+              onChange={(e) => setHoraEntrega(e.target.value)}
+              style={{ flex: 1 }}
+            />
+            {/* El "x" nativo del navegador para limpiar un <input type="time">
+                solo aparece al pasar el mouse justo encima -- fácil de no ver
+                (2026-09-23, duda real de Yue). Este botón hace lo mismo de
+                forma explícita. */}
+            {horaEntrega && (
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => setHoraEntrega("")}
+              >
+                Quitar hora
+              </button>
+            )}
+          </div>
         </label>
 
         <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -198,15 +285,37 @@ export default function ModalAsignarTareaRapida({ equipo, personaInicialId, onCe
           </label>
         )}
 
+        {(modoMultiple ? personasIds.length > 0 : personaId) && (
+          <div className="stack" style={{ gap: 4 }}>
+            <span style={{ fontSize: "0.85rem" }}>Copiar a (opcional)</span>
+            <p style={{ color: "var(--color-text-muted)", fontSize: "0.78rem", margin: 0 }}>
+              Solo se enteran de que existe la tarea -- no son responsables de nada.
+            </p>
+            <BuscadorInvitados
+              candidatos={equipo.filter((m) =>
+                modoMultiple
+                  ? !personasIds.includes(m.usuario_id)
+                  : String(m.usuario_id) !== personaId
+              )}
+              seleccionadosIds={copiadosIds}
+              onCambiar={setCopiadosIds}
+            />
+          </div>
+        )}
+
         {error && <p className="error-text">{error}</p>}
 
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
           <button
             className="btn btn--primary"
             type="submit"
-            disabled={guardando || !personaId}
+            disabled={guardando || (modoMultiple ? personasIds.length === 0 : !personaId)}
           >
-            {guardando ? "Asignando..." : "Asignar y notificar"}
+            {guardando
+              ? "Asignando..."
+              : modoMultiple
+              ? `Asignar a ${personasIds.length || ""} persona(s) y notificar`
+              : "Asignar y notificar"}
           </button>
         </div>
       </form>
