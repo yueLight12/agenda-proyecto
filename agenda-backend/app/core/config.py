@@ -129,6 +129,14 @@ class Settings(BaseSettings):
     # fallar, mismo patrón que SMTP_USUARIO/VAPID_*.
     ultramsg_instance_id: str = ""
     ultramsg_token: str = ""
+    # Apagado manual (2026-09-24, a petición de Yue: "deshabilita WhatsApp
+    # por ahora, quiero hacer otras pruebas antes de habilitarlo") --
+    # distinto de dejar las credenciales vacías (que además pierde el envío
+    # real cuando se quiera reactivar): con esto en false, enviar_whatsapp
+    # cae al mismo camino SIMULADO de siempre (log, sin llamar a Ultramsg),
+    # pero las credenciales se quedan intactas en .env, listas para
+    # reactivar con solo cambiar esta variable de vuelta a true.
+    whatsapp_habilitado: bool = True
     # Ultramsg NO tiene firma de petición como Twilio (X-Twilio-Signature) --
     # sin esto, cualquiera que adivine la URL del webhook podría mandar
     # "LISTO #id" falsos. Como defensa mínima, el segmento del path debe

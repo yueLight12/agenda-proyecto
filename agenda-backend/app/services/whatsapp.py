@@ -57,6 +57,10 @@ def enviar_whatsapp(db: Session, usuario_id: int, mensaje: str) -> None:
     notificación no debe romper la operación real (crear/reasignar un
     entregable, recordatorio) que lo disparó.
     """
+    if not settings.whatsapp_habilitado:
+        logger.info("WhatsApp deshabilitado (whatsapp_habilitado=false) -- SIMULADO a usuario %s: %s", usuario_id, mensaje)
+        return
+
     usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     if not usuario or not usuario.telefono_whatsapp:
         return
