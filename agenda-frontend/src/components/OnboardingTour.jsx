@@ -100,6 +100,18 @@ function pasosPara(usuario) {
     });
   }
 
+  // Solo aparece para quien tiene el asistente de voz habilitado (2026-09-24)
+  // -- el botón flotante (#tour-asistente-voz, ver FabAsistenteVoz.jsx) ni
+  // siquiera se monta para el resto, así que Joyride se salta este paso
+  // solo, sin romper nada (mismo comportamiento ya documentado arriba para
+  // cualquier target que no exista).
+  pasos.push({
+    target: "#tour-asistente-voz",
+    title: "Chambeador, tu asistente de voz",
+    content:
+      "Este botón activa a Chambeador -- dile lo que necesitas (\"asígnale una tarea a Juan para mañana\", \"agenda una reunión con David\", \"¿cómo va el avance del proyecto Cubo?\") y él va preguntando lo que le falte, sin que tengas que tocar la pantalla.",
+  });
+
   pasos.push({
     target: "#tour-perfil",
     title: "Tu perfil",

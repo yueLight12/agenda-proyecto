@@ -148,6 +148,10 @@ export default function FabAsistenteVoz({ proyectoIdContexto, variante = "global
         </button>
       )}
       <button
+        // id solo en la variante global (2026-09-24, para el tutorial
+        // OnboardingTour.jsx) -- la de "dentro-modal" se repite por cada
+        // modal abierto, un id duplicado en el DOM rompería el selector.
+        id={variante === "global" ? "tour-asistente-voz" : undefined}
         className={
           variante === "dentro-modal"
             ? "btn btn--primary fab-asistente-voz fab-asistente-voz--en-modal"

@@ -1151,7 +1151,11 @@ export default function FormularioEntregable({
             esto activado) -- no se borra, solo se deja de mostrar.
             requiereComprobante se queda en su valor por default (false) y
             así se manda al backend. Para reactivarlo, quitar el
-            `false &&` de los dos bloques de abajo. */}
+            `false &&` de los dos bloques de abajo y el aviso de "próximamente"
+            (2026-09-24, mismo motivo). */}
+        <p style={{ color: "var(--color-text-muted)", fontSize: "0.78rem", margin: 0 }}>
+          Próximamente podrán adjuntar imágenes.
+        </p>
         {false && (
           <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <input

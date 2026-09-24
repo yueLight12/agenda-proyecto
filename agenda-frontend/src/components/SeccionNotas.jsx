@@ -271,7 +271,11 @@ export default function SeccionNotas({
         />
         {/* Deshabilitado (2026-09-18, a petición de Yue) -- mismo criterio de
             "ocultar, no eliminar" ya usado en FormularioEntregable.jsx con el
-            comprobante de imagen. */}
+            comprobante de imagen. Aviso de "próximamente" agregado 2026-09-24,
+            mismo motivo. */}
+        <p style={{ color: "var(--color-text-muted)", fontSize: "0.78rem", margin: 0 }}>
+          Próximamente podrán adjuntar imágenes.
+        </p>
         {false && (
           <label style={{ fontSize: "0.78rem", color: "var(--color-text-muted)" }}>
             Adjuntar captura de pantalla (opcional)
