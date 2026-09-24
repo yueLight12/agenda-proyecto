@@ -114,7 +114,11 @@ def _resolver_y_responder(
         return InterpretarResponse(
             tipo="aclaracion",
             tool=tool_nombre,
-            parametros_llm=parametros_llm,
+            parametros_llm=(
+                resultado.parametros_llm_actualizado
+                if resultado.parametros_llm_actualizado is not None
+                else parametros_llm
+            ),
             campo=resultado.campo,
             pregunta=resultado.pregunta,
             tipo_entrada=resultado.tipo_entrada,

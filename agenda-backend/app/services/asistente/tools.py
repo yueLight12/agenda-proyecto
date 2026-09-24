@@ -43,8 +43,13 @@ from app.models.usuario import RolEnum, Usuario
 from app.schemas.nota import NotaCrear
 from app.schemas.pendiente_personal import PendientePersonalActualizar, PendientePersonalCrear
 from app.services.asistente.resolucion import (
+    FRASES_MI_EQUIPO,
+    FRASES_NADIE_MAS,
+    FRASES_TODOS,
     OpcionResolucion,
     ResolucionResultado,
+    dividir_texto_en_nombres,
+    normalizar_texto,
     resolver_acuerdo,
     resolver_asistio,
     resolver_campo,
@@ -59,7 +64,6 @@ from app.services.asistente.resolucion import (
     resolver_pendiente_personal,
     resolver_persona_en_equipo,
     resolver_persona_organizacion,
-    resolver_participantes_reunion_opcional,
     resolver_personas_organizacion,
     resolver_proyecto,
     resolver_recurrencia_semanal,
@@ -86,6 +90,7 @@ from app.services.equipos import (
     agregar_a_mi_equipo,
     aplicar_mi_equipo,
     crear_persona_y_agregar_a_mi_equipo,
+    listar_mi_equipo_efectivo,
     quitar_de_mi_equipo,
     rol_default_para_nuevo_proyecto,
 )
@@ -142,6 +147,15 @@ class ResultadoInterpretacion:
     pregunta: Optional[str] = None
     tipo_entrada: Optional[str] = None
     opciones: list[OpcionResolucion] = field(default_factory=list)
+    # Reemplaza `parametros_llm` en la respuesta de aclaración en vez del
+    # original (2026-09-24, ver _resolver_participantes_reunion) -- permite
+    # que un resolver guarde avance parcial de un campo que necesita VARIAS
+    # rondas (ej. varios nombres, uno de ellos ambiguo) metiéndolo en claves
+    # internas de parametros_llm ("_" al inicio); el frontend nunca las
+    # interpreta, solo las reenvía tal cual junto con el resto (ver
+    # ModalAsistenteVoz.jsx, `parametros_llm` viaja completo de ida y
+    # vuelta). None = usar el parametros_llm original, sin cambios.
+    parametros_llm_actualizado: Optional[dict] = None
 
 
 def _pendiente(campo: str, resolucion) -> ResultadoInterpretacion:
@@ -152,6 +166,90 @@ def _pendiente(campo: str, resolucion) -> ResultadoInterpretacion:
         tipo_entrada=resolucion.tipo_entrada,
         opciones=resolucion.opciones,
     )
+
+
+def _resolver_participantes_reunion(
+    db: Session, usuario: Usuario, parametros_llm: dict, aclaraciones: dict
+) -> tuple[Optional[list], Optional[ResultadoInterpretacion]]:
+    """Resuelve los participantes de una reunión NUEVA nombre por nombre
+    (2026-09-24, a petición de Yue: "si Chambeador no reconoce bien un
+    nombre, que busque los más parecidos y pregunte a cuál te refieres, en
+    vez de pedir que repitas todo") -- si uno de varios nombres no se
+    identifica bien, pregunta SOLO por ese, con sugerencias reales
+    (parecidos por escritura, o las varias personas que comparten ese
+    nombre), sin perder a quienes ya quedaron identificados.
+
+    El avance parcial (ids ya confirmados, nombres que faltan por intentar)
+    viaja metido en parametros_llm bajo claves internas ("_" al inicio) --
+    `aclaraciones` normal solo guarda una respuesta por campo, no una lista
+    de trabajo en progreso; parametros_llm en cambio siempre viaja completo
+    de ida y vuelta sin que el frontend lo interprete (ver
+    ResultadoInterpretacion.parametros_llm_actualizado).
+
+    Devuelve (ids, None) si ya quedó resuelto, o (None, pendiente) con la
+    siguiente pregunta armada."""
+    ids_confirmados = list(parametros_llm.get("_participantes_confirmados") or [])
+    restantes = list(parametros_llm.get("_participantes_restantes") or [])
+
+    respuesta_pendiente = aclaraciones.get("participantes_persona_pendiente")
+    if respuesta_pendiente is not None:
+        if isinstance(respuesta_pendiente, str):
+            resultado = resolver_persona_organizacion(db, respuesta_pendiente, usuario)
+        else:
+            resultado = ResolucionResultado(resuelto=True, valor=respuesta_pendiente)
+        if not resultado.resuelto:
+            nuevo_llm = {
+                **parametros_llm,
+                "_participantes_confirmados": ids_confirmados,
+                "_participantes_restantes": restantes,
+            }
+            return None, ResultadoInterpretacion(
+                listo=False, campo="participantes_persona_pendiente",
+                pregunta=resultado.pregunta, tipo_entrada=resultado.tipo_entrada,
+                opciones=resultado.opciones, parametros_llm_actualizado=nuevo_llm,
+            )
+        if resultado.valor not in ids_confirmados:
+            ids_confirmados.append(resultado.valor)
+    elif not restantes and not ids_confirmados:
+        texto = parametros_llm.get("participantes")
+        if texto is None or texto == "":
+            return None, ResultadoInterpretacion(
+                listo=False, campo="participantes_ids",
+                pregunta='¿Quién más va a estar en la reunión? Puedes decir nombres, "mi equipo", '
+                '"todos", o "nadie más".',
+                tipo_entrada="texto",
+            )
+        normalizado = normalizar_texto(texto)
+        if normalizado in FRASES_NADIE_MAS:
+            return [], None
+        if normalizado in FRASES_MI_EQUIPO:
+            miembros = listar_mi_equipo_efectivo(db, usuario)
+            return [m.usuario_id for m in miembros], None
+        if normalizado in FRASES_TODOS:
+            activos = db.query(Usuario).filter(Usuario.activo.is_(True), Usuario.id != usuario.id).all()
+            return [u.id for u in activos], None
+        restantes = dividir_texto_en_nombres(db, texto)
+
+    while restantes:
+        nombre = restantes.pop(0)
+        resultado = resolver_persona_organizacion(db, nombre, usuario)
+        if resultado.resuelto:
+            if resultado.valor not in ids_confirmados:
+                ids_confirmados.append(resultado.valor)
+            continue
+        nuevo_llm = {
+            **parametros_llm,
+            "_participantes_confirmados": ids_confirmados,
+            "_participantes_restantes": restantes,
+        }
+        pregunta = resultado.pregunta or f'No identifiqué a "{nombre}", ¿puedes repetir el nombre completo?'
+        return None, ResultadoInterpretacion(
+            listo=False, campo="participantes_persona_pendiente",
+            pregunta=pregunta, tipo_entrada=resultado.tipo_entrada or "texto",
+            opciones=resultado.opciones, parametros_llm_actualizado=nuevo_llm,
+        )
+
+    return ids_confirmados, None
 
 
 # Los campos "rol" dentro de un `preview` estructurado se dejan como código
@@ -627,18 +725,16 @@ def _resolver_agendar_reunion(
         return _pendiente("fecha_inicio", fecha_res)
 
     # Participantes (2026-09-24, a petición de Yue: "que pregunte si no le
-    # dije quién más va a estar") -- a diferencia de editar_reunion/
-    # editar_serie_reunion (donde un valor vacío significa "no pidió
-    # agregar a nadie", no preguntar ahí tiene sentido), AQUÍ un vacío
-    # significa "se le olvidó decir quién más", así que sí se pregunta una
-    # vez. También entiende "mi equipo"/"todos" -- ver
-    # resolver_participantes_reunion_opcional.
-    participantes_res = resolver_campo(
-        "participantes_ids", aclaraciones, parametros_llm.get("participantes"),
-        lambda t: resolver_participantes_reunion_opcional(db, usuario, t),
-    )
-    if not participantes_res.resuelto:
-        return _pendiente("participantes_ids", participantes_res)
+    # dije quién más va a estar", y "si no reconoce bien un nombre, que
+    # busque los más parecidos y pregunte") -- a diferencia de
+    # editar_reunion/editar_serie_reunion (donde un valor vacío significa
+    # "no pidió agregar a nadie", no preguntar ahí tiene sentido), AQUÍ un
+    # vacío significa "se le olvidó decir quién más". Nombre por nombre,
+    # con sugerencias reales si uno falla -- ver
+    # _resolver_participantes_reunion.
+    participantes_ids, pendiente = _resolver_participantes_reunion(db, usuario, parametros_llm, aclaraciones)
+    if pendiente is not None:
+        return pendiente
 
     try:
         duracion = int(parametros_llm.get("duracion_minutos") or 30)
@@ -653,14 +749,14 @@ def _resolver_agendar_reunion(
         "titulo": titulo,
         "fecha_inicio": fecha_res.valor.isoformat(),
         "duracion_minutos": duracion,
-        "participantes_ids": participantes_res.valor,
+        "participantes_ids": participantes_ids,
         "notas": notas,
         "recordatorio_minutos_antes": recordatorio_minutos,
     }
     resumen = f'Voy a agendar "{titulo}" para el {fecha_res.valor.strftime("%d/%m/%Y a las %H:%M")}. ¿Confirmas?'
     participantes_nombres = (
-        [u.nombre for u in db.query(Usuario).filter(Usuario.id.in_(participantes_res.valor)).all()]
-        if participantes_res.valor else []
+        [u.nombre for u in db.query(Usuario).filter(Usuario.id.in_(participantes_ids)).all()]
+        if participantes_ids else []
     )
     preview = {
         "tipo": "reunion",
@@ -2161,12 +2257,9 @@ def _resolver_crear_serie_reunion(
 
     # Participantes (2026-09-24) -- mismo criterio que agendar_reunion, ver
     # comentario ahí.
-    participantes_res = resolver_campo(
-        "participantes_ids", aclaraciones, parametros_llm.get("participantes"),
-        lambda t: resolver_participantes_reunion_opcional(db, usuario, t),
-    )
-    if not participantes_res.resuelto:
-        return _pendiente("participantes_ids", participantes_res)
+    participantes_ids, pendiente = _resolver_participantes_reunion(db, usuario, parametros_llm, aclaraciones)
+    if pendiente is not None:
+        return pendiente
 
     try:
         duracion = int(parametros_llm.get("duracion_minutos") or 30)
@@ -2184,7 +2277,7 @@ def _resolver_crear_serie_reunion(
         "dia_semana": dia_semana,
         "hora": hora.isoformat(),
         "duracion_minutos": duracion,
-        "participantes_ids": participantes_res.valor,
+        "participantes_ids": participantes_ids,
         "fecha_inicio": _date.today().isoformat(),
         "notas": notas,
         "recordatorio_minutos_antes": recordatorio_minutos,

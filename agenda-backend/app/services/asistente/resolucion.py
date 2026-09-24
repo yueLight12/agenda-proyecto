@@ -594,6 +594,26 @@ def resolver_rol(texto: Optional[str]) -> ResolucionResultado:
     )
 
 
+def normalizar_texto(texto: str) -> str:
+    """Envoltura pública de _normalizar -- para que tools.py pueda comparar
+    frases sin duplicar la lógica de quitar acentos/mayúsculas (2026-09-24,
+    ver _resolver_participantes_reunion)."""
+    return _normalizar(texto)
+
+
+def dividir_texto_en_nombres(db: Session, texto: str) -> list[str]:
+    """Envoltura pública de partir un texto en nombres individuales (ver
+    _dividir_nombres_por_conectores) -- expuesta para que tools.py pueda
+    resolver participantes de una reunión NOMBRE POR NOMBRE (2026-09-24,
+    a petición de Yue: si uno falla, preguntar solo por ese, con
+    sugerencias reales, en vez de pedir que se repitan todos)."""
+    segmentos = [s.strip() for s in re.split(r"\s*(?:,|;)\s*", texto) if s.strip()]
+    nombres: list[str] = []
+    for segmento in segmentos:
+        nombres.extend(_dividir_nombres_por_conectores(db, segmento))
+    return nombres
+
+
 def _dividir_nombres_por_conectores(db: Session, segmento: str) -> list[str]:
     """Divide un segmento en nombres individuales por "y"/"e", pero solo si
     el segmento completo NO coincide ya con una persona real -- así "Juan
@@ -645,59 +665,15 @@ def resolver_personas_organizacion(
     return ResolucionResultado(resuelto=True, valor=ids)
 
 
-_FRASES_NADIE_MAS = {
+FRASES_NADIE_MAS = {
     "nadie", "nadie mas", "nadie más", "solo yo", "solo yo mismo", "solo yo misma",
     "ninguno", "ninguna", "nada mas", "nada más",
 }
-_FRASES_MI_EQUIPO = {"mi equipo", "todo mi equipo", "el equipo", "mi equipo completo", "con mi equipo"}
-_FRASES_TODOS = {
+FRASES_MI_EQUIPO = {"mi equipo", "todo mi equipo", "el equipo", "mi equipo completo", "con mi equipo"}
+FRASES_TODOS = {
     "todos", "todos los usuarios", "toda la organizacion", "toda la organización",
     "todo el mundo", "toda la empresa", "todos en la empresa",
 }
-
-
-def resolver_participantes_reunion_opcional(
-    db: Session, usuario: Usuario, texto: Optional[str]
-) -> ResolucionResultado:
-    """"¿Quién más va a estar?" (2026-09-24, a petición de Yue: que el
-    asistente pregunte por datos opcionales relevantes, igual que ya se
-    hizo con "urgente" en crear_entregable) -- a diferencia de
-    resolver_personas_organizacion (que nunca bloquea, usado por
-    agregar_miembro/asignar_rol donde sí tiene sentido un default vacío
-    silencioso), este SÍ pregunta una vez si no se mencionó nadie.
-
-    También reconoce frases especiales que resolver_personas_organizacion
-    no entendía (bug real reportado por Yue: decir "mi equipo" o "todos
-    los usuarios" buscaba a alguien con ese nombre literal y fallaba):
-    - "mi equipo": el equipo propio de quien agenda (mismo criterio que
-      GET /mi-equipo -- plantilla guardada + reportes reales).
-    - "todos"/"toda la organización": todos los usuarios activos, excepto
-      quien agenda (ya queda incluido automáticamente como organizador).
-    - "nadie más"/"solo yo": lista vacía, explícito -- distinto de no decir
-      nada, que es lo que dispara la pregunta."""
-    if texto is None or texto == "":
-        return ResolucionResultado(
-            resuelto=False,
-            pregunta='¿Quién más va a estar en la reunión? Puedes decir nombres, "mi equipo", '
-            '"todos", o "nadie más".',
-            tipo_entrada="texto",
-        )
-
-    normalizado = _normalizar(texto)
-    if normalizado in _FRASES_NADIE_MAS:
-        return ResolucionResultado(resuelto=True, valor=[])
-
-    if normalizado in _FRASES_MI_EQUIPO:
-        from app.services.equipos import listar_mi_equipo_efectivo
-
-        miembros = listar_mi_equipo_efectivo(db, usuario)
-        return ResolucionResultado(resuelto=True, valor=[m.usuario_id for m in miembros])
-
-    if normalizado in _FRASES_TODOS:
-        activos = db.query(Usuario).filter(Usuario.activo.is_(True), Usuario.id != usuario.id).all()
-        return ResolucionResultado(resuelto=True, valor=[u.id for u in activos])
-
-    return resolver_personas_organizacion(db, usuario, texto)
 
 
 def resolver_acuerdo(
