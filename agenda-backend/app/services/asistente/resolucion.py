@@ -859,6 +859,36 @@ _PALABRAS_ASISTIO = {"si", "sí", "asistio", "asistió", "llego", "llegó", "pre
 _PALABRAS_NO_ASISTIO = {"no", "no asistio", "no asistió", "no llego", "no llegó", "falto", "faltó", "ausente"}
 
 
+_PALABRAS_SI_URGENTE = {"si", "sí", "urgente", "es urgente", "si es urgente", "sí es urgente"}
+_PALABRAS_NO_URGENTE = {"no", "no urgente", "no es urgente", "normal", "no es tan urgente"}
+
+
+def resolver_urgente_opcional(valor: Any) -> ResolucionResultado:
+    """"¿Es urgente?" (2026-09-23, a petición de Yue: que el asistente
+    pregunte por datos opcionales relevantes en vez de dejarlos siempre en
+    default) -- a diferencia de resolver_hora_opcional (que nunca bloquea),
+    este SÍ pregunta una vez si no se mencionó nada, igual que
+    resolver_asistio. El LLM puede mandar directamente un booleano (ver
+    parametros_llm de crear_entregable, "true o false, o vacío") -- se
+    acepta tal cual sin re-preguntar."""
+    if valor is None or valor == "":
+        return ResolucionResultado(
+            resuelto=False, pregunta="¿Es urgente?", tipo_entrada="opciones",
+            opciones=[OpcionResolucion(True, "Sí, es urgente"), OpcionResolucion(False, "No es urgente")],
+        )
+    if isinstance(valor, bool):
+        return ResolucionResultado(resuelto=True, valor=valor)
+    normalizado = _normalizar(str(valor))
+    if normalizado in _PALABRAS_NO_URGENTE:
+        return ResolucionResultado(resuelto=True, valor=False)
+    if normalizado in _PALABRAS_SI_URGENTE:
+        return ResolucionResultado(resuelto=True, valor=True)
+    return ResolucionResultado(
+        resuelto=False, pregunta=f'No entendí "{valor}" -- ¿es urgente?', tipo_entrada="opciones",
+        opciones=[OpcionResolucion(True, "Sí, es urgente"), OpcionResolucion(False, "No es urgente")],
+    )
+
+
 def resolver_asistio(texto: Optional[str]) -> ResolucionResultado:
     if not texto:
         return ResolucionResultado(

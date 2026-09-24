@@ -65,6 +65,7 @@ from app.services.asistente.resolucion import (
     resolver_reunion,
     resolver_rol,
     resolver_serie_reunion,
+    resolver_urgente_opcional,
 )
 from app.services.chatbot import responder_pregunta
 from app.services.entregables import (
@@ -250,6 +251,16 @@ def _resolver_crear_entregable(
     # nunca bloquea: si no se menciona hora, sigue sin ella.
     hora_res = resolver_hora_opcional(parametros_llm.get("hora_entrega"))
 
+    # Urgente (2026-09-23, a petición de Yue: "que el asistente pregunte lo
+    # que falte, no solo lo obligatorio") -- a diferencia de la hora, este
+    # SÍ pregunta una vez si no se mencionó (ver resolver_urgente_opcional).
+    urgente_res = resolver_campo(
+        "urgente_manual", aclaraciones, parametros_llm.get("urgente"),
+        resolver_urgente_opcional,
+    )
+    if not urgente_res.resuelto:
+        return _pendiente("urgente_manual", urgente_res)
+
     responsable_obj = db.query(Usuario).filter(Usuario.id == responsable_res.valor).first()
 
     parametros = {
@@ -260,9 +271,14 @@ def _resolver_crear_entregable(
         "fecha_entrega": fecha_res.valor.isoformat(),
         "hora_entrega": hora_res.valor.isoformat() if hora_res.valor else None,
         "sensible": bool(parametros_llm.get("sensible") or False),
+        "urgente_manual": bool(urgente_res.valor),
     }
     sufijo_hora = f" a las {hora_res.valor.strftime('%H:%M')}" if hora_res.valor else ""
-    resumen = f'Voy a crear el entregable "{nombre}", con fecha límite {fecha_res.valor.isoformat()}{sufijo_hora}. ¿Confirmas?'
+    sufijo_urgente = " Es urgente." if parametros["urgente_manual"] else ""
+    resumen = (
+        f'Voy a crear el entregable "{nombre}", con fecha límite {fecha_res.valor.isoformat()}'
+        f'{sufijo_hora}.{sufijo_urgente} ¿Confirmas?'
+    )
     preview = {
         "tipo": "entregable",
         "nombre": nombre,
@@ -271,6 +287,7 @@ def _resolver_crear_entregable(
         "responsable_id": responsable_res.valor,
         "responsable_nombre": responsable_obj.nombre if responsable_obj else "?",
         "sensible": parametros["sensible"],
+        "urgente": parametros["urgente_manual"],
         "porcentaje_avance": 0,
     }
     return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen, preview=preview)
@@ -291,6 +308,7 @@ def _ejecutar_crear_entregable(db: Session, usuario: Usuario, parametros: dict) 
         fecha_entrega=date.fromisoformat(parametros["fecha_entrega"]),
         hora_entrega=time.fromisoformat(parametros["hora_entrega"]) if parametros.get("hora_entrega") else None,
         sensible=parametros.get("sensible", False),
+        urgente_manual=parametros.get("urgente_manual", False),
     )
     db.commit()
     db.refresh(nuevo)
@@ -2681,6 +2699,7 @@ TOOLS: dict[str, ToolSpec] = {
             "hora_entrega": "hora límite tal como se dijo (ej. 'a las 3 de la tarde'), o vacío si no se mencionó -- es opcional, no preguntar por ella si no se dijo",
             "proyecto": "nombre del proyecto/tema SOLO si se mencionó explícitamente; si no, dejar vacío -- no es obligatorio",
             "sensible": "true o false, si se dijo que es sensible/confidencial (default false)",
+            "urgente": "true o false, SOLO si se dijo explícitamente que es/no es urgente; si no se mencionó, dejar vacío ('') -- el sistema pregunta si hace falta, no asumas false",
         },
         ejemplos=[
             (
@@ -2693,6 +2712,20 @@ TOOLS: dict[str, ToolSpec] = {
                     "hora_entrega": "a las 5 de la tarde",
                     "proyecto": "",
                     "sensible": False,
+                    "urgente": "",
+                },
+            ),
+            (
+                "quiero asignarle una tarea urgente a Juan José para mañana a las 5pm",
+                {
+                    "nombre": "",
+                    "descripcion": None,
+                    "responsable": "Juan José",
+                    "fecha_entrega": "mañana",
+                    "hora_entrega": "a las 5 de la tarde",
+                    "proyecto": "",
+                    "sensible": False,
+                    "urgente": True,
                 },
             ),
             (
@@ -2704,6 +2737,7 @@ TOOLS: dict[str, ToolSpec] = {
                     "fecha_entrega": "mañana",
                     "proyecto": "",
                     "sensible": False,
+                    "urgente": "",
                 },
             ),
             (
@@ -2715,6 +2749,7 @@ TOOLS: dict[str, ToolSpec] = {
                     "fecha_entrega": "",
                     "proyecto": "",
                     "sensible": False,
+                    "urgente": "",
                 },
             ),
             (
@@ -2726,6 +2761,7 @@ TOOLS: dict[str, ToolSpec] = {
                     "fecha_entrega": "el lunes",
                     "proyecto": "",
                     "sensible": False,
+                    "urgente": "",
                 },
             ),
         ],

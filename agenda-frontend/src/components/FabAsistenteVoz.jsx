@@ -72,7 +72,11 @@ export default function FabAsistenteVoz({ proyectoIdContexto, variante = "global
     setAbiertoPorPalabraClave(true);
     setAbierto(true);
   });
-  const mostrarDetector = variante === "global" && detector.soportado;
+  // "Activar chambeador" (palabra clave) deshabilitado por ahora (2026-09-23,
+  // a petición de Yue: "que solo se pueda con el botón flotante") -- se deja
+  // el hook y toda la lógica intactos, solo se fuerza a que nunca se
+  // muestre/arranque. Para reactivarlo, quitar el `false &&` de abajo.
+  const mostrarDetector = false && variante === "global" && detector.soportado;
 
   // Auto-activar al abrir la app (2026-09-07) si la preferencia guardada
   // está encendida -- arrancar el reconocimiento de voz en sí no necesita
