@@ -59,6 +59,7 @@ from app.services.asistente.resolucion import (
     resolver_pendiente_personal,
     resolver_persona_en_equipo,
     resolver_persona_organizacion,
+    resolver_participantes_reunion_opcional,
     resolver_personas_organizacion,
     resolver_proyecto,
     resolver_recurrencia_semanal,
@@ -625,9 +626,16 @@ def _resolver_agendar_reunion(
     if not fecha_res.resuelto:
         return _pendiente("fecha_inicio", fecha_res)
 
+    # Participantes (2026-09-24, a petición de Yue: "que pregunte si no le
+    # dije quién más va a estar") -- a diferencia de editar_reunion/
+    # editar_serie_reunion (donde un valor vacío significa "no pidió
+    # agregar a nadie", no preguntar ahí tiene sentido), AQUÍ un vacío
+    # significa "se le olvidó decir quién más", así que sí se pregunta una
+    # vez. También entiende "mi equipo"/"todos" -- ver
+    # resolver_participantes_reunion_opcional.
     participantes_res = resolver_campo(
         "participantes_ids", aclaraciones, parametros_llm.get("participantes"),
-        lambda t: resolver_personas_organizacion(db, usuario, t),
+        lambda t: resolver_participantes_reunion_opcional(db, usuario, t),
     )
     if not participantes_res.resuelto:
         return _pendiente("participantes_ids", participantes_res)
@@ -2151,9 +2159,11 @@ def _resolver_crear_serie_reunion(
         return _pendiente("recurrencia", recurrencia_res)
     dia_semana, hora = recurrencia_res.valor
 
+    # Participantes (2026-09-24) -- mismo criterio que agendar_reunion, ver
+    # comentario ahí.
     participantes_res = resolver_campo(
         "participantes_ids", aclaraciones, parametros_llm.get("participantes"),
-        lambda t: resolver_personas_organizacion(db, usuario, t),
+        lambda t: resolver_participantes_reunion_opcional(db, usuario, t),
     )
     if not participantes_res.resuelto:
         return _pendiente("participantes_ids", participantes_res)
@@ -2874,7 +2884,10 @@ TOOLS: dict[str, ToolSpec] = {
             "titulo": "tema o título de la reunión",
             "fecha_inicio": "fecha y hora tal como se dijo (ej. 'el jueves a las 3pm', 'mañana a las 10 de la mañana')",
             "duracion_minutos": "número de minutos que dura, o null si no se dijo (por defecto 30)",
-            "participantes": "nombres de los invitados tal como se mencionaron, separados por 'y'; vacío si no se dijo",
+            "participantes": "nombres de los invitados tal como se mencionaron, separados por 'y'; también puede "
+            "ser 'mi equipo' (si se dijo 'mi equipo', 'todo mi equipo', 'al equipo') o 'todos' (si se dijo "
+            "'todos', 'toda la organización'); vacío ('') SOLO si de verdad no se mencionó a nadie -- el sistema "
+            "pregunta si hace falta, no asumas que es solo el organizador",
             "proyecto": "nombre del proyecto/tema si se mencionó; 'general' si se dijo explícitamente que es "
             "una reunión general/sin proyecto; vacío si no se dijo nada",
             "notas": "notas o comentario para la reunión, tal como se dijo; vacío si no se dijo nada",
@@ -2895,15 +2908,27 @@ TOOLS: dict[str, ToolSpec] = {
                 },
             ),
             (
-                "cita al equipo mañana a las 10 de la mañana para revisar avances, media hora, avísame 15 minutos antes",
+                "cita a mi equipo mañana a las 10 de la mañana para revisar avances, media hora, avísame 15 minutos antes",
                 {
                     "titulo": "revisar avances",
                     "fecha_inicio": "mañana a las 10 de la mañana",
                     "duracion_minutos": 30,
-                    "participantes": "",
+                    "participantes": "mi equipo",
                     "proyecto": "",
                     "notas": "",
                     "recordatorio": "15 minutos antes",
+                },
+            ),
+            (
+                "agenda una reunión para mañana a las 10 de la mañana",
+                {
+                    "titulo": "reunión",
+                    "fecha_inicio": "mañana a las 10 de la mañana",
+                    "duracion_minutos": None,
+                    "participantes": "",
+                    "proyecto": "",
+                    "notas": "",
+                    "recordatorio": "",
                 },
             ),
             (
@@ -3387,7 +3412,9 @@ TOOLS: dict[str, ToolSpec] = {
             "titulo": "tema o título de la junta recurrente",
             "recurrencia": "el día de la semana y la hora tal como se dijo (ej. 'los lunes a las 10am')",
             "duracion_minutos": "número de minutos que dura, o null si no se dijo (por defecto 30)",
-            "participantes": "nombres de los invitados tal como se mencionaron, separados por 'y'; vacío si no se dijo",
+            "participantes": "nombres de los invitados tal como se mencionaron, separados por 'y'; también puede "
+            "ser 'mi equipo' o 'todos'; vacío ('') SOLO si de verdad no se mencionó a nadie -- el sistema "
+            "pregunta si hace falta",
             "proyecto": "nombre del proyecto/tema si se mencionó, si no dejar vacío",
             "notas": "notas o comentario para la junta, tal como se dijo; vacío si no se dijo nada",
             "recordatorio": "cuánto antes avisar de cada ocurrencia (ej. '15 minutos antes', 'media hora antes', "
