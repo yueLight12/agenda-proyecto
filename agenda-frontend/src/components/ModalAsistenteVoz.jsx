@@ -254,15 +254,16 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar, activa
     grabar(alTranscribir);
   };
 
-  // "Chambeador" (2026-09-04, a petición de Yue) -- si el modal se abrió
-  // porque se detectó la palabra clave (ver FabAsistenteVoz.jsx), saluda
-  // por voz y arranca a escuchar solo, sin que el usuario toque nada --
-  // mismo espíritu que el modo manos-libres, pero como primer paso en vez
-  // de tras una respuesta. Se dispara UNA sola vez al montar (por eso el
-  // array de dependencias vacío) -- si se activó por palabra clave, ya no
-  // vuelve a saludar aunque `fase` cambie.
+  // Saluda por voz y arranca a escuchar solo en cuanto se abre el modal,
+  // sin que el usuario tenga que tocar el botón de grabar (2026-09-24, a
+  // petición de Yue) -- antes esto solo pasaba si el modal se abría por la
+  // palabra clave "chambeador" (ver activadoPorPalabraClave); ahora que esa
+  // vía está deshabilitada (ver FabAsistenteVoz.jsx), el único punto de
+  // entrada es el botón flotante del micrófono, y el clic en ESE botón ya
+  // es el gesto de usuario que el navegador exige para poder hablar/grabar
+  // sin bloqueos. Se dispara UNA sola vez al montar (por eso el array de
+  // dependencias vacío).
   useEffect(() => {
-    if (!activadoPorPalabraClave) return;
     desbloquearInteraccion();
     if (vozSoportada) {
       hablar("Hola, ¿en qué puedo ayudarte?", { onFin: () => escucharConVoz(enviarTexto) });
