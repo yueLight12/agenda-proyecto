@@ -94,6 +94,7 @@ from app.services.equipos import (
     quitar_de_mi_equipo,
     rol_default_para_nuevo_proyecto,
 )
+from app.services.mensajes_directos import enviar_mensaje as enviar_mensaje_directo
 from app.services.minutas import (
     agregar_acuerdo,
     convertir_acuerdo_a_entregable,
@@ -1176,6 +1177,64 @@ def _ejecutar_agregar_nota(db: Session, usuario: Usuario, parametros: dict) -> d
     db.commit()
     db.refresh(nota)
     return {"mensaje": "Listo, quedó agregada la nota.", "resultado": {"id": nota.id}}
+
+
+# --- enviar_mensaje ---------------------------------------------------------
+# 2026-09-24, a petición de Yue ("Chambeador debe poder hacer todo lo que la
+# UI puede hacer" -- ver CLAUDE.md sección 1): "Mensajes directos" ya
+# existía en la interfaz (2026-09-19, ver app/services/mensajes_directos.py)
+# pero no tenía equivalente de voz. Quién le puede escribir a quién es
+# exactamente la misma regla que ya aplica esa función (mismo público que
+# invitar a una reunión general) -- se reusa el resolver de persona amplio
+# (resolver_persona_organizacion) y el servicio real revalida el permiso al
+# ejecutar, mismo patrón que el resto de las tools.
+
+def _resolver_enviar_mensaje(
+    db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
+) -> ResultadoInterpretacion:
+    destinatario_res = resolver_campo(
+        "destinatario_id", aclaraciones, parametros_llm.get("persona"),
+        lambda t: resolver_persona_organizacion(db, t, usuario_actor=usuario),
+    )
+    if not destinatario_res.resuelto:
+        return _pendiente("destinatario_id", destinatario_res)
+
+    contenido = (
+        aclaraciones.get("contenido") if isinstance(aclaraciones.get("contenido"), str) else parametros_llm.get("contenido")
+    )
+    contenido = (contenido or "").strip()
+    if not contenido:
+        return ResultadoInterpretacion(
+            listo=False, campo="contenido", pregunta="¿Qué mensaje le mando?", tipo_entrada="texto",
+        )
+
+    destinatario = db.query(Usuario).filter(Usuario.id == destinatario_res.valor).first()
+    if destinatario is None or destinatario.id == usuario.id:
+        return ResultadoInterpretacion(
+            listo=False, campo="destinatario_id",
+            pregunta="No puedes mandarte un mensaje a ti mismo, ¿a quién te refieres?",
+            tipo_entrada="texto",
+        )
+
+    parametros = {"destinatario_id": destinatario.id, "contenido": contenido}
+    resumen = f'Voy a mandarle a {destinatario.nombre}: "{contenido}". ¿Confirmas?'
+    preview = {
+        "tipo": "mensaje",
+        "destinatario_id": destinatario.id,
+        "destinatario_nombre": destinatario.nombre,
+        "contenido": contenido,
+    }
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen, preview=preview)
+
+
+def _ejecutar_enviar_mensaje(db: Session, usuario: Usuario, parametros: dict) -> dict:
+    mensaje = enviar_mensaje_directo(db, usuario, parametros["destinatario_id"], parametros["contenido"])
+    db.commit()
+    db.refresh(mensaje)
+    return {
+        "mensaje": f"Listo, ya le mandé el mensaje a {mensaje.destinatario.nombre}.",
+        "resultado": {"id": mensaje.id},
+    }
 
 
 # --- editar_reunion -----------------------------------------------------------
@@ -3143,6 +3202,32 @@ TOOLS: dict[str, ToolSpec] = {
         ],
         resolver=_resolver_agregar_nota,
         ejecutar=_ejecutar_agregar_nota,
+    ),
+    "enviar_mensaje": ToolSpec(
+        nombre="enviar_mensaje",
+        descripcion="Mandarle un mensaje directo a alguien (chat persona a persona, no un comentario "
+        "sobre una tarea/reunión/tema -- para eso usa agregar_nota). Puede ser cualquier persona de la "
+        "organización, no solo de tu equipo o proyecto.",
+        parametros_llm={
+            "persona": "nombre de quien recibe el mensaje, tal como se mencionó",
+            "contenido": "el texto del mensaje tal como se dijo; vacío si no se dijo",
+        },
+        ejemplos=[
+            (
+                "mándale un mensaje a David: ya te envié el reporte",
+                {"persona": "David", "contenido": "ya te envié el reporte"},
+            ),
+            (
+                "escríbele a Ana que llego 10 minutos tarde a la junta",
+                {"persona": "Ana", "contenido": "llego 10 minutos tarde a la junta"},
+            ),
+            (
+                "quiero mandarle un mensaje a Carlos",
+                {"persona": "Carlos", "contenido": ""},
+            ),
+        ],
+        resolver=_resolver_enviar_mensaje,
+        ejecutar=_ejecutar_enviar_mensaje,
     ),
     "editar_reunion": ToolSpec(
         nombre="editar_reunion",

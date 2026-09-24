@@ -22,6 +22,7 @@ contexto con reuniones pasadas irrelevantes a una pregunta típica.
 """
 from datetime import date, datetime, timedelta
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -32,6 +33,7 @@ from app.core.permissions import (
 )
 from app.models.entregable import Entregable, EstatusEntregable
 from app.models.historial_avance import HistorialAvance
+from app.models.mensaje_directo import MensajeDirecto
 from app.models.pendiente_personal import PendientePersonal
 from app.models.reunion import Reunion
 from app.models.usuario import Usuario
@@ -91,12 +93,14 @@ hacer?", "ayuda", "¿cómo creo una tarea?"), esto NO se responde con
 "DATOS DISPONIBLES" -- describe tus capacidades reales:
 - Consultar (lo que ya sabes hacer): pendientes, tareas y entregables (qué
   vence, qué está cumplido), reuniones de hoy o de la semana, avance de un
-  proyecto o tema.
+  proyecto o tema, y mensajes directos (quién te escribió, qué le mandaste
+  a alguien, si tienes mensajes sin leer).
 - Actuar (el usuario también puede pedirte que hagas cosas, no solo
   preguntar): crear, editar o eliminar tareas/entregables y proyectos;
   agendar, editar o eliminar reuniones (incluidas recurrentes); asignar
   roles; registrar acuerdos de una junta; anotar pendientes personales;
-  dar de alta a alguien en su equipo; entre otras. SIEMPRE te muestra un
+  dar de alta a alguien en su equipo; mandar un mensaje directo a alguien;
+  entre otras. SIEMPRE te muestra un
   resumen para confirmar antes de ejecutar -- nunca actúas sin que la
   persona confirme primero.
 Si preguntan CÓMO hacer algo puntual, dales un ejemplo concreto de lo que
@@ -255,6 +259,33 @@ def _construir_contexto(db: Session, usuario: Usuario) -> str:
                 linea += f" | se repite: {p.recurrencia}"
             lineas_pp.append(linea)
         bloques.append("\n".join(lineas_pp))
+
+    # Mensajes directos (2026-09-24, a petición de Yue: "que Chambeador
+    # pueda consultarlos") -- mismo tipo de brecha que reuniones/pendientes
+    # personales arriba: nunca estaban en este contexto. Se limita a los
+    # más recientes (en cualquier dirección) para no inflar el contexto con
+    # meses de historial -- lo típico que se pregunta es "¿qué me dijo
+    # fulano?" o "¿tengo mensajes sin leer?", no reconstruir toda una
+    # conversación vieja.
+    mensajes = (
+        db.query(MensajeDirecto)
+        .filter(or_(MensajeDirecto.autor_id == usuario.id, MensajeDirecto.destinatario_id == usuario.id))
+        .order_by(MensajeDirecto.fecha_creacion.desc())
+        .limit(30)
+        .all()
+    )
+    if mensajes:
+        lineas_msg = ["Mensajes directos recientes (los más nuevos primero):"]
+        for m in mensajes:
+            if m.autor_id == usuario.id:
+                direccion = f"Tú → {m.destinatario.nombre}"
+                marca = ""
+            else:
+                direccion = f"{m.autor.nombre} → Tú"
+                marca = " (sin leer)" if m.fecha_leido is None else ""
+            fecha_txt = m.fecha_creacion.strftime("%d/%m %H:%M")
+            lineas_msg.append(f'    - [{fecha_txt}] {direccion}: "{m.contenido}"{marca}')
+        bloques.append("\n".join(lineas_msg))
 
     bloque_rendimiento = _bloque_rendimiento_equipo(db, usuario)
     if bloque_rendimiento:
