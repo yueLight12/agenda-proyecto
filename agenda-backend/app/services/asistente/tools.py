@@ -227,8 +227,14 @@ def _resolver_participantes_reunion(
             miembros = listar_mi_equipo_efectivo(db, usuario)
             return [m.usuario_id for m in miembros], None
         if normalizado in FRASES_TODOS:
-            activos = db.query(Usuario).filter(Usuario.activo.is_(True), Usuario.id != usuario.id).all()
-            return [u.id for u in activos], None
+            # Aislamiento (2026-09-24) -- mismo criterio que
+            # resolver_persona_organizacion: si quien habla está aislado,
+            # "todos" significa "todos los de mi mismo aislamiento", no
+            # toda la organización.
+            query_todos = db.query(Usuario).filter(Usuario.activo.is_(True), Usuario.id != usuario.id)
+            if usuario.aislado:
+                query_todos = query_todos.filter(Usuario.aislado.is_(True))
+            return [u.id for u in query_todos.all()], None
         restantes = dividir_texto_en_nombres(db, texto)
 
     while restantes:

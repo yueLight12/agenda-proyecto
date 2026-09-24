@@ -257,6 +257,19 @@ def resolver_persona_organizacion(
     # personas con el Jefe equivocado" y duplicados similares). Nunca tiene
     # sentido que el asistente ofrezca una cuenta desactivada como opción.
     usuarios = db.query(Usuario).filter(Usuario.activo.is_(True)).all()
+
+    # Aislamiento (2026-09-24, bug real: Chambeador buscaba en TODA la
+    # organización sin importar Usuario.aislado -- Lucila/Luis podían
+    # mandarle un mensaje o asignarle una tarea a cualquiera, rompiendo por
+    # voz el aislamiento que ya aplicaba el resto del sistema). Si quien
+    # habla está aislado, el universo de candidatos se reduce a otras
+    # cuentas aisladas -- hoy solo existe un "grupo" aislado (Lucila/Luis),
+    # así que esto los deja verse solo entre ellos; si en el futuro hay más
+    # de un grupo aislado, esto necesitaría una noción real de "equipo
+    # aislado" en vez de un booleano simple.
+    if usuario_actor and usuario_actor.aislado:
+        usuarios = [u for u in usuarios if u.aislado]
+
     normalizado = _normalizar(nombre_hablado)
     candidatos = [u for u in usuarios if _coincide_nombre(normalizado, _normalizar(u.nombre))]
 
