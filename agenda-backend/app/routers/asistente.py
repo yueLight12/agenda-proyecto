@@ -60,7 +60,7 @@ def _prompt_nombres_conocidos(db: Session) -> str:
     nuevo que se está creando, el texto transcrito se vuelve el nombre
     guardado tal cual — no hay nada contra qué comparar todavía, así que la
     vista previa de confirmación sigue siendo la última línea de defensa."""
-    nombres = [u.nombre for u in db.query(Usuario).all()]
+    nombres = [u.nombre for u in db.query(Usuario).filter(Usuario.activo.is_(True)).all()]
     proyectos = [p.nombre for p in db.query(Proyecto).all()]
     partes = [f"Vocabulario de la aplicación: {_VOCABULARIO_DOMINIO}."]
     if nombres:

@@ -251,7 +251,12 @@ def resolver_persona_organizacion(
     if usuario_actor and _es_autoreferencia(nombre_hablado):
         return ResolucionResultado(resuelto=True, valor=usuario_actor.id)
 
-    usuarios = db.query(Usuario).all()
+    # Solo cuentas activas (2026-09-24, bug real reportado por Yue: "David
+    # Mancilla" salía ambiguo por una cuenta duplicada e INACTIVA con el
+    # mismo nombre -- ver CLAUDE.md, sección 6, "correos alternos... 6
+    # personas con el Jefe equivocado" y duplicados similares). Nunca tiene
+    # sentido que el asistente ofrezca una cuenta desactivada como opción.
+    usuarios = db.query(Usuario).filter(Usuario.activo.is_(True)).all()
     normalizado = _normalizar(nombre_hablado)
     candidatos = [u for u in usuarios if _coincide_nombre(normalizado, _normalizar(u.nombre))]
 
@@ -596,7 +601,7 @@ def _dividir_nombres_por_conectores(db: Session, segmento: str) -> list[str]:
     conector español antes de una palabra que empieza con "i" (regla
     ortográfica: "y" -> "e" ante sonido /i/). Si el segmento completo
     coincide con alguien, se respeta tal cual y no se parte."""
-    usuarios = db.query(Usuario).all()
+    usuarios = db.query(Usuario).filter(Usuario.activo.is_(True)).all()
     normalizado = _normalizar(segmento)
     if any(_coincide_nombre(normalizado, _normalizar(u.nombre)) for u in usuarios):
         return [segmento]
