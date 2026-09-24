@@ -34,6 +34,13 @@ class Proyecto(Base):
     # AgendaItem.orden en app/models/agenda_item.py). Se ve igual sin
     # importar en la columna de quién aparezca -- no es por persona.
     orden = Column(Integer, default=0, server_default="0", nullable=False)
+    # Quién dio de alta este proyecto/tema (2026-09-24, a petición de Yue:
+    # "que aparezca quien asignó el proyecto") -- nullable porque los
+    # proyectos creados antes de esta columna no tienen este dato (NULL,
+    # nunca se rellena hacia atrás con un valor inventado). SET NULL en vez
+    # de bloquear el borrado de una cuenta: perder el rastro de "quién lo
+    # creó" no debe impedir eliminar a esa persona del sistema.
+    creado_por = Column(Integer, ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
 
     padre = relationship("Proyecto", remote_side=[id], back_populates="hijos")
     hijos = relationship(

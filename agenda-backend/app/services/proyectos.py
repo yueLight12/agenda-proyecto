@@ -48,6 +48,11 @@ def proyecto_a_out(db: Session, usuario: Usuario, proyecto: Proyecto) -> Proyect
     tiene_hijos = (
         db.query(Proyecto.id).filter(Proyecto.parent_id == proyecto.id).first() is not None
     )
+    creador_nombre = None
+    if proyecto.creado_por is not None:
+        creador_nombre = (
+            db.query(Usuario.nombre).filter(Usuario.id == proyecto.creado_por).scalar()
+        )
     return ProyectoOut(
         id=proyecto.id,
         nombre=proyecto.nombre,
@@ -58,6 +63,7 @@ def proyecto_a_out(db: Session, usuario: Usuario, proyecto: Proyecto) -> Proyect
         rol_efectivo=rol_efectivo,
         puede_administrar=rol_efectivo in (RolEnum.N1, RolEnum.N2),
         tiene_hijos=tiene_hijos,
+        creado_por_nombre=creador_nombre,
     )
 
 
@@ -210,6 +216,7 @@ def crear_proyecto(
             descripcion=descripcion,
             parent_id=parent_id,
             orden=_siguiente_orden(db, parent_id, al_frente),
+            creado_por=usuario.id,
         )
         db.add(nuevo)
         db.flush()
@@ -220,7 +227,10 @@ def crear_proyecto(
         )
         return nuevo
 
-    nuevo = Proyecto(nombre=nombre, descripcion=descripcion, orden=_siguiente_orden(db, None, al_frente))
+    nuevo = Proyecto(
+        nombre=nombre, descripcion=descripcion, orden=_siguiente_orden(db, None, al_frente),
+        creado_por=usuario.id,
+    )
     db.add(nuevo)
     db.flush()
 

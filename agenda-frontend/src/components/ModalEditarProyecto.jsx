@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { miEquipoApi, proyectosApi } from "../api/endpoints";
+import { equipoResumenApi, miEquipoApi, proyectosApi } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
 import BuscadorInvitados from "./BuscadorInvitados";
 import Modal from "./Modal";
@@ -30,13 +30,14 @@ import Modal from "./Modal";
 // organización, primero se guarda en "Equipo" (mismo requisito que ya
 // tenía el selector de "persona a cargo").
 //
-// `onEliminar` (2026-09-18, solo lo pasa ListaProyectos.jsx) -- cuando
-// viene, y estamos en modo edición de un SUBTEMA (parent_id no nulo, mismo
-// límite que ya existía en TableroProyecto.jsx: no se puede eliminar un
-// proyecto raíz desde aquí), se muestra un botón "Eliminar" junto a
-// "Guardar cambios". La confirmación/aviso de qué se borra vive en quien
-// llama (mismo patrón que ya usaba TableroProyecto con resumen-subarbol),
-// este modal solo dispara el callback con el proyecto actual.
+// `onEliminar` (2026-09-18, solo lo pasa ListaProyectos.jsx) -- cuando viene
+// y estamos en modo edición, se muestra un botón "Eliminar" junto a
+// "Guardar cambios" -- también para proyectos RAÍZ (2026-09-24, a petición
+// de Yue: el backend ya lo permitía, solo la UI lo restringía a subtemas
+// antes de esto). La confirmación/aviso de qué se borra vive en quien
+// llama (ver ListaProyectos.jsx, ya distingue "tiene subtemas" o no para el
+// texto de advertencia), este modal solo dispara el callback con el
+// proyecto actual.
 export default function ModalEditarProyecto({ proyecto = null, parentId = null, onGuardado, onCerrar, onEliminar }) {
   const { usuario: usuarioActual } = useAuth();
   const esEdicion = Boolean(proyecto);
@@ -75,10 +76,21 @@ export default function ModalEditarProyecto({ proyecto = null, parentId = null, 
 
   useEffect(() => {
     let cancelado = false;
-    miEquipoApi
-      .listar()
-      .then(async (equipo) => {
+    Promise.all([miEquipoApi.listar(), equipoResumenApi.misJefes().catch(() => [])])
+      .then(async ([equipoPropio, jefes]) => {
         if (cancelado) return;
+        // Jefes (2026-09-24, a petición de Yue: "Delia es subordinada de
+        // Jasso, si Delia quiere crear un proyecto con Jasso no puede" --
+        // antes el buscador solo incluía "Mi equipo" propio, nunca a quien
+        // te supervisa a TI). Se agregan como candidatos más, con la misma
+        // forma que espera BuscadorInvitados (usuario_id/nombre/puesto/rol) --
+        // JefeOut no trae rol/puesto, se dejan vacíos, solo importan para
+        // mostrarlos en la lista y poder elegirlos.
+        const idsPropios = new Set(equipoPropio.map((m) => m.usuario_id));
+        const jefesComoCandidatos = jefes
+          .filter((j) => !idsPropios.has(j.id))
+          .map((j) => ({ usuario_id: j.id, nombre: j.nombre, puesto: null, rol: null }));
+        const equipo = [...equipoPropio, ...jefesComoCandidatos];
         setMiEquipo(equipo);
         if (esEdicion) {
           const miembrosProyecto = await proyectosApi.equipo(proyecto.id);
@@ -103,7 +115,15 @@ export default function ModalEditarProyecto({ proyecto = null, parentId = null, 
 
   const rolYSupervisorPara = (usuarioId) => {
     const m = miEquipo.find((x) => x.usuario_id === usuarioId);
-    const rol = m?.rol || "N3";
+    if (!m?.rol) {
+      // Sin rol guardado = viene de la lista de jefes, no de "Mi equipo"
+      // (2026-09-24) -- se agrega como líder (N2) de este proyecto, SIN
+      // supervisor_id: usuarioActual no puede figurar como supervisor de su
+      // propio jefe. Mismo criterio que ya usa reasignar_entregable al
+      // agregar a alguien fuera de "Mi equipo".
+      return { rol: "N2", supervisor_id: null };
+    }
+    const rol = m.rol;
     return { rol, supervisor_id: ["N3", "N4"].includes(rol) ? usuarioActual.id : null };
   };
 
@@ -176,10 +196,16 @@ export default function ModalEditarProyecto({ proyecto = null, parentId = null, 
           </label>
         )}
 
+        {esEdicion && proyecto.creado_por_nombre && (
+          <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--color-text-muted)" }}>
+            Creó: {proyecto.creado_por_nombre}
+          </p>
+        )}
+
         <div className="stack" style={{ gap: 4 }}>
           <span style={{ fontSize: "0.85rem" }}>Participantes (opcional)</span>
           <span style={{ color: "var(--color-text-muted)", fontSize: "0.78rem" }}>
-            Solo gente de tu equipo guardado ("Equipo"). Si dejas esto vacío, quedarás tú a cargo.
+            Gente de tu equipo guardado ("Equipo") o tu(s) jefe(s). Si dejas esto vacío, quedarás tú a cargo.
           </span>
           {errorMiEquipo && <p className="error-text">{errorMiEquipo}</p>}
           {!errorMiEquipo && cargandoParticipantes && (
@@ -208,7 +234,7 @@ export default function ModalEditarProyecto({ proyecto = null, parentId = null, 
               Nuevo subtema
             </button>
           )}
-          {esEdicion && onEliminar && proyecto.parent_id !== null && (
+          {esEdicion && onEliminar && (
             <button
               className="btn btn--ghost"
               type="button"

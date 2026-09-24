@@ -41,6 +41,11 @@ class ProyectoOut(ProyectoBase):
     rol_efectivo: Optional[RolEnum] = None
     puede_administrar: bool = False
     tiene_hijos: bool = False
+    # Quién dio de alta este proyecto (2026-09-24, a petición de Yue) --
+    # None si se creó antes de esta columna, o si la cuenta que lo creó ya
+    # no existe (Proyecto.creado_por, ON DELETE SET NULL). Ver
+    # app/services/proyectos.py::proyecto_a_out.
+    creado_por_nombre: Optional[str] = None
 
     class Config:
         from_attributes = True
