@@ -624,15 +624,26 @@ def listar_equipo_visible(
     asistente de voz siguen viendo solo miembros LOCALES -- mostrar ahí a
     alguien con acceso heredado sería confuso (ej. el botón "Quitar" no
     tendría ninguna fila local que borrar). Solo lo pasa
-    equipo_resumen.py, que es de solo lectura."""
+    equipo_resumen.py, que es de solo lectura.
+
+    Excepción (2026-09-25, a petición de Yue): quien CREÓ el proyecto ve
+    el equipo completo, como si fuera N1, aunque su rol heredado ahí sea
+    N3/N4 -- mismo criterio ya usado en eliminar_proyecto (Proyecto.creado_por).
+    Caso real: Delia Rivera Gómez crea "Robótica" heredando N3, agrega a su
+    jefe Jasso como participante -- sin esta excepción, al volver a editar
+    el proyecto no veía a Jasso en la lista de participantes (la regla
+    normal de "N3 solo se ve a sí mismo" se lo ocultaba), aunque sí estaba
+    agregado de verdad."""
     rol = requerir_participacion_en_proyecto(db, usuario, proyecto_id)
+    proyecto = obtener_proyecto_o_404(db, proyecto_id)
+    es_creador = proyecto.creado_por == usuario.id
 
     if incluir_heredado:
         registros = list(_equipo_efectivo_por_herencia(db, proyecto_id).values())
     else:
         registros = db.query(UsuarioProyectoRol).filter(UsuarioProyectoRol.proyecto_id == proyecto_id).all()
 
-    if rol.rol == RolEnum.N1:
+    if rol.rol == RolEnum.N1 or es_creador:
         pass
     elif rol.rol == RolEnum.N2:
         registros = [

@@ -78,6 +78,12 @@ export default function ListaProyectos() {
     try {
       await proyectosApi.eliminar(proyectoEliminar.id);
       setProyectoEliminar(null);
+      // El modal "Editar proyecto" (ModalEditarProyecto) sigue montado
+      // detrás del diálogo de confirmación -- si no se cierra aquí también,
+      // se queda abierto (sobre un proyecto que ya no existe) hasta que el
+      // usuario le dé clic a "Cerrar" a mano (2026-09-25, bug real
+      // reportado por Delia Rivera Gómez).
+      setProyectoEditar(null);
       setVersion((v) => v + 1);
       cargar();
     } catch (err) {
