@@ -38,6 +38,7 @@ from app.models.pendiente_personal import PendientePersonal
 from app.models.reunion import Reunion
 from app.models.usuario import Usuario
 from app.models.usuario_proyecto_rol import UsuarioProyectoRol
+from app.services.entregables import _notificacion_vista_de_asignacion
 from app.services.llm_cliente import generar_texto
 from app.services.llm_privacidad import construir_mapa
 from app.services.rendimiento import calcular_rendimiento_equipo, calcular_tasa_aprobacion
@@ -363,6 +364,21 @@ def _construir_contexto(db: Session, usuario: Usuario) -> str:
                 else:
                     hora_txt = f" {e.hora_entrega.strftime('%H:%M')}" if e.hora_entrega else ""
                     linea += f" | vence: {e.fecha_entrega}{hora_txt}"
+                # "Acuse de vista" (2026-09-25, cierra la misma brecha de
+                # paridad asistente-de-voz-vs-UI que reuniones/pendientes
+                # personales/mensajes arriba) -- _notificacion_vista_de_asignacion
+                # ya aplica el mismo filtro de audiencia que la UI (el creador
+                # o N1/N2 del tema, nunca el propio responsable) y devuelve
+                # (None, None) si quien pregunta no debe saberlo o si la
+                # tarea se autoasignó (nunca generó esa notificación).
+                vista, fecha_vista = _notificacion_vista_de_asignacion(db, usuario, e)
+                if vista is not None:
+                    if vista and fecha_vista:
+                        linea += f" | vio la notificación de asignación: sí, el {fecha_vista.strftime('%d/%m %H:%M')}"
+                    elif vista:
+                        linea += " | vio la notificación de asignación: sí (fecha exacta no disponible)"
+                    else:
+                        linea += " | vio la notificación de asignación: todavía no"
                 lineas.append(linea)
 
         reuniones_tema = (
