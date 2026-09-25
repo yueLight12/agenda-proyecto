@@ -3640,10 +3640,15 @@ TOOLS: dict[str, ToolSpec] = {
             "qué/cuál/cuántos/cómo va/dime, no para órdenes. TAMBIÉN úsala para preguntas sobre EL "
             "ASISTENTE MISMO -- 'qué puedes hacer', 'en qué me ayudas', 'cómo te uso', 'ayuda', 'cómo "
             "creo una tarea/reunión' -- no las trates como 'no_entendido', el asistente sí sabe "
-            "responder eso."
+            "responder eso. TAMBIÉN úsala para SALUDOS, DESPEDIDAS, AGRADECIMIENTOS Y PLÁTICA CASUAL "
+            "(2026-09-25, a petición de Yue: que se sienta como platicar con una persona) -- 'hola', "
+            "'buenos días', 'gracias', 'adiós', 'eres un crack', un chiste, o cualquier cosa que "
+            "claramente NO sea ni una pregunta de datos ni una orden de las demás herramientas. NO "
+            "trates estos casos como 'no_entendido' -- 'no_entendido' es SOLO para texto confuso, "
+            "ruido, o algo totalmente ajeno al sistema (ej. clima, deportes, temas sin relación)."
         ),
         parametros_llm={
-            "pregunta": "la pregunta tal como la dijo el usuario, completa",
+            "pregunta": "la pregunta o frase tal como la dijo el usuario, completa",
         },
         ejemplos=[
             (
@@ -3666,6 +3671,9 @@ TOOLS: dict[str, ToolSpec] = {
                 "¿cómo le hago para crear una tarea hablando contigo?",
                 {"pregunta": "¿cómo le hago para crear una tarea hablando contigo?"},
             ),
+            ("hola, buenos días", {"pregunta": "hola, buenos días"}),
+            ("gracias, eso era todo", {"pregunta": "gracias, eso era todo"}),
+            ("jajaja buena esa", {"pregunta": "jajaja buena esa"}),
         ],
         resolver=_resolver_consultar_agenda,
         ejecutar=_ejecutar_consultar_agenda,

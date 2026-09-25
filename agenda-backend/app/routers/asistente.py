@@ -99,9 +99,15 @@ def _resolver_y_responder(
     cargando siempre la cola de acciones que todavía faltan de la misma
     instrucción compuesta (ver InterpretarResponse.acciones_pendientes)."""
     if tool_nombre == SIN_ACCION or tool_nombre not in TOOLS:
+        # Tono (2026-09-25, misma iniciativa de personalidad que
+        # chatbot.py/consultar_agenda) -- este mensaje ya casi nunca
+        # dispara para saludos/plática casual (esos ahora los captura
+        # consultar_agenda), así que lo que llega aquí de verdad es texto
+        # confuso o ajeno al sistema. Se mantiene corto y sin disculpas
+        # vacías, solo más natural que un mensaje de error de formulario.
         return InterpretarResponse(
             tipo="error",
-            mensaje="No entendí bien esa instrucción, ¿puedes repetirla de otra forma?",
+            mensaje="No te entendí bien, ¿me lo dices de otra forma?",
         )
 
     spec = TOOLS[tool_nombre]
