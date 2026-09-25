@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { equipoResumenApi, miEquipoApi, proyectosApi } from "../api/endpoints";
+import { equipoResumenApi, miEquipoApi, proyectosApi, reunionesApi } from "../api/endpoints";
 import { useAuth } from "../context/AuthContext";
 import BuscadorInvitados from "./BuscadorInvitados";
 import Modal from "./Modal";
@@ -76,8 +76,21 @@ export default function ModalEditarProyecto({ proyecto = null, parentId = null, 
 
   useEffect(() => {
     let cancelado = false;
-    Promise.all([miEquipoApi.listar(), equipoResumenApi.misJefes().catch(() => [])])
-      .then(async ([equipoPropio, jefes]) => {
+    Promise.all([
+      miEquipoApi.listar(),
+      equipoResumenApi.misJefes().catch(() => []),
+      // Compañeros (2026-09-24, a petición de Yue: "que compañeros bajo el
+      // mismo jefe también puedan invitarse a proyectos" -- ej. Juan e
+      // Iván, ambos N3 bajo David en temas distintos, nunca comparten
+      // proyecto entre ellos). reunionesApi.invitables() sin proyecto_id
+      // ya resuelve "jefes + compañeros de jefe" (misma lista que usa el
+      // selector de invitados a reunión general, ver
+      // services/reuniones.py::listar_invitables_reunion /
+      // _companeros_de_jefes) -- se reusa tal cual en vez de duplicar esa
+      // lógica de jerarquía aquí.
+      reunionesApi.invitables().catch(() => []),
+    ])
+      .then(async ([equipoPropio, jefes, invitablesGenerales]) => {
         if (cancelado) return;
         // Jefes (2026-09-24, a petición de Yue: "Delia es subordinada de
         // Jasso, si Delia quiere crear un proyecto con Jasso no puede" --
@@ -85,12 +98,21 @@ export default function ModalEditarProyecto({ proyecto = null, parentId = null, 
         // te supervisa a TI). Se agregan como candidatos más, con la misma
         // forma que espera BuscadorInvitados (usuario_id/nombre/puesto/rol) --
         // JefeOut no trae rol/puesto, se dejan vacíos, solo importan para
-        // mostrarlos en la lista y poder elegirlos.
+        // mostrarlos en la lista y poder elegirlos. `categoria` (no la usa
+        // BuscadorInvitados, solo rolYSupervisorPara) distingue el tipo de
+        // candidato para saber qué rol/supervisor asignarle al agregarlo.
         const idsPropios = new Set(equipoPropio.map((m) => m.usuario_id));
+        const idsJefes = new Set(jefes.map((j) => j.id));
         const jefesComoCandidatos = jefes
           .filter((j) => !idsPropios.has(j.id))
-          .map((j) => ({ usuario_id: j.id, nombre: j.nombre, puesto: null, rol: null }));
-        const equipo = [...equipoPropio, ...jefesComoCandidatos];
+          .map((j) => ({ usuario_id: j.id, nombre: j.nombre, puesto: null, rol: null, categoria: "jefe" }));
+        // Compañeros = lo que devuelve invitables() menos mi equipo propio
+        // y menos mis jefes (ya cubiertos arriba) -- lo que queda es gente
+        // que comparte jefe conmigo en otro tema, sin relación directa.
+        const companerosComoCandidatos = invitablesGenerales
+          .filter((m) => !idsPropios.has(m.usuario_id) && !idsJefes.has(m.usuario_id))
+          .map((m) => ({ usuario_id: m.usuario_id, nombre: m.nombre, puesto: m.puesto, rol: null, categoria: "companero" }));
+        const equipo = [...equipoPropio, ...jefesComoCandidatos, ...companerosComoCandidatos];
         setMiEquipo(equipo);
         if (esEdicion) {
           const miembrosProyecto = await proyectosApi.equipo(proyecto.id);
@@ -115,13 +137,21 @@ export default function ModalEditarProyecto({ proyecto = null, parentId = null, 
 
   const rolYSupervisorPara = (usuarioId) => {
     const m = miEquipo.find((x) => x.usuario_id === usuarioId);
-    if (!m?.rol) {
-      // Sin rol guardado = viene de la lista de jefes, no de "Mi equipo"
-      // (2026-09-24) -- se agrega como líder (N2) de este proyecto, SIN
-      // supervisor_id: usuarioActual no puede figurar como supervisor de su
-      // propio jefe. Mismo criterio que ya usa reasignar_entregable al
-      // agregar a alguien fuera de "Mi equipo".
+    if (m?.categoria === "jefe") {
+      // Viene de la lista de jefes, no de "Mi equipo" (2026-09-24) -- se
+      // agrega como líder (N2) de este proyecto, SIN supervisor_id:
+      // usuarioActual no puede figurar como supervisor de su propio jefe.
+      // Mismo criterio que ya usa reasignar_entregable al agregar a
+      // alguien fuera de "Mi equipo".
       return { rol: "N2", supervisor_id: null };
+    }
+    if (m?.categoria === "companero") {
+      // Compañero bajo el mismo jefe, sin relación directa (2026-09-24) --
+      // entra como colaborador interno (N3) de ESTE proyecto, con quien lo
+      // agrega como supervisor. Su rol real en su propio equipo (puede ser
+      // N2 o lo que sea) no aplica aquí, porque no lidera nada en este
+      // proyecto -- es quien lo invitó quien decide agregarlo.
+      return { rol: "N3", supervisor_id: usuarioActual.id };
     }
     const rol = m.rol;
     return { rol, supervisor_id: ["N3", "N4"].includes(rol) ? usuarioActual.id : null };
@@ -205,7 +235,7 @@ export default function ModalEditarProyecto({ proyecto = null, parentId = null, 
         <div className="stack" style={{ gap: 4 }}>
           <span style={{ fontSize: "0.85rem" }}>Participantes (opcional)</span>
           <span style={{ color: "var(--color-text-muted)", fontSize: "0.78rem" }}>
-            Gente de tu equipo guardado ("Equipo") o tu(s) jefe(s). Si dejas esto vacío, quedarás tú a cargo.
+            Gente de tu equipo guardado ("Equipo"), tu(s) jefe(s), o compañeros bajo tu mismo jefe. Si dejas esto vacío, quedarás tú a cargo.
           </span>
           {errorMiEquipo && <p className="error-text">{errorMiEquipo}</p>}
           {!errorMiEquipo && cargandoParticipantes && (
