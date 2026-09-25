@@ -51,6 +51,23 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar, activa
   // closure de la función encadenada puede quedar con el `mensajesAcumulados`
   // de un render anterior — el ref siempre tiene el valor real y actual.
   const mensajesRef = useRef([]);
+  // Memoria de conversación de CORTO PLAZO (2026-09-25, Fase 2 del plan de
+  // fluidez de Chambeador) -- turnos ya cerrados de esta MISMA sesión del
+  // modal, para que el backend pueda resolver referencias a lo ya dicho
+  // ("mejor para el viernes" sin repetir de qué tarea se trataba). Vive
+  // solo en memoria del navegador, NUNCA se persiste ni sobrevive a cerrar
+  // el modal -- a propósito NO se limpia en reiniciar() (esa función
+  // prepara la fase para la SIGUIENTE instrucción dentro de la misma
+  // conversación, justo donde la memoria debe seguir viva). Acotado a los
+  // últimos 6 turnos para no inflar cada llamada al LLM sin límite.
+  const historialRef = useRef([]);
+  const LIMITE_HISTORIAL = 6;
+  // Texto original con el que arrancó la instrucción en curso -- se guarda
+  // aquí (no basta con el parámetro de enviarTexto, porque aclaraciones y
+  // acciones compuestas pasan por manejarInterpretar sin volver a pasar por
+  // enviarTexto) para poder armar el turno completo cuando se llega a
+  // FASES.RESULTADO.
+  const textoOrigenRef = useRef("");
 
   // Voz de salida (texto-a-voz) + modo manos-libres: lee el mensaje de cada
   // fase y, si modoVoz está activo, escucha la respuesta automáticamente al
@@ -164,14 +181,31 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar, activa
       return;
     }
 
-    setRespuestaTexto(mensajesRef.current.join(" "));
+    const mensajeFinal = mensajesRef.current.join(" ");
+    setRespuestaTexto(mensajeFinal);
     setTipoResultado(tipoOrigen);
     setFase(FASES.RESULTADO);
+
+    // Cierra el turno en la memoria de corto plazo -- solo si de verdad
+    // hubo un texto de usuario que lo originó (una acción encadenada de una
+    // instrucción compuesta ya quedó cubierta por el turno de la primera).
+    if (textoOrigenRef.current) {
+      historialRef.current = [
+        ...historialRef.current,
+        { usuario: textoOrigenRef.current, asistente: mensajeFinal },
+      ].slice(-LIMITE_HISTORIAL);
+      textoOrigenRef.current = "";
+    }
   };
 
   const enviarTexto = async (texto) => {
     if (!texto.trim()) return;
-    await manejarInterpretar({ texto, proyecto_id_contexto: proyectoIdContextoActivo || null });
+    textoOrigenRef.current = texto;
+    await manejarInterpretar({
+      texto,
+      proyecto_id_contexto: proyectoIdContextoActivo || null,
+      historial: historialRef.current,
+    });
   };
 
   // `alTranscribir` recibe el texto ya transcrito: enviarTexto() para la

@@ -163,7 +163,7 @@ def interpretar(
             datos.tool, datos.parametros_llm or {}, datos.aclaraciones, datos.acciones_pendientes,
         )
 
-    interpretado = interpretar_instruccion(db, usuario, datos.texto)
+    interpretado = interpretar_instruccion(db, usuario, datos.texto, historial=datos.historial)
     acciones = interpretado["acciones"]
     primera = acciones[0]
     resto = [

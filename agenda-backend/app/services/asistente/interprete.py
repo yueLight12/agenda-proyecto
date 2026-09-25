@@ -98,8 +98,24 @@ EJEMPLOS:
 {ejemplos_txt}"""
 
 
-def _construir_mensaje_usuario(texto: str) -> str:
-    return f'TEXTO DEL USUARIO: "{texto}"\nRESPUESTA:'
+def _construir_historial(historial: list) -> str:
+    """Bloque de turnos recientes de ESTA conversación (memoria de corto
+    plazo, 2026-09-25) -- va en el mensaje del usuario (NO en el bloque
+    estático cacheado de _construir_sistema, que debe quedar idéntico en
+    cada llamada). Deja que el modelo resuelva referencias a lo ya dicho
+    ("ponle la misma fecha", "no, mejor a las 4") sin que el usuario tenga
+    que repetir todo el contexto cada vez."""
+    if not historial:
+        return ""
+    lineas = ["CONVERSACIÓN RECIENTE (para entender referencias a lo ya dicho, NO para repetir acciones ya hechas):"]
+    for turno in historial:
+        lineas.append(f'Usuario: "{turno.usuario}"')
+        lineas.append(f'Asistente: "{turno.asistente}"')
+    return "\n".join(lineas) + "\n\n"
+
+
+def _construir_mensaje_usuario(texto: str, historial: list | None = None) -> str:
+    return f'{_construir_historial(historial or [])}TEXTO DEL USUARIO: "{texto}"\nRESPUESTA:'
 
 
 def _parsear_json(texto: str):
@@ -147,17 +163,27 @@ def _parsear_json(texto: str):
     return None
 
 
-def interpretar_instruccion(db: Session, usuario: Usuario, texto: str) -> dict:
+def interpretar_instruccion(db: Session, usuario: Usuario, texto: str, historial: list | None = None) -> dict:
     """Devuelve {"acciones": [{"tool": str, "parametros": dict}, ...]}. Lista
     con un solo elemento tool == "no_entendido" si no aplica ninguna acción,
-    o si el modelo no devolvió JSON válido ni siquiera tras un reintento."""
+    o si el modelo no devolvió JSON válido ni siquiera tras un reintento.
+
+    `historial` (2026-09-25, memoria de corto plazo): turnos previos de la
+    MISMA conversación del modal (ver TurnoHistorialIn) -- se redactan con
+    el mismo mapa de seudónimos que `texto` antes de mandarlos, para no
+    filtrar nombres reales a Gemini/Claude por esta puerta trasera."""
     mapa = None
     if settings.asistente_llm_proveedor in ("gemini", "claude"):
         mapa = construir_mapa(db, usuario)
         texto = mapa.redactar(texto)
+        if historial:
+            historial = [
+                type(turno)(usuario=mapa.redactar(turno.usuario), asistente=mapa.redactar(turno.asistente))
+                for turno in historial
+            ]
 
     sistema = _construir_sistema()
-    mensaje_usuario = _construir_mensaje_usuario(texto)
+    mensaje_usuario = _construir_mensaje_usuario(texto, historial)
 
     datos = _parsear_json(generar_texto(mensaje_usuario, json_forzado=True, sistema=sistema))
     if datos is None:

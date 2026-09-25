@@ -13,6 +13,16 @@ class AccionPendienteOut(BaseModel):
     parametros_llm: dict
 
 
+class TurnoHistorialIn(BaseModel):
+    """Un turno ya cerrado de la MISMA sesión del modal (2026-09-25, memoria
+    de conversación de corto plazo, Fase 2 del plan de fluidez de
+    Chambeador) -- el frontend lo arma con lo que ya mostró en pantalla, NO
+    se persiste en ningún lado del backend, solo vive mientras el modal
+    sigue abierto. Ver interprete.py::_construir_historial."""
+    usuario: str
+    asistente: str
+
+
 class InterpretarRequest(BaseModel):
     texto: str
     proyecto_id_contexto: Optional[int] = None
@@ -23,6 +33,12 @@ class InterpretarRequest(BaseModel):
     # resolviéndose (ver InterpretarResponse.acciones_pendientes) — vacía si
     # es una instrucción nueva.
     acciones_pendientes: list[AccionPendienteOut] = []
+    # Últimos turnos de esta misma conversación (memoria de corto plazo,
+    # 2026-09-25) -- solo se usa cuando `tool` viene vacío (instrucción
+    # nueva, la única rama que vuelve a llamar al LLM). El frontend acota
+    # cuántos manda; el backend no le pone límite propio, confía en el
+    # cliente (ver ModalAsistenteVoz.jsx).
+    historial: list[TurnoHistorialIn] = []
 
 
 class OpcionAclaracionOut(BaseModel):
