@@ -146,6 +146,18 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
   const [nuevaHoraPendiente, setNuevaHoraPendiente] = useState("");
   const [nuevaRecurrenciaPendiente, setNuevaRecurrenciaPendiente] = useState("ninguna");
 
+  // Edición in-place de un pendiente ya creado (2026-09-25, a petición de
+  // Yue -- antes solo se podía marcar hecho/eliminar, para corregir un
+  // typo o cambiar la fecha había que borrar y volver a crear). Mismos 4
+  // campos que "Agregar un pendiente personal...", solo que precargados
+  // con los valores actuales -- `editandoId` null = ninguna fila en modo
+  // edición.
+  const [editandoId, setEditandoId] = useState(null);
+  const [editContenido, setEditContenido] = useState("");
+  const [editFecha, setEditFecha] = useState("");
+  const [editHora, setEditHora] = useState("");
+  const [editRecurrencia, setEditRecurrencia] = useState("ninguna");
+
   const cargarPendientesPersonales = () => {
     pendientesPersonalesApi.listar().then(setPendientesPersonales).catch(() => {});
   };
@@ -239,6 +251,34 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
 
   const eliminarPendientePersonal = (pendienteId) => {
     pendientesPersonalesApi.eliminar(pendienteId).then(cargarPendientesPersonales).catch(() => {});
+  };
+
+  const iniciarEdicionPendiente = (p) => {
+    setEditandoId(p.id);
+    setEditContenido(p.contenido);
+    setEditFecha(p.fecha_limite || "");
+    setEditHora(p.hora_limite ? p.hora_limite.slice(0, 5) : "");
+    setEditRecurrencia(p.recurrencia);
+  };
+
+  const cancelarEdicionPendiente = () => setEditandoId(null);
+
+  const guardarEdicionPendiente = (evento) => {
+    evento.preventDefault();
+    const contenido = editContenido.trim();
+    if (!contenido) return;
+    pendientesPersonalesApi
+      .actualizar(editandoId, {
+        contenido,
+        fecha_limite: editFecha || null,
+        hora_limite: editHora || null,
+        recurrencia: editFecha ? editRecurrencia : "ninguna",
+      })
+      .then(() => {
+        setEditandoId(null);
+        cargarPendientesPersonales();
+      })
+      .catch(() => {});
   };
 
   if (cargando) return <p>Cargando tu semana...</p>;
@@ -534,45 +574,101 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
           <p className="planb__misemana-vacio">Sin pendientes personales.</p>
         ) : (
           <div className="stack" style={{ gap: 6 }}>
-            {pendientesPersonalesDeLaSemana.map((p) => (
-              <div key={p.id} className="planb__misemana-fila planb__misemana-pendiente-personal">
-                <label className="planb__misemana-pendiente-personal-check">
-                  <input
-                    type="checkbox"
-                    checked={p.hecho}
-                    onChange={() => alternarHechoPendientePersonal(p)}
-                  />
-                  <span
-                    className="planb__misemana-fila-titulo"
-                    style={p.hecho ? { textDecoration: "line-through", opacity: 0.6 } : undefined}
-                  >
-                    {p.contenido}
-                  </span>
-                </label>
-                {p.fecha_limite && (
-                  <span className="planb__misemana-fila-fecha">
-                    {fechaLocal(p.fecha_limite).toLocaleDateString("es-MX", {
-                      day: "numeric",
-                      month: "short",
-                    })}
-                    {p.hora_limite && ` ${p.hora_limite.slice(0, 5)}`}
-                    {p.recurrencia !== "ninguna" && (
-                      <span title={`Se repite cada ${{ semanal: "semana", mensual: "mes", anual: "año" }[p.recurrencia]}`}>
-                        {" "}🔁
-                      </span>
-                    )}
-                  </span>
-                )}
-                <button
-                  type="button"
-                  className="planb__misemana-pendiente-personal-borrar"
-                  aria-label="Eliminar pendiente"
-                  onClick={() => eliminarPendientePersonal(p.id)}
+            {pendientesPersonalesDeLaSemana.map((p) =>
+              editandoId === p.id ? (
+                <form
+                  key={p.id}
+                  className="planb__misemana-nuevo-pendiente"
+                  onSubmit={guardarEdicionPendiente}
                 >
-                  ×
-                </button>
-              </div>
-            ))}
+                  <input
+                    className="input"
+                    type="text"
+                    value={editContenido}
+                    onChange={(e) => setEditContenido(e.target.value)}
+                    autoFocus
+                  />
+                  <input
+                    className="input"
+                    type="date"
+                    aria-label="Fecha límite (opcional)"
+                    value={editFecha}
+                    onChange={(e) => setEditFecha(e.target.value)}
+                  />
+                  <input
+                    className="input"
+                    type="time"
+                    aria-label="Hora límite (opcional)"
+                    value={editHora}
+                    onChange={(e) => setEditHora(e.target.value)}
+                  />
+                  {editFecha && (
+                    <select
+                      className="input"
+                      aria-label="Repetir"
+                      value={editRecurrencia}
+                      onChange={(e) => setEditRecurrencia(e.target.value)}
+                    >
+                      <option value="ninguna">No se repite</option>
+                      <option value="semanal">Cada semana</option>
+                      <option value="mensual">Cada mes</option>
+                      <option value="anual">Cada año</option>
+                    </select>
+                  )}
+                  <button type="submit" className="btn btn--ghost">Guardar</button>
+                  <button type="button" className="btn btn--ghost" onClick={cancelarEdicionPendiente}>
+                    Cancelar
+                  </button>
+                </form>
+              ) : (
+                <div key={p.id} className="planb__misemana-fila planb__misemana-pendiente-personal">
+                  <label className="planb__misemana-pendiente-personal-check">
+                    <input
+                      type="checkbox"
+                      checked={p.hecho}
+                      onChange={() => alternarHechoPendientePersonal(p)}
+                    />
+                    <span
+                      className="planb__misemana-fila-titulo"
+                      style={p.hecho ? { textDecoration: "line-through", opacity: 0.6 } : undefined}
+                    >
+                      {p.contenido}
+                    </span>
+                  </label>
+                  {p.fecha_limite && (
+                    <span className="planb__misemana-fila-fecha">
+                      {fechaLocal(p.fecha_limite).toLocaleDateString("es-MX", {
+                        day: "numeric",
+                        month: "short",
+                      })}
+                      {p.hora_limite && ` ${p.hora_limite.slice(0, 5)}`}
+                      {p.recurrencia !== "ninguna" && (
+                        <span title={`Se repite cada ${{ semanal: "semana", mensual: "mes", anual: "año" }[p.recurrencia]}`}>
+                          {" "}🔁
+                        </span>
+                      )}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    className="planb__misemana-pendiente-personal-borrar"
+                    aria-label="Editar pendiente"
+                    style={{ color: "inherit" }}
+                    onClick={() => iniciarEdicionPendiente(p)}
+                  >
+                    ✎
+                  </button>
+                  <button
+                    type="button"
+                    className="planb__misemana-pendiente-personal-borrar"
+                    aria-label="Eliminar pendiente"
+                    onClick={() => eliminarPendientePersonal(p.id)}
+                  >
+                    ×
+                  </button>
+                </div>
+              )
+            )}
           </div>
         )}
         </>

@@ -143,6 +143,16 @@ export default function ModalMensajesDirectos({ onCerrar, contactoInicialId = nu
                         dateStyle: "short",
                         timeStyle: "short",
                       })}
+                      {/* "Visto" (2026-09-25, a petición de Yue) -- mismo
+                          concepto que el acuse de vista de tareas, pero para
+                          mensajes directos: solo se muestra en TUS propios
+                          mensajes (no tendría sentido en los del otro), y
+                          solo dice algo si ya lo abrieron de verdad
+                          (MensajeDirecto.fecha_leido, se llena al abrir el
+                          hilo -- ver marcarLeido en abrirConversacion). */}
+                      {esMio && (
+                        <> · {m.fecha_leido ? "Visto" : "Enviado"}</>
+                      )}
                     </span>
                   </div>
                 );

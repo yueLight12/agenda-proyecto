@@ -2837,6 +2837,92 @@ def _ejecutar_eliminar_pendiente_personal(db: Session, usuario: Usuario, paramet
     return {"mensaje": "Listo, eliminé ese pendiente.", "resultado": None}
 
 
+def _resolver_editar_pendiente_personal(
+    db: Session, usuario: Usuario, proyecto_id_contexto: Optional[int], parametros_llm: dict, aclaraciones: dict
+) -> ResultadoInterpretacion:
+    """Editar un pendiente personal ya creado (2026-09-25, a petición de
+    Yue -- antes solo se podía marcar hecho o eliminar, sin forma de
+    corregir un typo o cambiar la fecha sin borrar y recrear). Mismo
+    patrón parcial que _resolver_editar_entregable: solo se cambian los
+    campos que el usuario realmente mencionó."""
+    pendiente_res = resolver_campo(
+        "pendiente_personal_id", aclaraciones, parametros_llm.get("pendiente"),
+        lambda t: resolver_pendiente_personal(db, usuario, t, solo_pendientes=False),
+    )
+    if not pendiente_res.resuelto:
+        return _pendiente("pendiente_personal_id", pendiente_res)
+    pendiente_id = pendiente_res.valor
+    actual = db.query(PendientePersonal).filter(PendientePersonal.id == pendiente_id).first()
+
+    campos: dict = {}
+    resumen_partes: list[str] = []
+
+    contenido_nuevo = (parametros_llm.get("contenido_nuevo") or "").strip()
+    if contenido_nuevo:
+        campos["contenido"] = contenido_nuevo
+        resumen_partes.append(f'el texto a "{contenido_nuevo}"')
+
+    if parametros_llm.get("fecha_limite_nueva") or "fecha_limite" in aclaraciones:
+        fecha_res = resolver_campo(
+            "fecha_limite", aclaraciones, parametros_llm.get("fecha_limite_nueva"),
+            lambda t: resolver_fecha(t),
+        )
+        if not fecha_res.resuelto:
+            return _pendiente("fecha_limite", fecha_res)
+        campos["fecha_limite"] = fecha_res.valor.isoformat()
+        resumen_partes.append(f"la fecha al {fecha_res.valor.isoformat()}")
+
+    if parametros_llm.get("hora_limite_nueva"):
+        hora_res = resolver_hora_opcional(parametros_llm.get("hora_limite_nueva"))
+        if hora_res.valor:
+            campos["hora_limite"] = hora_res.valor.isoformat()
+            resumen_partes.append(f"la hora a las {hora_res.valor.strftime('%H:%M')}")
+
+    texto_recurrencia = (parametros_llm.get("recurrencia_nueva") or "").strip().lower()
+    if texto_recurrencia:
+        if "mensual" in texto_recurrencia or "mes" in texto_recurrencia.split():
+            campos["recurrencia"] = "mensual"
+        elif "semanal" in texto_recurrencia or "semana" in texto_recurrencia.split():
+            campos["recurrencia"] = "semanal"
+        elif any(p in texto_recurrencia for p in ("anual", "año", "anio")):
+            campos["recurrencia"] = "anual"
+        elif any(p in texto_recurrencia for p in ("ninguna", "ya no", "quitar")):
+            campos["recurrencia"] = "ninguna"
+        if "recurrencia" in campos:
+            resumen_partes.append("cómo se repite")
+
+    if not campos:
+        return ResultadoInterpretacion(
+            listo=False, campo="contenido_nuevo",
+            pregunta="¿Qué le quieres cambiar al pendiente? (el texto, la fecha, la hora, o cómo se repite)",
+            tipo_entrada="texto",
+        )
+
+    parametros = {"pendiente_personal_id": pendiente_id, "campos": campos}
+    contenido_actual = actual.contenido if actual else "ese pendiente"
+    resumen = f'Voy a cambiar {", ".join(resumen_partes)} de "{contenido_actual}". ¿Confirmas?'
+    return ResultadoInterpretacion(listo=True, parametros=parametros, resumen=resumen)
+
+
+def _ejecutar_editar_pendiente_personal(db: Session, usuario: Usuario, parametros: dict) -> dict:
+    from datetime import date, time
+
+    campos = parametros["campos"]
+    datos = PendientePersonalActualizar(
+        contenido=campos.get("contenido"),
+        fecha_limite=date.fromisoformat(campos["fecha_limite"]) if "fecha_limite" in campos else None,
+        hora_limite=time.fromisoformat(campos["hora_limite"]) if "hora_limite" in campos else None,
+        recurrencia=campos.get("recurrencia"),
+    )
+    actualizado = actualizar_pendiente_personal(db, usuario, parametros["pendiente_personal_id"], datos)
+    db.commit()
+    db.refresh(actualizado)
+    return {
+        "mensaje": f'Listo, ya quedó actualizado "{actualizado.contenido}".',
+        "resultado": {"id": actualizado.id},
+    }
+
+
 def _ejecutar_mover_item_agenda(db: Session, usuario: Usuario, parametros: dict) -> dict:
     mover_item_agenda(db, usuario, parametros["agenda_item_id"], parametros["direccion"])
     db.commit()
@@ -3799,5 +3885,32 @@ TOOLS: dict[str, ToolSpec] = {
         ],
         resolver=_resolver_eliminar_pendiente_personal,
         ejecutar=_ejecutar_eliminar_pendiente_personal,
+    ),
+    "editar_pendiente_personal": ToolSpec(
+        nombre="editar_pendiente_personal",
+        descripcion=(
+            "Cambiar el texto, la fecha límite, la hora, o cómo se repite de un pendiente personal "
+            "YA ANOTADO (ej. 'cambia el pendiente de la leche a mañana', 'ese pendiente ya no se "
+            "repite', 'corrígelo, es pagar el predial no la colegiatura'). Diferente de "
+            "completar_pendiente_personal (marcar hecho) y de eliminar_pendiente_personal (borrarlo) "
+            "-- esta es para MODIFICARLO sin borrarlo. Solo pendientes personales privados, nunca "
+            "tareas de proyecto (para eso usa editar_entregable)."
+        ),
+        parametros_llm={
+            "pendiente": "de qué pendiente se trata, tal como se mencionó",
+            "contenido_nuevo": "el nuevo texto, si se pidió cambiarlo; vacío si no",
+            "fecha_limite_nueva": "la nueva fecha límite, si se pidió cambiarla; vacío si no",
+            "hora_limite_nueva": "la nueva hora límite, si se pidió cambiarla; vacío si no",
+            "recurrencia_nueva": (
+                "'mensual'/'semanal'/'anual' si se pidió que se repita así, o 'ninguna' si se pidió "
+                "que ya no se repita; vacío si no se mencionó cambiar esto"
+            ),
+        },
+        ejemplos=[
+            ("cambia el pendiente de la leche para mañana", {"pendiente": "leche", "contenido_nuevo": "", "fecha_limite_nueva": "mañana", "hora_limite_nueva": "", "recurrencia_nueva": ""}),
+            ("el pendiente de la colegiatura ya no se repite", {"pendiente": "colegiatura", "contenido_nuevo": "", "fecha_limite_nueva": "", "hora_limite_nueva": "", "recurrencia_nueva": "ninguna"}),
+        ],
+        resolver=_resolver_editar_pendiente_personal,
+        ejecutar=_ejecutar_editar_pendiente_personal,
     ),
 }
