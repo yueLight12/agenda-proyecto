@@ -14,6 +14,12 @@ class ProyectoBase(BaseModel):
     descripcion: Optional[str] = None
 
 
+class AsignarRolRequest(BaseModel):
+    usuario_id: int
+    rol: RolEnum
+    supervisor_id: Optional[int] = None  # requerido si rol es N3 o N4
+
+
 class ProyectoCrear(ProyectoBase):
     parent_id: Optional[int] = None  # tema/subtema padre -- None = nodo raíz
     # Crea el tema con la prioridad más alta entre sus hermanos (orden más
@@ -21,6 +27,16 @@ class ProyectoCrear(ProyectoBase):
     # "+ Agregar tema" de Vista Equipo (2026-08-19, a petición de Yue: el
     # tema recién creado sube hasta arriba de la tabla).
     al_frente: bool = False
+    # Participantes iniciales a agregar en la MISMA transacción de creación
+    # (2026-09-25, a petición de Yue) -- necesario porque quien crea un
+    # proyecto raíz no siempre queda como N1 (puede heredar N3/N4 de su
+    # plantilla "Mi equipo", ver rol_default_para_nuevo_proyecto); si el
+    # frontend agregara participantes en una llamada aparte DESPUÉS de
+    # crear, esa llamada exigiría N1/N2 y fallaría con 403 justo para quien
+    # más lo necesita. Solo aplica al momento de crear -- agregar
+    # participantes a un proyecto YA EXISTENTE sigue exigiendo N1/N2 (ver
+    # POST /proyectos/{id}/participantes).
+    participantes: list[AsignarRolRequest] = []
 
 
 class ProyectoActualizar(BaseModel):
@@ -49,12 +65,6 @@ class ProyectoOut(ProyectoBase):
 
     class Config:
         from_attributes = True
-
-
-class AsignarRolRequest(BaseModel):
-    usuario_id: int
-    rol: RolEnum
-    supervisor_id: Optional[int] = None  # requerido si rol es N3 o N4
 
 
 class ProyectoArbolOut(BaseModel):

@@ -177,12 +177,18 @@ export default function ModalEditarProyecto({ proyecto = null, parentId = null, 
           ...quitados.map((id) => proyectosApi.quitarMiembro(proyecto.id, id)),
         ]);
       } else {
-        const nuevo = await proyectosApi.crear({ nombre, descripcion: descripcion || null, parent_id: parentId });
-        await Promise.all(
-          participantesIds.map((id) =>
-            proyectosApi.asignarRol(nuevo.id, { usuario_id: id, ...rolYSupervisorPara(id) })
-          )
-        );
+        // Los participantes se mandan en la MISMA petición de creación
+        // (2026-09-25) -- si se agregaran después con asignarRol por
+        // separado, esa llamada exige N1/N2 en el proyecto recién creado,
+        // y quien lo crea no siempre queda como N1 (puede heredar N3/N4 de
+        // su "Mi equipo", ver rol_default_para_nuevo_proyecto en el
+        // backend) -- caso real: Delia Rivera Gómez, 2026-09-25.
+        await proyectosApi.crear({
+          nombre,
+          descripcion: descripcion || null,
+          parent_id: parentId,
+          participantes: participantesIds.map((id) => ({ usuario_id: id, ...rolYSupervisorPara(id) })),
+        });
       }
       await onGuardado();
     } catch (err) {

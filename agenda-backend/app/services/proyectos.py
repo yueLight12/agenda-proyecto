@@ -180,6 +180,7 @@ def crear_proyecto(
     descripcion: str | None,
     parent_id: int | None = None,
     al_frente: bool = False,
+    participantes: list | None = None,
 ) -> Proyecto:
     """Sin parent_id (nodo raíz): cualquier usuario autenticado puede
     crear un proyecto. Por default queda como N1 (dirección) de él --
@@ -225,6 +226,10 @@ def crear_proyecto(
                 usuario_id=usuario.id, proyecto_id=nuevo.id, rol=rol_padre.rol, supervisor_id=None
             )
         )
+        db.flush()
+        for p in (participantes or []):
+            if p.usuario_id != usuario.id:
+                _registrar_participante_local(db, p.usuario_id, nuevo.id, p.rol, p.supervisor_id)
         return nuevo
 
     nuevo = Proyecto(
@@ -248,6 +253,10 @@ def crear_proyecto(
                 usuario_id=dueno_id, proyecto_id=nuevo.id, rol=rol_dueno, supervisor_id=None
             )
         )
+    db.flush()
+    for p in (participantes or []):
+        if p.usuario_id != usuario.id:
+            _registrar_participante_local(db, p.usuario_id, nuevo.id, p.rol, p.supervisor_id)
     return nuevo
 
 
@@ -465,11 +474,18 @@ def eliminar_proyecto(db: Session, usuario: Usuario, proyecto_id: int) -> None:
     aquí a mano antes del delete, para TODO el subárbol (no solo el nodo
     exacto) — el resto (historial de avance, notas, minuta+acuerdos,
     participantes) cascada solo vía las relaciones declaradas en los modelos.
+
+    Excepción (2026-09-25, a petición de Yue): quien CREÓ el proyecto
+    (`Proyecto.creado_por`) siempre puede eliminarlo, aunque su rol ahí sea
+    N3/N4 -- caso real: alguien hereda un rol bajo al crear un proyecto raíz
+    (ver rol_default_para_nuevo_proyecto) y necesita poder deshacer su
+    propia creación (ej. un proyecto duplicado por error) sin depender de
+    pedirle a su N2 que lo borre por él.
     """
     rol = requerir_participacion_en_proyecto(db, usuario, proyecto_id)
-    requerir_rol_minimo(rol, [RolEnum.N1, RolEnum.N2])
-
     proyecto = obtener_proyecto_o_404(db, proyecto_id)
+    if proyecto.creado_por != usuario.id:
+        requerir_rol_minimo(rol, [RolEnum.N1, RolEnum.N2])
 
     indice = arbol_proyectos.cargar_indice(db)
     ids_subtree = arbol_proyectos.ids_subarbol(indice, proyecto_id)
@@ -685,6 +701,19 @@ def asignar_rol_en_proyecto(
     if rol in (RolEnum.N3, RolEnum.N4) and supervisor_id is None:
         supervisor_id = usuario.id
 
+    return _registrar_participante_local(db, usuario_id, proyecto_id, rol, supervisor_id)
+
+
+def _registrar_participante_local(
+    db: Session, usuario_id: int, proyecto_id: int, rol: RolEnum, supervisor_id: int | None
+) -> MiembroEquipoOut:
+    """Crea/actualiza la fila LOCAL de `usuario_id` en `proyecto_id` -- sin
+    ninguna verificación de permisos (eso lo decide cada caller). Reusado
+    por `asignar_rol_en_proyecto` (participante agregado a un proyecto ya
+    existente, requiere N1/N2) y por `crear_proyecto` (participantes
+    iniciales del proyecto que se acaba de crear, ver ProyectoCrear.participantes
+    -- ahí no aplica ninguna verificación porque el proyecto todavía no
+    existía un instante antes)."""
     # OJO: búsqueda LOCAL (no obtener_rol_en_proyecto, que ahora hereda de
     # ancestros) -- usar la versión con herencia aquí reescribiría por error
     # la fila de un ancestro en vez de crear/actualizar la fila de ESTE nodo.

@@ -87,7 +87,8 @@ def crear_proyecto(
     raíz, queda como N1 de él (o hereda de su plantilla "Mi equipo"). Con
     parent_id: crea un subtema, requiere N1/N2 en el padre."""
     nuevo = crear_proyecto_servicio(
-        db, usuario, datos.nombre, datos.descripcion, datos.parent_id, datos.al_frente
+        db, usuario, datos.nombre, datos.descripcion, datos.parent_id, datos.al_frente,
+        participantes=datos.participantes,
     )
     db.commit()
     db.refresh(nuevo)

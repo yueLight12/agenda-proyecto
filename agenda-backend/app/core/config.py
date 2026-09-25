@@ -194,6 +194,20 @@ class Settings(BaseSettings):
     # prueba, nunca en el .env real.
     regla_todos_con_todos: bool = False
 
+    # Backup diario automático de agenda_nueva (2026-09-25, ver
+    # scripts_backup/backup_agenda.py) -- ese script NO usa esta clase
+    # Settings, lee el .env directo con python-dotenv (corre standalone
+    # desde el Programador de tareas de Windows, no dentro de la app).
+    # Declaradas aquí SOLO para que Settings() no truene con
+    # "Extra inputs are not permitted" al encontrar estas variables en el
+    # .env real -- por default BaseSettings rechaza cualquier variable de
+    # entorno que no tenga un campo declarado. Bug real encontrado el mismo
+    # día: agregar estas 3 líneas al .env sin declararlas aquí habría
+    # tumbado el backend real en el próximo reinicio.
+    backup_carpeta_destino: str = ""
+    backup_dias_retencion: int = 30
+    backup_zip_password: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 
