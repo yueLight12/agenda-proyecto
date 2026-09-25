@@ -5117,6 +5117,22 @@ button.planb__misemana-fila {
   min-width: 0;
 }
 
+/* Formulario de EDITAR un pendiente ya creado (2026-09-25) -- tiene 2
+   botones más que el de "Agregar" (Guardar/Cancelar) y no cabe en una sola
+   fila en pantallas de escritorio con el mismo layout sin wrap que usa
+   "Agregar" -- ahí "Cancelar" se salía del modal y el campo de texto
+   quedaba aplastado casi invisible (bug real reportado por Yue, se veía
+   bien en celular porque el wrap de "Agregar" solo se activa en la media
+   query de pantallas chicas). Este siempre envuelve, en cualquier tamaño
+   de pantalla, y el texto ocupa su propia fila completa. */
+.planb__misemana-editar-pendiente {
+  flex-wrap: wrap;
+}
+
+.planb__misemana-editar-pendiente input[type="text"] {
+  flex-basis: 100%;
+}
+
 .planb__misemana-nuevo-pendiente input[type="date"] {
   flex-shrink: 0;
   width: 130px;

@@ -578,7 +578,7 @@ export default function MiSemana({ semana, onAbrirEntregable, onAbrirReunion }) 
               editandoId === p.id ? (
                 <form
                   key={p.id}
-                  className="planb__misemana-nuevo-pendiente"
+                  className="planb__misemana-nuevo-pendiente planb__misemana-editar-pendiente"
                   onSubmit={guardarEdicionPendiente}
                 >
                   <input
