@@ -68,6 +68,13 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar, activa
   // enviarTexto) para poder armar el turno completo cuando se llega a
   // FASES.RESULTADO.
   const textoOrigenRef = useRef("");
+  // "Confirmar todo" (2026-09-25, Fase 3 fluidez) -- true mientras se está
+  // auto-confirmando el resto de una instrucción compuesta sin volver a
+  // preguntar acción por acción (ver confirmarTodo/ejecutarPropuesta). Ref,
+  // no estado: se lee inmediatamente después de setearlo en el mismo
+  // "tick" (confirmarTodo llama a ejecutarPropuesta justo después), y un
+  // useState ahí se quedaría con el valor viejo por el batching de React.
+  const confirmarTodoRef = useRef(false);
 
   // Voz de salida (texto-a-voz) + modo manos-libres: lee el mensaje de cada
   // fase y, si modoVoz está activo, escucha la respuesta automáticamente al
@@ -123,6 +130,7 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar, activa
     ultimoTextoLeidoRef.current = "";
     ultimaFaseHabladaRef.current = null;
     reintentosRef.current = 0;
+    confirmarTodoRef.current = false;
   };
 
   const manejarInterpretar = async (payload) => {
@@ -133,8 +141,19 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar, activa
       if (resp.tipo === "propuesta") {
         setTool(resp.tool);
         setPropuesta({ tool: resp.tool, parametros: resp.parametros, resumen: resp.resumen, preview: resp.preview });
-        setFase(FASES.CONFIRMANDO);
+        // "Confirmar todo" en curso (2026-09-25) -- esta acción también se
+        // auto-confirma, sin detenerse a mostrar CONFIRMANDO.
+        if (confirmarTodoRef.current) {
+          await ejecutarPropuesta(resp.tool, resp.parametros, resp.acciones_pendientes || []);
+        } else {
+          setFase(FASES.CONFIRMANDO);
+        }
       } else if (resp.tipo === "aclaracion") {
+        // Una acción de la cadena necesita un dato que falta -- no se puede
+        // seguir auto-confirmando a ciegas, se detiene a preguntar como
+        // siempre (confirmarTodoRef sigue en true: si tras responder esto
+        // la siguiente acción vuelve a ser una "propuesta" limpia, el
+        // auto-confirmar se retoma solo).
         setTool(resp.tool);
         setParametrosLlm(resp.parametros_llm);
         setAclaracionActual({
@@ -180,6 +199,11 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar, activa
       });
       return;
     }
+
+    // La instrucción compuesta terminó -- que "confirmar todo" no se
+    // arrastre a la SIGUIENTE instrucción, que debe volver a preguntar
+    // normal por default.
+    confirmarTodoRef.current = false;
 
     const mensajeFinal = mensajesRef.current.join(" ");
     setRespuestaTexto(mensajeFinal);
@@ -262,16 +286,40 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar, activa
     });
   };
 
-  const confirmar = async () => {
+  // Ejecuta una propuesta ya resuelta (tool+parametros) y avanza a la
+  // siguiente de la cola, si hay -- extraído de confirmar() (2026-09-25,
+  // Fase 3 fluidez) para poder reusarlo también desde el auto-confirmar de
+  // "confirmar todo" (manejarInterpretar), que actúa sobre la respuesta
+  // recién llegada del servidor en vez del estado `propuesta` (evita
+  // depender de un render de por medio).
+  const ejecutarPropuesta = async (tool, parametros, colaRestante) => {
     setFase(FASES.EJECUTANDO);
     try {
-      const resp = await asistenteApi.confirmar({ tool: propuesta.tool, parametros: propuesta.parametros });
-      const idProyectoNuevo = propuesta.tool === "crear_proyecto" ? resp.resultado?.id : undefined;
-      await avanzarOTerminar(resp.mensaje, accionesPendientes, idProyectoNuevo);
+      const resp = await asistenteApi.confirmar({ tool, parametros });
+      const idProyectoNuevo = tool === "crear_proyecto" ? resp.resultado?.id : undefined;
+      await avanzarOTerminar(resp.mensaje, colaRestante, idProyectoNuevo);
     } catch (err) {
+      // Si algo falla a medias de una cadena "confirmar todo", no seguir
+      // auto-confirmando el resto a ciegas -- se detiene en ERROR como
+      // cualquier fallo normal.
+      confirmarTodoRef.current = false;
       setMensaje(err.response?.data?.detail || "No se pudo completar la acción.");
       setFase(FASES.ERROR);
     }
+  };
+
+  const confirmar = () => ejecutarPropuesta(propuesta.tool, propuesta.parametros, accionesPendientes);
+
+  // "Confirmar todo" (2026-09-25, Fase 3 fluidez) -- para una instrucción
+  // compuesta ("crea el proyecto X y pon a Juan de líder"), evita tener que
+  // confirmar cada acción por separado: confirma esta y activa el
+  // auto-confirmar para las que sigan en la cola (ver manejarInterpretar).
+  // Se detiene solo si una acción necesita una aclaración (falta un dato) o
+  // si algo falla -- nunca ejecuta a ciegas algo que el sistema no pudo
+  // resolver con lo ya dicho.
+  const confirmarTodo = () => {
+    confirmarTodoRef.current = true;
+    return confirmar();
   };
 
   const cancelar = async () => {
@@ -279,6 +327,30 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar, activa
       asistenteApi.cancelar({ tool: propuesta.tool, parametros: propuesta.parametros }).catch(() => {});
     }
     reiniciar();
+  };
+
+  // Corregir una propuesta YA armada sin cancelar y repetir todo desde cero
+  // (2026-09-25, Fase 3 del plan de fluidez de Chambeador) -- ej. estás en
+  // CONFIRMANDO con "voy a crear la tarea X para el jueves" y dices "no,
+  // mejor el viernes": en vez de forzar cancelar()+enviarTexto() de nuevo,
+  // se reinterpreta usando la propuesta actual como parte del historial
+  // (memoria de corto plazo, Fase 2) para que el LLM entienda que es un
+  // AJUSTE sobre lo mismo, no una instrucción nueva sin relación.
+  const corregirPropuesta = async (texto) => {
+    if (!texto.trim() || !propuesta) return;
+    const historialConPropuestaActual = [
+      ...historialRef.current,
+      { usuario: textoOrigenRef.current, asistente: propuesta.resumen },
+    ];
+    textoOrigenRef.current = texto;
+    if (propuesta) {
+      asistenteApi.cancelar({ tool: propuesta.tool, parametros: propuesta.parametros }).catch(() => {});
+    }
+    await manejarInterpretar({
+      texto,
+      proyecto_id_contexto: proyectoIdContextoActivo || null,
+      historial: historialConPropuestaActual,
+    });
   };
 
   // Suena un beep breve (señal de "ya puedes hablar") y arranca a grabar,
@@ -309,16 +381,28 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar, activa
 
   const manejarTranscripcionConfirmacion = (texto) => {
     const intencion = clasificarIntencionVoz(texto);
-    if (intencion === "confirmar") return confirmar();
+    if (intencion === "confirmar") {
+      // "confirma todo"/"confirmar todo" (2026-09-25, Fase 3 fluidez) --
+      // solo tiene efecto real si hay más acciones en cola; si no, se
+      // comporta igual que un confirmar normal.
+      if (accionesPendientes.length > 0 && /\btodo\b/i.test(texto)) return confirmarTodo();
+      return confirmar();
+    }
     if (intencion === "cancelar") return cancelar();
-    reintentosRef.current += 1;
-    if (reintentosRef.current > LIMITE_REINTENTOS_CONFIRMACION) {
-      hablar("Puedes usar los botones para confirmar o cancelar.");
+    if (intencion === "repetir") {
+      hablar(propuesta.resumen, { onFin: () => escucharConVoz(manejarTranscripcionConfirmacion) });
       return;
     }
-    const textoReintento =
-      intencion === "repetir" ? propuesta.resumen : "No entendí si confirmas o cancelas. Dilo de nuevo o usa los botones.";
-    hablar(textoReintento, { onFin: () => escucharConVoz(manejarTranscripcionConfirmacion) });
+    // "corregir" o sin clasificar (2026-09-25, Fase 3 fluidez) -- cualquier
+    // otra cosa que se diga aquí es, casi siempre, un intento de ajustar la
+    // propuesta ("mejor a las 4", sin ningún "no" -- antes esto se perdía
+    // en el ciclo de "no entendí si confirmas o cancelas" sin siquiera
+    // intentar entenderlo). corregirPropuesta ya pasa por el LLM, que tiene
+    // su propio "no_entendido" -- no hace falta un límite de reintentos
+    // aparte aquí, cada intento hace progreso real en vez de repetir la
+    // misma pregunta sin avanzar.
+    reintentosRef.current = 0;
+    return corregirPropuesta(texto);
   };
 
   const manejarRespuestaError = (texto) => {
@@ -552,13 +636,27 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar, activa
                 + {accionesPendientes.length} acción{accionesPendientes.length === 1 ? "" : "es"} más después de esta
               </p>
             )}
-            <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button className="btn btn--primary" type="button" onClick={confirmar}>
                 Confirmar
               </button>
+              {accionesPendientes.length > 0 && (
+                <button className="btn btn--primary" type="button" onClick={confirmarTodo}>
+                  Confirmar todo ({accionesPendientes.length + 1})
+                </button>
+              )}
               <button className="btn btn--ghost" type="button" onClick={cancelar}>
                 Cancelar
               </button>
+            </div>
+            {/* Corregir sin cancelar (2026-09-25, Fase 3 fluidez) -- ej.
+                "mejor el viernes" ajusta la propuesta en vez de tener que
+                cancelar y repetir toda la instrucción desde cero. */}
+            <div className="stack" style={{ gap: 4 }}>
+              <span style={{ fontSize: "0.85rem", color: "var(--color-text-muted)" }}>
+                ¿Algo que cambiar? Escríbelo en vez de cancelar:
+              </span>
+              <RespuestaTexto onEnviar={corregirPropuesta} placeholder="ej. mejor el viernes" />
             </div>
           </div>
         )}
@@ -602,7 +700,7 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar, activa
   );
 }
 
-function RespuestaTexto({ onEnviar }) {
+function RespuestaTexto({ onEnviar, placeholder = "Escribe tu respuesta..." }) {
   const [valor, setValor] = useState("");
   return (
     <div style={{ display: "flex", gap: 8 }}>
@@ -610,7 +708,7 @@ function RespuestaTexto({ onEnviar }) {
         className="input"
         value={valor}
         onChange={(e) => setValor(e.target.value)}
-        placeholder="Escribe tu respuesta..."
+        placeholder={placeholder}
         onKeyDown={(e) => e.key === "Enter" && valor.trim() && onEnviar(valor)}
         autoFocus
       />
