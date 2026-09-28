@@ -38,6 +38,13 @@ class PreferenciaUsuario(Base):
     # guiado (ver OnboardingTour.jsx), para que no se le muestre de nuevo
     # en su próximo login/dispositivo. Default False = nunca lo ha visto.
     tour_completado = Column(Boolean, default=False, nullable=False)
+    # Voz neuronal del asistente "Chambeador" (2026-09-28, Fase 4 del plan
+    # de fluidez, a petición de Yue: dejar elegir entre las 2 voces que le
+    # gustaron en vez de fijar una sola para todos) -- id de la voz Piper
+    # ("es_MX-claude-high" / "es_AR-daniela-high"), ver
+    # app/services/voz_neural.py para el catálogo real. Si el usuario nunca
+    # eligió, se usa el default mexicano.
+    voz_asistente = Column(String(40), nullable=False, default="es_MX-claude-high")
     fecha_actualizacion = Column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )

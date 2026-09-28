@@ -375,6 +375,16 @@ export const asistenteApi = {
     (await api.post("/asistente/interpretar", payload, { timeout: 60000 })).data,
   confirmar: async (payload) => (await api.post("/asistente/confirmar", payload)).data,
   cancelar: async (payload) => api.post("/asistente/cancelar", payload),
+  // Fase 4 del plan de fluidez de Chambeador (2026-09-28) -- voz neuronal
+  // (Piper, local). responseType "blob": la respuesta es audio/wav, no JSON.
+  sintetizarVoz: async ({ texto, voz }) => {
+    const { data } = await api.post(
+      "/asistente/voz",
+      { texto, voz },
+      { responseType: "blob", timeout: 20000 }
+    );
+    return data; // Blob de audio/wav
+  },
 };
 
 export const notificacionesApi = {

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { asistenteApi } from "../api/endpoints";
 import useGrabadorAudio from "../hooks/useGrabadorAudio";
-import useSintesisVoz from "../hooks/useSintesisVoz";
+import useSintesisVozNeural from "../hooks/useSintesisVozNeural";
+import { usePreferenciasApariencia } from "../hooks/usePreferenciasApariencia";
 import { useModoVoz } from "../hooks/useModoVoz";
 import { clasificarIntencionVoz } from "../utils/intencionVoz";
 import { desbloquearAudio, reproducirBeep } from "../utils/sonidoBeep";
@@ -81,7 +82,8 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar, activa
   // terminar de hablar. ultimoTextoLeidoRef evita releer el mismo mensaje en
   // cada re-render; reintentosRef limita cuántas veces se vuelve a preguntar
   // "¿confirmas o cancelas?" antes de dejar solo los botones como salida.
-  const { soportado: vozSoportada, hablar, detener: detenerVoz, desbloquear: desbloquearVoz } = useSintesisVoz();
+  const { vozAsistente } = usePreferenciasApariencia();
+  const { soportado: vozSoportada, hablar, detener: detenerVoz, desbloquear: desbloquearVoz } = useSintesisVozNeural(vozAsistente);
   const { modoVoz, alternarModoVoz } = useModoVoz();
   const modoVozRef = useRef(modoVoz);
   const ultimoTextoLeidoRef = useRef("");

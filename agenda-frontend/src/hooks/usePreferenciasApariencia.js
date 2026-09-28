@@ -23,6 +23,10 @@ const CLAVE_CARD_ORDER = "apariencia_card_order";
 // elegir que no le interesa ver Proyectos, por ejemplo") -- mismo mirror en
 // localStorage que shape/cardOrder, ver justificación arriba.
 const CLAVE_HIDDEN_CARDS = "apariencia_hidden_cards";
+// Voz neuronal de Chambeador (2026-09-28, Fase 4) -- mismo mirror en
+// localStorage que las demás preferencias, ver justificación arriba.
+const CLAVE_VOZ_ASISTENTE = "apariencia_voz_asistente";
+export const VOZ_ASISTENTE_DEFECTO = "es_MX-claude-high";
 
 function aplicarShape(shape) {
   document.documentElement.style.setProperty("--radius-shape", RADIOS[shape] || RADIOS.rounded);
@@ -54,6 +58,9 @@ export function usePreferenciasApariencia() {
   const [shape, setShape] = useState(() => localStorage.getItem(CLAVE_SHAPE) || "rounded");
   const [cardOrder, setCardOrder] = useState(leerCardOrderGuardado);
   const [hiddenCards, setHiddenCards] = useState(leerHiddenCardsGuardado);
+  const [vozAsistente, setVozAsistente] = useState(
+    () => localStorage.getItem(CLAVE_VOZ_ASISTENTE) || VOZ_ASISTENTE_DEFECTO
+  );
   const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
@@ -76,6 +83,10 @@ export function usePreferenciasApariencia() {
           setHiddenCards(datos.tarjetas_ocultas);
           localStorage.setItem(CLAVE_HIDDEN_CARDS, JSON.stringify(datos.tarjetas_ocultas));
         }
+        if (datos.voz_asistente) {
+          setVozAsistente(datos.voz_asistente);
+          localStorage.setItem(CLAVE_VOZ_ASISTENTE, datos.voz_asistente);
+        }
       })
       .catch(() => {
         // Sin conexión o sesión vencida -- se queda con el mirror local /
@@ -90,12 +101,19 @@ export function usePreferenciasApariencia() {
   }, []);
 
   const guardar = useCallback(
-    async ({ shape: nuevaForma, cardOrder: nuevoOrden, hiddenCards: nuevasOcultas, theme }) => {
+    async ({
+      shape: nuevaForma,
+      cardOrder: nuevoOrden,
+      hiddenCards: nuevasOcultas,
+      theme,
+      vozAsistente: nuevaVoz,
+    }) => {
       const datos = await preferenciasApi.actualizar({
         shape: nuevaForma,
         card_order: nuevoOrden,
         tarjetas_ocultas: nuevasOcultas,
         theme,
+        voz_asistente: nuevaVoz,
       });
       setShape(datos.shape);
       localStorage.setItem(CLAVE_SHAPE, datos.shape);
@@ -107,10 +125,14 @@ export function usePreferenciasApariencia() {
         setHiddenCards(datos.tarjetas_ocultas);
         localStorage.setItem(CLAVE_HIDDEN_CARDS, JSON.stringify(datos.tarjetas_ocultas));
       }
+      if (datos.voz_asistente) {
+        setVozAsistente(datos.voz_asistente);
+        localStorage.setItem(CLAVE_VOZ_ASISTENTE, datos.voz_asistente);
+      }
       return datos;
     },
     []
   );
 
-  return { shape, cardOrder, hiddenCards, cargando, guardar };
+  return { shape, cardOrder, hiddenCards, vozAsistente, cargando, guardar };
 }

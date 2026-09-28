@@ -208,6 +208,15 @@ class Settings(BaseSettings):
     backup_dias_retencion: int = 30
     backup_zip_password: str = ""
 
+    # Voz neuronal del asistente "Chambeador" vía Piper (2026-09-28, Fase 4
+    # del plan de fluidez -- ver CLAUDE.md) -- corre 100% local, sin salir a
+    # internet. Carpeta con los .onnx/.onnx.json descargados (ver
+    # app/services/voz_neural.py para el catálogo). Vacío (default) =
+    # función desactivada, el endpoint responde 503 y el frontend cae solo
+    # a la voz nativa del navegador -- mismo patrón que SMTP_USUARIO/VAPID_*/
+    # SAML_*: nunca rompe el resto de la app por no estar configurado.
+    piper_voces_dir: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 

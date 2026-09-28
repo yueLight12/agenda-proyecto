@@ -13,7 +13,7 @@ pendiente" en el servidor entre medio.
 """
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -28,11 +28,13 @@ from app.schemas.asistente import (
     InterpretarRequest,
     InterpretarResponse,
     OpcionAclaracionOut,
+    SintetizarVozRequest,
     TranscribirResponse,
 )
 from app.services.asistente.interprete import SIN_ACCION, interpretar_instruccion
 from app.services.asistente.tools import TOOLS
 from app.services.asistente.whisper_client import transcribir as transcribir_audio
+from app.services.voz_neural import VozNeuralNoDisponible, sintetizar_wav
 
 router = APIRouter(prefix="/asistente", tags=["Asistente de voz"])
 
@@ -84,6 +86,23 @@ async def transcribir(
         initial_prompt=_prompt_nombres_conocidos(db),
     )
     return TranscribirResponse(texto=texto)
+
+
+@router.post("/voz")
+def sintetizar_voz(
+    datos: SintetizarVozRequest,
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """Fase 4 del plan de fluidez de Chambeador (2026-09-28) -- texto a voz
+    neuronal (Piper, local). Si PIPER_VOCES_DIR no está configurado (ej. en
+    el servidor real, que todavía no lo tiene mientras esto se prueba en
+    local, ver CLAUDE.md), responde 503 y el frontend cae solo a la voz
+    nativa del navegador, sin romper nada."""
+    try:
+        wav = sintetizar_wav(datos.texto, datos.voz)
+    except VozNeuralNoDisponible:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Voz neuronal no configurada")
+    return Response(content=wav, media_type="audio/wav")
 
 
 def _resolver_y_responder(

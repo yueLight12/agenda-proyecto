@@ -6,6 +6,10 @@ from typing import Literal, Optional
 from pydantic import BaseModel, field_validator
 
 TIPOS_TARJETA_VALIDOS = {"tarea", "proyecto", "persona", "agenda", "rendimiento"}
+# Mismo catálogo que app/services/voz_neural.py::VOCES_DISPONIBLES -- el
+# Literal de abajo necesita los valores en tiempo de definición del schema,
+# no puede importar del services (riesgo de ciclo); si se agrega/quita una
+# voz, hay que tocar los 2 lugares.
 
 
 class PreferenciaUsuarioOut(BaseModel):
@@ -14,6 +18,7 @@ class PreferenciaUsuarioOut(BaseModel):
     card_order: Optional[list[str]] = None
     tarjetas_ocultas: Optional[list[str]] = None
     tour_completado: bool = False
+    voz_asistente: Literal["es_MX-claude-high", "es_AR-daniela-high"] = "es_MX-claude-high"
 
     class Config:
         from_attributes = True
@@ -25,6 +30,7 @@ class PreferenciaUsuarioActualizar(BaseModel):
     card_order: Optional[list[str]] = None
     tarjetas_ocultas: Optional[list[str]] = None
     tour_completado: Optional[bool] = None
+    voz_asistente: Optional[Literal["es_MX-claude-high", "es_AR-daniela-high"]] = None
 
     @field_validator("card_order")
     @classmethod

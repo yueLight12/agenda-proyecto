@@ -8,6 +8,14 @@ class TranscribirResponse(BaseModel):
     texto: str
 
 
+class SintetizarVozRequest(BaseModel):
+    """Fase 4 del plan de fluidez de Chambeador (2026-09-28) -- texto que el
+    asistente va a "decir" + qué voz Piper usar (ver
+    app/services/voz_neural.py::VOCES_DISPONIBLES)."""
+    texto: str
+    voz: Literal["es_MX-claude-high", "es_AR-daniela-high"]
+
+
 class AccionPendienteOut(BaseModel):
     tool: str
     parametros_llm: dict

@@ -15,6 +15,14 @@ const FORMAS = [
   { valor: "circle", etiqueta: "Círculo", radio: "999px" },
 ];
 
+// Voces neuronales de Chambeador (2026-09-28, Fase 4) -- catálogo acotado a
+// las 2 que Yue probó y aprobó, mismos ids que
+// app/services/voz_neural.py::VOCES_DISPONIBLES en el backend.
+const VOCES_ASISTENTE = [
+  { valor: "es_MX-claude-high", etiqueta: "Mexicana" },
+  { valor: "es_AR-daniela-high", etiqueta: "Argentina" },
+];
+
 const TARJETAS_INFO = {
   tarea: "Tarea",
   proyecto: "Proyecto",
@@ -30,6 +38,7 @@ export default function AppearanceSettings({ onCerrar }) {
     shape: shapeGuardado,
     cardOrder: cardOrderGuardado,
     hiddenCards: hiddenCardsGuardado,
+    vozAsistente: vozAsistenteGuardada,
     cargando,
     guardar: guardarPreferencias,
   } = usePreferenciasApariencia();
@@ -38,6 +47,7 @@ export default function AppearanceSettings({ onCerrar }) {
   const [shape, setShape] = useState(shapeGuardado);
   const [cardOrder, setCardOrder] = useState(cardOrderGuardado);
   const [hiddenCards, setHiddenCards] = useState(hiddenCardsGuardado);
+  const [vozAsistente, setVozAsistente] = useState(vozAsistenteGuardada);
   const [guardado, setGuardado] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState("");
@@ -50,9 +60,10 @@ export default function AppearanceSettings({ onCerrar }) {
       setShape(shapeGuardado);
       setCardOrder(cardOrderGuardado);
       setHiddenCards(hiddenCardsGuardado);
+      setVozAsistente(vozAsistenteGuardada);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shapeGuardado, cardOrderGuardado, hiddenCardsGuardado]);
+  }, [shapeGuardado, cardOrderGuardado, hiddenCardsGuardado, vozAsistenteGuardada]);
 
   const radioActual = FORMAS.find((f) => f.valor === shape)?.radio || "12px";
 
@@ -83,7 +94,7 @@ export default function AppearanceSettings({ onCerrar }) {
     setGuardando(true);
     setError("");
     try {
-      await guardarPreferencias({ shape, cardOrder, hiddenCards, theme: tema });
+      await guardarPreferencias({ shape, cardOrder, hiddenCards, theme: tema, vozAsistente });
       setGuardado(true);
     } catch (e) {
       setError(e?.response?.data?.detail || "No se pudieron guardar los cambios, intenta de nuevo.");
@@ -133,6 +144,26 @@ export default function AppearanceSettings({ onCerrar }) {
             <span className="apariencia__forma-swatch apariencia__forma-swatch--oscuro" aria-hidden="true">🌙</span>
             <span>Oscuro</span>
           </button>
+        </div>
+      </section>
+
+      <section className="apariencia__seccion">
+        <h3 className="apariencia__titulo-seccion">Voz de Chambeador</h3>
+        <div className="apariencia__formas" role="group" aria-label="Voz del asistente">
+          {VOCES_ASISTENTE.map((v) => (
+            <button
+              key={v.valor}
+              type="button"
+              className={`apariencia__forma-btn${vozAsistente === v.valor ? " apariencia__forma-btn--activo" : ""}`}
+              onClick={() => {
+                setVozAsistente(v.valor);
+                setGuardado(false);
+              }}
+              aria-pressed={vozAsistente === v.valor}
+            >
+              <span>{v.etiqueta}</span>
+            </button>
+          ))}
         </div>
       </section>
 
