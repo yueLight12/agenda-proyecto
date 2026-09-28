@@ -18,7 +18,7 @@ class PreferenciaUsuarioOut(BaseModel):
     card_order: Optional[list[str]] = None
     tarjetas_ocultas: Optional[list[str]] = None
     tour_completado: bool = False
-    voz_asistente: Literal["es_MX-claude-high", "es_AR-daniela-high"] = "es_MX-claude-high"
+    voz_asistente: Literal["es_MX-claude-high"] = "es_MX-claude-high"
 
     class Config:
         from_attributes = True
@@ -30,7 +30,7 @@ class PreferenciaUsuarioActualizar(BaseModel):
     card_order: Optional[list[str]] = None
     tarjetas_ocultas: Optional[list[str]] = None
     tour_completado: Optional[bool] = None
-    voz_asistente: Optional[Literal["es_MX-claude-high", "es_AR-daniela-high"]] = None
+    voz_asistente: Optional[Literal["es_MX-claude-high"]] = None
 
     @field_validator("card_order")
     @classmethod

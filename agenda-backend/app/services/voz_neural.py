@@ -17,12 +17,18 @@ from pathlib import Path
 
 from app.core.config import settings
 
-# Catálogo de voces habilitadas -- deliberadamente acotado a las 2 que Yue
-# probó y aprobó (2026-09-28), de las ~9 voces en español que ofrece Piper.
-# Mismo id que usa el selector del frontend y PreferenciaUsuario.voz_asistente.
+# Catálogo de voces habilitadas -- deliberadamente acotado a las que Yue
+# aprobó (2026-09-28), de las ~9 voces en español que ofrece Piper. Mismo id
+# que usa el selector del frontend y PreferenciaUsuario.voz_asistente.
+#
+# es_AR-daniela-high (argentina) SE QUITÓ el mismo día que se agregó: a
+# Yue le gustó cómo sonaba, pero su MODEL_CARD indica que se entrenó con
+# OpenSLR SLR61 bajo licencia CC BY-SA 4.0 ("Atribución-CompartirIgual"),
+# más exigente (pide atribución + que cualquier derivado se comparta bajo
+# la misma licencia) que la mexicana (Apache 2.0, sin esa condición) --
+# fuera del catálogo hasta decidir si se acepta ese riesgo con atribución.
 VOCES_DISPONIBLES = {
     "es_MX-claude-high": "es_MX-claude-high.onnx",
-    "es_AR-daniela-high": "es_AR-daniela-high.onnx",
 }
 
 # Los modelos son pesados de cargar (~1-2s) pero sintetizan rápido una vez

@@ -13,7 +13,7 @@ class SintetizarVozRequest(BaseModel):
     asistente va a "decir" + qué voz Piper usar (ver
     app/services/voz_neural.py::VOCES_DISPONIBLES)."""
     texto: str
-    voz: Literal["es_MX-claude-high", "es_AR-daniela-high"]
+    voz: Literal["es_MX-claude-high"]
 
 
 class AccionPendienteOut(BaseModel):

@@ -15,13 +15,16 @@ const FORMAS = [
   { valor: "circle", etiqueta: "Círculo", radio: "999px" },
 ];
 
-// Voces neuronales de Chambeador (2026-09-28, Fase 4) -- catálogo acotado a
-// las 2 que Yue probó y aprobó, mismos ids que
-// app/services/voz_neural.py::VOCES_DISPONIBLES en el backend.
-const VOCES_ASISTENTE = [
-  { valor: "es_MX-claude-high", etiqueta: "Mexicana" },
-  { valor: "es_AR-daniela-high", etiqueta: "Argentina" },
-];
+// Voces neuronales de Chambeador (2026-09-28, Fase 4) -- mismos ids que
+// app/services/voz_neural.py::VOCES_DISPONIBLES en el backend. La
+// argentina (es_AR-daniela-high) se probó y a Yue le gustó, pero se quitó
+// el mismo día: su MODEL_CARD indica licencia CC BY-SA 4.0 (exige
+// atribución + compartir cualquier derivado bajo la misma licencia), más
+// estricta que la mexicana (Apache 2.0) -- fuera hasta decidir si se
+// acepta ese riesgo. Solo queda 1 opción por ahora, pero se deja como
+// lista (no un valor fijo) para no tener que rehacer el selector cuando
+// se agregue otra con licencia limpia.
+const VOCES_ASISTENTE = [{ valor: "es_MX-claude-high", etiqueta: "Mexicana" }];
 
 const TARJETAS_INFO = {
   tarea: "Tarea",
