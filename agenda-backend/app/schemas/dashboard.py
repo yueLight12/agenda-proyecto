@@ -51,6 +51,12 @@ class EntregableAtencionOut(BaseModel):
     # columna del Kanban de atención cae), este es el booleano real de
     # "marcar como urgente" en toda la UI.
     urgente: bool = False
+    # (2026-09-28, reporte real de Yue: el botón "✓ Concluido" aparecía en
+    # "Pendientes / Por hacer" aunque el usuario no fuera quien creó/es
+    # responsable del entregable -- clic terminaba en un 403 silencioso, muy
+    # confuso). Calculado con la misma regla de permisos.actualizar_avance
+    # que ya usa el backend, no se duplica lógica aquí.
+    puede_concluir: bool = True
 
 
 class DashboardOut(BaseModel):

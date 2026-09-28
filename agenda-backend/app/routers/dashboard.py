@@ -10,7 +10,11 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.permissions import query_entregables_visibles, query_reuniones_visibles
+from app.core.permissions import (
+    puede_actualizar_avance_entregable,
+    query_entregables_visibles,
+    query_reuniones_visibles,
+)
 from app.database import get_db
 from app.dependencies import obtener_usuario_actual
 from app.models.entregable import EstatusEntregable
@@ -114,6 +118,7 @@ def resumen_dashboard(
                     estatus=e.estatus,
                     urgencia=urgencia,
                     urgente=es_urgente(e),
+                    puede_concluir=puede_actualizar_avance_entregable(db, usuario, e),
                 )
             )
 

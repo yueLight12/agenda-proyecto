@@ -11,6 +11,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.permissions import puede_actualizar_avance_entregable
 from app.database import get_db
 from app.dependencies import obtener_usuario_actual
 from app.models.entregable import Entregable
@@ -46,12 +47,12 @@ def listar_mis_notificaciones(
     # sin importar cuántas notificaciones haya).
     ids_entregable = {n.entregable_id for n in notificaciones if n.entregable_id}
     ids_reunion = {n.reunion_id for n in notificaciones if n.reunion_id}
-    proyecto_por_entregable = (
-        dict(
-            db.query(Entregable.id, Entregable.proyecto_id)
-            .filter(Entregable.id.in_(ids_entregable))
-            .all()
-        )
+    # Objetos completos (no solo id/proyecto_id) -- 2026-09-28: también se
+    # necesitan creado_por/responsable_id para calcular puede_concluir con
+    # puede_actualizar_avance_entregable, sin duplicar esa lógica aquí ni
+    # hacer una segunda query.
+    entregables_por_id = (
+        {e.id: e for e in db.query(Entregable).filter(Entregable.id.in_(ids_entregable)).all()}
         if ids_entregable
         else {}
     )
@@ -69,7 +70,13 @@ def listar_mis_notificaciones(
     for n in notificaciones:
         salida = NotificacionOut.model_validate(n)
         if n.entregable_id:
-            salida.proyecto_id = proyecto_por_entregable.get(n.entregable_id)
+            entregable = entregables_por_id.get(n.entregable_id)
+            salida.proyecto_id = entregable.proyecto_id if entregable else None
+            salida.puede_concluir = (
+                puede_actualizar_avance_entregable(db, usuario, entregable)
+                if entregable
+                else False
+            )
         elif n.reunion_id:
             salida.proyecto_id = proyecto_por_reunion.get(n.reunion_id)
         resultado.append(salida)

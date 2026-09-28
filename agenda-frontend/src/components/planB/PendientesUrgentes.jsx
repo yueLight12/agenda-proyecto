@@ -199,6 +199,7 @@ export default function PendientesUrgentes({ recargarSenal, onAbrirEntregable, o
             entregableId={e.id}
             avance={e.porcentaje_avance}
             marcando={marcandoId === e.id}
+            puedeConcluir={e.puede_concluir}
             onMarcarConcluido={marcarConcluido}
           >
             <button
@@ -218,6 +219,7 @@ export default function PendientesUrgentes({ recargarSenal, onAbrirEntregable, o
             entregableId={e.id}
             avance={e.porcentaje_avance}
             marcando={marcandoId === e.id}
+            puedeConcluir={e.puede_concluir}
             onMarcarConcluido={marcarConcluido}
           >
             <button
@@ -336,6 +338,7 @@ export default function PendientesUrgentes({ recargarSenal, onAbrirEntregable, o
               urgente={n.urgente}
               entregableId={n.entregable_id}
               marcando={marcandoId === n.entregable_id}
+              puedeConcluir={n.puede_concluir}
               onMarcarConcluido={marcarConcluido}
             >
               {contenido}
@@ -347,7 +350,15 @@ export default function PendientesUrgentes({ recargarSenal, onAbrirEntregable, o
   );
 }
 
-function FilaPendiente({ urgente, children, entregableId, avance, marcando, onMarcarConcluido }) {
+function FilaPendiente({
+  urgente,
+  children,
+  entregableId,
+  avance,
+  marcando,
+  onMarcarConcluido,
+  puedeConcluir = true,
+}) {
   return (
     <div className="planb__pendiente-fila">
       {urgente && <BadgeUrgente urgente={urgente} />}
@@ -366,7 +377,20 @@ function FilaPendiente({ urgente, children, entregableId, avance, marcando, onMa
           </div>
         )}
       </span>
-      {entregableId != null && (
+      {/* (2026-09-28, reporte real de Yue: el botón aparecía para tareas
+          ajenas y el clic fallaba en silencio -- confuso) -- solo quien
+          creó el entregable o es su responsable actual puede concluirlo
+          (ver puede_actualizar_avance_entregable en el backend, que ya
+          calcula `puede_concluir` para no duplicar esa regla aquí). Si no
+          puede, se muestra una nota en vez del botón. */}
+      {entregableId != null && !puedeConcluir && (
+        <span
+          style={{ fontSize: "0.75rem", color: "var(--color-text-muted)", whiteSpace: "nowrap" }}
+        >
+          No es tuya para concluir
+        </span>
+      )}
+      {entregableId != null && puedeConcluir && (
         <>
           {/* Diseño clásico: botón de texto, sin cambios. */}
           <button

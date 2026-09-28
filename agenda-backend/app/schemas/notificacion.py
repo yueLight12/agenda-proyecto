@@ -28,6 +28,12 @@ class NotificacionOut(BaseModel):
     # Notificacion NO tiene relación ORM a Entregable/Reunion (solo el FK
     # crudo), así que esto no sale de un atributo directo del modelo.
     proyecto_id: Optional[int] = None
+    # Resuelto a mano en el router igual que proyecto_id arriba (2026-09-28,
+    # mismo reporte de Yue que en EntregableAtencionOut): si esta
+    # notificación trae un entregable, indica si QUIEN la recibe puede
+    # marcarlo concluido (creador o responsable actual) -- para que el
+    # frontend no muestre un botón "✓ Concluido" que va a fallar en 403.
+    puede_concluir: bool = True
 
     class Config:
         from_attributes = True
