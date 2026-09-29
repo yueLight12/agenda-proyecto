@@ -92,7 +92,10 @@ def _llamar_gemini(prompt: str, *, json_forzado: bool, sistema: str | None) -> s
     return respuesta.json()["candidates"][0]["content"]["parts"][0]["text"]
 
 
-def _llamar_claude(prompt: str, *, json_forzado: bool, sistema: str | None) -> str:
+def _llamar_claude(
+    prompt: str, *, json_forzado: bool, sistema: str | None, modelo_override: str | None = None
+) -> str:
+    modelo = modelo_override or settings.claude_modelo
     # json_forzado no usa output_config.format aquí (requeriría declarar un
     # schema JSON explícito) — el prompt ya le pide el JSON exacto que
     # interprete.py espera, igual que con Ollama/Gemini; effort "low" porque
@@ -117,10 +120,10 @@ def _llamar_claude(prompt: str, *, json_forzado: bool, sistema: str | None) -> s
         # "effort" no lo soportan todos los modelos (2026-09-02: Haiku 4.5
         # devuelve 400 "This model does not support the effort parameter")
         # -- solo se manda con Opus/Sonnet, donde sí aplica.
-        if "haiku" not in settings.claude_modelo:
+        if "haiku" not in modelo:
             kwargs["output_config"] = {"effort": "low"}
         respuesta = _cliente_anthropic().messages.create(
-            model=settings.claude_modelo,
+            model=modelo,
             max_tokens=4096,
             messages=[{"role": "user", "content": prompt}],
             **kwargs,
@@ -138,7 +141,9 @@ def _llamar_claude(prompt: str, *, json_forzado: bool, sistema: str | None) -> s
     return texto
 
 
-def generar_texto(prompt: str, *, json_forzado: bool = False, sistema: str | None = None) -> str:
+def generar_texto(
+    prompt: str, *, json_forzado: bool = False, sistema: str | None = None, modelo_override: str | None = None
+) -> str:
     """Manda `prompt` al proveedor configurado y devuelve el texto de la
     respuesta. `json_forzado=True` le pide al modelo que devuelva únicamente
     JSON (usado por el intérprete de comandos; el chatbot no lo necesita,
@@ -147,9 +152,17 @@ def generar_texto(prompt: str, *, json_forzado: bool = False, sistema: str | Non
     `sistema` (opcional): bloque de contexto ESTÁTICO -- igual en llamadas
     sucesivas -- separado del texto dinámico en `prompt`. Con Claude
     aprovecha prompt caching (ver _llamar_claude); con Ollama/Gemini
-    simplemente se concatena antes del prompt, sin cambiar el resultado."""
+    simplemente se concatena antes del prompt, sin cambiar el resultado.
+
+    `modelo_override` (2026-09-29, a petición de Yue: "que sea más rápido")
+    -- solo aplica con proveedor "claude", ignorado en Ollama/Gemini (usan
+    un único modelo fijo de settings). Pensado para tareas de clasificación
+    más simples que la interpretación completa (ver
+    interprete.py::interpretar_seguimiento) -- medido con datos reales:
+    Haiku 4.5 resuelve esa tarea 40-65% más rápido que Opus (0.85-1.74s vs
+    2.17-2.59s) con la misma precisión en los casos de prueba."""
     if settings.asistente_llm_proveedor == "gemini":
         return _llamar_gemini(prompt, json_forzado=json_forzado, sistema=sistema)
     if settings.asistente_llm_proveedor == "claude":
-        return _llamar_claude(prompt, json_forzado=json_forzado, sistema=sistema)
+        return _llamar_claude(prompt, json_forzado=json_forzado, sistema=sistema, modelo_override=modelo_override)
     return _llamar_ollama(prompt, json_forzado=json_forzado, sistema=sistema)

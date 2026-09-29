@@ -54,6 +54,14 @@ class Settings(BaseSettings):
     gemini_modelo: str = "gemini-flash-latest"
     claude_api_key: str = ""
     claude_modelo: str = "claude-opus-5"
+    # Modelo más rápido para el paso de "seguimiento" durante una aclaración
+    # (2026-09-29, a petición de Yue: "que sea más rápido" -- ver
+    # interprete.py::interpretar_seguimiento) -- es una tarea de
+    # clasificación más simple que interpretar una instrucción completa
+    # desde cero, medido 40-65% más rápido con la misma precisión en los
+    # casos de prueba. La interpretación inicial se queda en claude_modelo
+    # (Opus), donde la precisión importa más.
+    claude_modelo_seguimiento: str = "claude-haiku-4-5-20251001"
 
     # Correo de aviso "nunca has entrado al sistema" (2026-08-21, a
     # petición de Yue: obligar a que todos en la organización usen la

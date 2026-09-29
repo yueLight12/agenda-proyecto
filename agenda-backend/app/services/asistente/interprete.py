@@ -327,7 +327,14 @@ HERRAMIENTAS DISPONIBLES para "redirigir" (responde con el "nombre" exacto):
 NUNCA inventes IDs. Si no es claro cuál de las 3 aplica, prefiere "responder"
 con el texto tal cual lo dijo el usuario."""
 
-    datos = _parsear_json(generar_texto(mensaje_usuario, json_forzado=True, sistema=sistema))
+    datos = _parsear_json(
+        generar_texto(
+            mensaje_usuario,
+            json_forzado=True,
+            sistema=sistema,
+            modelo_override=settings.claude_modelo_seguimiento,
+        )
+    )
     if not isinstance(datos, dict) or datos.get("decision") not in ("responder", "redirigir", "cancelar"):
         # Fallback seguro (2026-09-29): si el LLM falla o da JSON inválido,
         # se cae al comportamiento de siempre -- tratar lo dicho como
