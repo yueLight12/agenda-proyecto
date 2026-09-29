@@ -2933,17 +2933,20 @@ TOOLS: dict[str, ToolSpec] = {
     "crear_entregable": ToolSpec(
         nombre="crear_entregable",
         descripcion=(
-            "Crear una nueva tarea/entregable/pendiente con fecha límite. 'Pendiente' aquí es "
-            "sinónimo de tarea/entregable cuando el usuario pide CREAR uno (ej. 'agrégame un "
-            "pendiente de revisar el contrato para mañana') -- no confundir con el estado "
-            "'pendiente' de revisión de agenda de una junta, que es un concepto distinto y no "
-            "usa esta tool. El proyecto/tema es OPCIONAL: si no se menciona ninguno, la tarea "
-            "se crea igual, sin preguntar por un tema. IMPORTANTE: úsala también cuando la "
-            "intención de ASIGNAR/CREAR una tarea es clara pero faltan detalles (ej. 'quiero "
-            "asignarle una tarea a David', sin decir cuál ni para cuándo) -- deja los campos que "
-            "falten vacíos, el sistema le va a preguntar lo que falte después. NO la trates como "
-            "'no_entendido' solo porque falten datos; 'no_entendido' es únicamente para cuando la "
-            "intención misma no es crear/asignar una tarea."
+            "Crear una nueva tarea/entregable/pendiente DE PROYECTO, con fecha límite. 'Pendiente' "
+            "aquí es sinónimo de tarea/entregable SOLO cuando es de trabajo/proyecto (ej. 'agrégame "
+            "un pendiente de revisar el contrato para mañana') -- no confundir con el estado "
+            "'pendiente' de revisión de agenda de una junta, que es un concepto distinto y no usa "
+            "esta tool. NO USES esta tool si el usuario dice explícitamente que el pendiente es "
+            "'personal', 'privado', 'mío', 'para mí' o algo similar que deja claro que NO es una "
+            "tarea de proyecto ni se asigna a nadie -- en ese caso usa crear_pendiente_personal, "
+            "aunque haya usado la palabra 'pendiente' o 'tarea'. El proyecto/tema es OPCIONAL: si "
+            "no se menciona ninguno, la tarea se crea igual, sin preguntar por un tema. IMPORTANTE: "
+            "úsala también cuando la intención de ASIGNAR/CREAR una tarea es clara pero faltan "
+            "detalles (ej. 'quiero asignarle una tarea a David', sin decir cuál ni para cuándo) -- "
+            "deja los campos que falten vacíos, el sistema le va a preguntar lo que falte después. "
+            "NO la trates como 'no_entendido' solo porque falten datos; 'no_entendido' es "
+            "únicamente para cuando la intención misma no es crear/asignar una tarea."
         ),
         parametros_llm={
             "nombre": "nombre del entregable",

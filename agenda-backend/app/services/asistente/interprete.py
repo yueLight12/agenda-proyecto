@@ -32,17 +32,25 @@ from app.services.llm_privacidad import construir_mapa
 SIN_ACCION = "no_entendido"
 
 
+def _construir_catalogo() -> str:
+    """Catálogo de herramientas (nombre + descripción + parámetros), sin
+    ejemplos -- extraído de _construir_sistema (2026-09-29, rediseño
+    conversacional) para reusarlo también en interpretar_seguimiento sin
+    duplicar esta lista a mano en dos lugares."""
+    bloques = []
+    for spec in TOOLS.values():
+        parametros = "; ".join(f"{campo} ({desc})" for campo, desc in spec.parametros_llm.items())
+        bloques.append(f"- {spec.nombre}: {spec.descripcion}\n  parametros: {parametros}")
+    return "\n".join(bloques)
+
+
 def _construir_sistema() -> str:
     """Bloque ESTÁTICO -- catálogo de herramientas + ejemplos + instrucciones,
     idéntico en cada llamada (solo cambia si tools.py cambia). Separado de
     `texto` a propósito para que llm_cliente.py lo mande como bloque
     cacheado con Claude (ver generar_texto/_llamar_claude) en vez de
     reprocesarlo de cero en cada comando."""
-    bloques = []
-    for spec in TOOLS.values():
-        parametros = "; ".join(f"{campo} ({desc})" for campo, desc in spec.parametros_llm.items())
-        bloques.append(f"- {spec.nombre}: {spec.descripcion}\n  parametros: {parametros}")
-    catalogo = "\n".join(bloques)
+    catalogo = _construir_catalogo()
 
     ejemplos = []
     for spec in TOOLS.values():
@@ -163,50 +171,22 @@ def _parsear_json(texto: str):
     return None
 
 
-def interpretar_instruccion(db: Session, usuario: Usuario, texto: str, historial: list | None = None) -> dict:
-    """Devuelve {"acciones": [{"tool": str, "parametros": dict}, ...]}. Lista
-    con un solo elemento tool == "no_entendido" si no aplica ninguna acción,
-    o si el modelo no devolvió JSON válido ni siquiera tras un reintento.
+SIN_ACCION_RESPUESTA = {"acciones": [{"tool": SIN_ACCION, "parametros": {}}]}
 
-    `historial` (2026-09-25, memoria de corto plazo): turnos previos de la
-    MISMA conversación del modal (ver TurnoHistorialIn) -- se redactan con
-    el mismo mapa de seudónimos que `texto` antes de mandarlos, para no
-    filtrar nombres reales a Gemini/Claude por esta puerta trasera."""
-    mapa = None
-    if settings.asistente_llm_proveedor in ("gemini", "claude"):
-        mapa = construir_mapa(db, usuario)
-        texto = mapa.redactar(texto)
-        if historial:
-            historial = [
-                type(turno)(usuario=mapa.redactar(turno.usuario), asistente=mapa.redactar(turno.asistente))
-                for turno in historial
-            ]
 
-    sistema = _construir_sistema()
-    mensaje_usuario = _construir_mensaje_usuario(texto, historial)
-
-    datos = _parsear_json(generar_texto(mensaje_usuario, json_forzado=True, sistema=sistema))
-    if datos is None:
-        datos = _parsear_json(
-            generar_texto(
-                mensaje_usuario + "\n\nResponde SOLO el JSON, una sola línea, nada más.",
-                json_forzado=True,
-                sistema=sistema,
-            )
-        )
-
-    sin_accion = {"acciones": [{"tool": SIN_ACCION, "parametros": {}}]}
-    if not isinstance(datos, dict):
-        return sin_accion
-
-    acciones_llm = datos.get("acciones")
+def _normalizar_acciones(acciones_llm, mapa) -> dict:
+    """Valida y limpia la lista de acciones que devolvió el LLM (nombre de
+    tool real, parametros como dict, seudónimos restaurados) -- extraído de
+    interpretar_instruccion (2026-09-29, rediseño conversacional) para
+    reusarlo también en interpretar_seguimiento cuando el usuario corrige/
+    redirige a media aclaración."""
     if not isinstance(acciones_llm, list) or not acciones_llm:
-        return sin_accion
+        return SIN_ACCION_RESPUESTA
 
     primera = acciones_llm[0]
     primera_tool = primera.get("tool") if isinstance(primera, dict) else None
     if primera_tool not in TOOLS and primera_tool != SIN_ACCION:
-        return sin_accion
+        return SIN_ACCION_RESPUESTA
 
     acciones = []
     for accion in acciones_llm:
@@ -222,3 +202,145 @@ def interpretar_instruccion(db: Session, usuario: Usuario, texto: str, historial
         acciones.append({"tool": tool, "parametros": parametros})
 
     return {"acciones": acciones or [{"tool": SIN_ACCION, "parametros": {}}]}
+
+
+def _redactar_historial(mapa, historial: list | None) -> list | None:
+    if not historial or mapa is None:
+        return historial
+    return [
+        type(turno)(usuario=mapa.redactar(turno.usuario), asistente=mapa.redactar(turno.asistente))
+        for turno in historial
+    ]
+
+
+def interpretar_instruccion(db: Session, usuario: Usuario, texto: str, historial: list | None = None) -> dict:
+    """Devuelve {"acciones": [{"tool": str, "parametros": dict}, ...]}. Lista
+    con un solo elemento tool == "no_entendido" si no aplica ninguna acción,
+    o si el modelo no devolvió JSON válido ni siquiera tras un reintento.
+
+    `historial` (2026-09-25, memoria de corto plazo): turnos previos de la
+    MISMA conversación del modal (ver TurnoHistorialIn) -- se redactan con
+    el mismo mapa de seudónimos que `texto` antes de mandarlos, para no
+    filtrar nombres reales a Gemini/Claude por esta puerta trasera."""
+    mapa = None
+    if settings.asistente_llm_proveedor in ("gemini", "claude"):
+        mapa = construir_mapa(db, usuario)
+        texto = mapa.redactar(texto)
+        historial = _redactar_historial(mapa, historial)
+
+    sistema = _construir_sistema()
+    mensaje_usuario = _construir_mensaje_usuario(texto, historial)
+
+    datos = _parsear_json(generar_texto(mensaje_usuario, json_forzado=True, sistema=sistema))
+    if datos is None:
+        datos = _parsear_json(
+            generar_texto(
+                mensaje_usuario + "\n\nResponde SOLO el JSON, una sola línea, nada más.",
+                json_forzado=True,
+                sistema=sistema,
+            )
+        )
+
+    if not isinstance(datos, dict):
+        return SIN_ACCION_RESPUESTA
+    return _normalizar_acciones(datos.get("acciones"), mapa)
+
+
+def interpretar_seguimiento(
+    db: Session,
+    usuario: Usuario,
+    texto: str,
+    historial: list | None,
+    tool_actual: str,
+    campo_pendiente: str,
+    pregunta_pendiente: str,
+    opciones: list | None = None,
+) -> dict:
+    """Rediseño conversacional de Chambeador (2026-09-29, a petición de Yue:
+    "quiero un asistente que me vaya guiando con preguntas, no un formulario
+    que se traba si lo corrijo") -- reemplaza el flujo anterior, donde una
+    vez que el asistente preguntaba un dato faltante, CUALQUIER cosa que
+    dijeras se metía a la fuerza como el valor literal de ese campo, sin
+    volver a pensar. Bug real que esto corrige: Yue pidió "un pendiente
+    personal", el LLM lo entendió como crear_entregable (ver el ajuste en
+    tools.py el mismo día) y al corregir con "no, quiero un pendiente
+    personal" esa frase completa se intentó meter como respuesta al campo
+    que se estaba preguntando -- el asistente se quedó trabado.
+
+    Ahora, cada vez que el usuario responde algo durante una aclaración, se
+    le pregunta al LLM qué está pasando en vez de asumir que es una
+    respuesta literal. Python sigue siendo el único que resuelve IDs/
+    permisos contra la base real (ver _resolver_y_responder en el router) --
+    esto SOLO decide cómo interpretar lo que se acaba de decir. Devuelve uno
+    de:
+      {"decision": "responder", "valor": <str>}          -- sigue la misma acción
+      {"decision": "redirigir", "acciones": [...]}        -- corrección/cambio de tema, misma
+                                                               forma que interpretar_instruccion
+      {"decision": "cancelar"}                             -- el usuario quiere dejarlo así
+    """
+    mapa = None
+    if settings.asistente_llm_proveedor in ("gemini", "claude"):
+        mapa = construir_mapa(db, usuario)
+        texto = mapa.redactar(texto)
+        historial = _redactar_historial(mapa, historial)
+
+    spec = TOOLS.get(tool_actual)
+    descripcion_tool = spec.descripcion if spec else tool_actual
+
+    partes = [_construir_historial(historial or [])]
+    partes.append(
+        f'Hay una acción en curso: "{tool_actual}" ({descripcion_tool}). '
+        f'Todavía falta el dato "{campo_pendiente}" -- se le preguntó al usuario: "{pregunta_pendiente}"'
+    )
+    if opciones:
+        etiquetas = ", ".join(f'"{o.etiqueta}"' for o in opciones)
+        partes.append(f"Opciones ofrecidas: {etiquetas}.")
+    partes.append(f'El usuario respondió: "{texto}"')
+    mensaje_usuario = "\n".join(p for p in partes if p)
+
+    sistema = f"""Eres el intérprete de comandos de voz de "Agenda Inteligente de Proyectos",
+a media conversación: ya se identificó una acción pero falta un dato y se le
+preguntó al usuario. Decide qué acaba de pasar y responde ÚNICAMENTE JSON,
+una de estas 3 formas:
+
+1) El usuario está respondiendo al dato que falta (aunque lo diga distinto a
+como se le preguntó, o dé el dato junto con algo más):
+{{"decision": "responder", "valor": "<el valor, tal como lo dijo>"}}
+
+2) El usuario está corrigiendo o cambiando de intención -- quiere algo
+DISTINTO a lo que se venía armando (puede ser la misma acción con otros
+datos, o una acción completamente distinta). Trata TODO lo que dijo como una
+instrucción nueva, con el mismo catálogo y formato que si fuera la primera
+vez que habla:
+{{"decision": "redirigir", "acciones": [{{"tool": "<nombre_tool>", "parametros": {{...}}}}]}}
+
+HERRAMIENTAS DISPONIBLES para "redirigir" (responde con el "nombre" exacto):
+
+{_construir_catalogo()}
+
+- no_entendido: si lo que pide no corresponde a ninguna de arriba.
+  parametros: {{}}
+
+3) El usuario quiere cancelar/dejar esto así, sin completar la acción:
+{{"decision": "cancelar"}}
+
+NUNCA inventes IDs. Si no es claro cuál de las 3 aplica, prefiere "responder"
+con el texto tal cual lo dijo el usuario."""
+
+    datos = _parsear_json(generar_texto(mensaje_usuario, json_forzado=True, sistema=sistema))
+    if not isinstance(datos, dict) or datos.get("decision") not in ("responder", "redirigir", "cancelar"):
+        # Fallback seguro (2026-09-29): si el LLM falla o da JSON inválido,
+        # se cae al comportamiento de siempre -- tratar lo dicho como
+        # respuesta literal, en vez de perder la instrucción o trabarse.
+        return {"decision": "responder", "valor": texto if mapa is None else mapa.restaurar(texto)}
+
+    if datos["decision"] == "redirigir":
+        return {"decision": "redirigir", **_normalizar_acciones(datos.get("acciones"), mapa)}
+
+    if datos["decision"] == "cancelar":
+        return {"decision": "cancelar"}
+
+    valor = datos.get("valor")
+    if isinstance(valor, str) and mapa is not None:
+        valor = mapa.restaurar(valor)
+    return {"decision": "responder", "valor": valor if valor is not None else texto}

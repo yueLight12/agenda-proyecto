@@ -276,15 +276,40 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar, activa
   };
 
   const responderAclaracion = async (valor) => {
-    const nuevasAclaraciones = { ...aclaraciones, [aclaracionActual.campo]: valor };
-    setAclaraciones(nuevasAclaraciones);
+    // Selección directa (clic en una opción, tipo_entrada "opciones") --
+    // sin ambigüedad que interpretar, mismo camino directo de siempre. No
+    // se manda campo_pendiente -- el backend no llama al LLM otra vez.
+    if (aclaracionActual.tipo_entrada === "opciones") {
+      const nuevasAclaraciones = { ...aclaraciones, [aclaracionActual.campo]: valor };
+      setAclaraciones(nuevasAclaraciones);
+      await manejarInterpretar({
+        texto: "",
+        proyecto_id_contexto: proyectoIdContextoActivo || null,
+        tool,
+        parametros_llm: parametrosLlm,
+        aclaraciones: nuevasAclaraciones,
+        acciones_pendientes: accionesPendientes,
+      });
+      return;
+    }
+    // Texto libre/voz (2026-09-29, rediseño conversacional) -- ya no se
+    // mete `valor` a la fuerza como respuesta literal del campo pendiente:
+    // se manda tal cual para que el backend decida si es una respuesta
+    // directa, una corrección/cambio de tema, o un cancelar (ver
+    // interprete.py::interpretar_seguimiento). Bug real que esto corrige:
+    // "no, quiero un pendiente personal" se quedaba trabado porque se
+    // intentaba meter como valor de un campo sin sentido.
     await manejarInterpretar({
-      texto: "",
+      texto: valor,
       proyecto_id_contexto: proyectoIdContextoActivo || null,
       tool,
       parametros_llm: parametrosLlm,
-      aclaraciones: nuevasAclaraciones,
+      aclaraciones,
       acciones_pendientes: accionesPendientes,
+      historial: historialRef.current,
+      campo_pendiente: aclaracionActual.campo,
+      pregunta_pendiente: aclaracionActual.pregunta,
+      opciones_pendientes: aclaracionActual.opciones,
     });
   };
 

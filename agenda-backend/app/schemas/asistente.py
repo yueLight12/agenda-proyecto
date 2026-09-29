@@ -31,6 +31,11 @@ class TurnoHistorialIn(BaseModel):
     asistente: str
 
 
+class OpcionAclaracionOut(BaseModel):
+    valor: int | str
+    etiqueta: str
+
+
 class InterpretarRequest(BaseModel):
     texto: str
     proyecto_id_contexto: Optional[int] = None
@@ -42,16 +47,24 @@ class InterpretarRequest(BaseModel):
     # es una instrucción nueva.
     acciones_pendientes: list[AccionPendienteOut] = []
     # Últimos turnos de esta misma conversación (memoria de corto plazo,
-    # 2026-09-25) -- solo se usa cuando `tool` viene vacío (instrucción
-    # nueva, la única rama que vuelve a llamar al LLM). El frontend acota
-    # cuántos manda; el backend no le pone límite propio, confía en el
-    # cliente (ver ModalAsistenteVoz.jsx).
+    # 2026-09-25) -- se manda tanto en instrucciones nuevas (`tool` vacío)
+    # como en respuestas a una aclaración con `texto` libre (2026-09-29,
+    # rediseño conversacional -- ver interprete.py::interpretar_seguimiento).
+    # El frontend acota cuántos manda; el backend no le pone límite propio.
     historial: list[TurnoHistorialIn] = []
-
-
-class OpcionAclaracionOut(BaseModel):
-    valor: int | str
-    etiqueta: str
+    # Campo/pregunta/opciones de la aclaración que se está respondiendo
+    # (2026-09-29, rediseño conversacional) -- el frontend los recuerda de
+    # la última InterpretarResponse tipo "aclaracion". Solo se usan cuando
+    # `tool` y `texto` vienen los dos con valor: en ese caso, en vez de
+    # meter `texto` a la fuerza como el valor literal del campo (bug real:
+    # una corrección como "no, quiero un pendiente personal" se atoraba
+    # ahí sin sentido), se le pregunta al LLM qué está pasando -- ver
+    # interpretar_seguimiento. Si `campo_pendiente` viene vacío (ej. el
+    # usuario eligió una opción con un clic, sin ambigüedad posible), se
+    # usa el camino directo de siempre, sin llamar al LLM otra vez.
+    campo_pendiente: Optional[str] = None
+    pregunta_pendiente: Optional[str] = None
+    opciones_pendientes: list[OpcionAclaracionOut] = []
 
 
 class InterpretarResponse(BaseModel):

@@ -31,7 +31,7 @@ from app.schemas.asistente import (
     SintetizarVozRequest,
     TranscribirResponse,
 )
-from app.services.asistente.interprete import SIN_ACCION, interpretar_instruccion
+from app.services.asistente.interprete import SIN_ACCION, interpretar_instruccion, interpretar_seguimiento
 from app.services.asistente.tools import TOOLS
 from app.services.asistente.whisper_client import transcribir as transcribir_audio
 from app.services.voz_neural import VozNeuralNoDisponible, sintetizar_wav
@@ -174,9 +174,47 @@ def interpretar(
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(obtener_usuario_actual),
 ):
+    if datos.tool and datos.campo_pendiente and datos.texto:
+        # Respuesta EN TEXTO LIBRE a una aclaración pendiente (2026-09-29,
+        # rediseño conversacional) -- antes esto se metía a la fuerza como
+        # el valor literal de datos.campo_pendiente, sin pasar por el LLM;
+        # ver interpretar_seguimiento para el porqué (bug real reportado
+        # por Yue: una corrección se quedaba trabada sin sentido). Cuando
+        # el usuario eligió una opción con un clic (tipo_entrada
+        # "opciones"), el frontend NO manda campo_pendiente -- ese caso
+        # sigue el camino directo de abajo, sin ambigüedad que resolver.
+        seguimiento = interpretar_seguimiento(
+            db, usuario, datos.texto, datos.historial,
+            datos.tool, datos.campo_pendiente, datos.pregunta_pendiente or "",
+            datos.opciones_pendientes,
+        )
+        if seguimiento["decision"] == "cancelar":
+            return InterpretarResponse(
+                tipo="respuesta",
+                mensaje="Va, lo dejamos así. ¿Algo más?",
+                acciones_pendientes=[],
+            )
+        if seguimiento["decision"] == "redirigir":
+            acciones = seguimiento["acciones"]
+            primera = acciones[0]
+            resto = [AccionPendienteOut(tool=a["tool"], parametros_llm=a["parametros"]) for a in acciones[1:]]
+            return _resolver_y_responder(
+                db, usuario, datos.proyecto_id_contexto,
+                primera["tool"], primera["parametros"], {}, resto,
+            )
+        # "responder": sigue siendo la misma acción -- el valor que decidió
+        # el LLM (no el texto crudo) se guarda en el campo que se preguntó,
+        # y de ahí en adelante es el mismo camino de siempre.
+        nuevas_aclaraciones = {**datos.aclaraciones, datos.campo_pendiente: seguimiento["valor"]}
+        return _resolver_y_responder(
+            db, usuario, datos.proyecto_id_contexto,
+            datos.tool, datos.parametros_llm or {}, nuevas_aclaraciones, datos.acciones_pendientes,
+        )
+
     if datos.tool:
-        # Retomar tras una aclaración, o continuar con la siguiente acción de
-        # una instrucción compuesta: no se vuelve a llamar al LLM.
+        # Selección directa (ej. un clic en una opción, sin texto libre que
+        # interpretar), o continuar con la siguiente acción de una
+        # instrucción compuesta: no hace falta volver a llamar al LLM.
         return _resolver_y_responder(
             db, usuario, datos.proyecto_id_contexto,
             datos.tool, datos.parametros_llm or {}, datos.aclaraciones, datos.acciones_pendientes,
