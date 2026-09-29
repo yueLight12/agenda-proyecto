@@ -84,6 +84,24 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar, activa
   // "¿confirmas o cancelas?" antes de dejar solo los botones como salida.
   const { vozAsistente } = usePreferenciasApariencia();
   const { soportado: vozSoportada, hablar, detener: detenerVoz, desbloquear: desbloquearVoz } = useSintesisVozNeural(vozAsistente);
+
+  // Bug real reportado por Yue (2026-09-29): cerrar el modal mientras
+  // seguía grabando dejaba el micrófono activo de fondo -- el componente
+  // se desmonta ({abierto && <ModalAsistenteVoz />} en FabAsistenteVoz.jsx)
+  // pero nada llamaba a detener() del grabador (estaba importado y sin
+  // usar), así que MediaRecorder seguía escuchando y, al terminar solo
+  // (silencio o el tope de 30s), intentaba procesar lo que haya captado
+  // después de cerrado. Limpieza al desmontar: corta el micrófono si
+  // seguía grabando, y cualquier audio de voz que siguiera sonando.
+  const desmontadoRef = useRef(false);
+  useEffect(() => {
+    return () => {
+      desmontadoRef.current = true;
+      detener();
+      detenerVoz();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const { modoVoz, alternarModoVoz } = useModoVoz();
   const modoVozRef = useRef(modoVoz);
   const ultimoTextoLeidoRef = useRef("");
@@ -247,6 +265,10 @@ export default function ModalAsistenteVoz({ proyectoIdContexto, onCerrar, activa
     try {
       setFase(FASES.GRABANDO);
       const blob = await iniciar();
+      // Se cerró el modal mientras grababa (detener() del cleanup de
+      // desmontaje ya cortó el micrófono) -- no seguir procesando lo que
+      // haya alcanzado a captar, el usuario ya se fue.
+      if (desmontadoRef.current) return;
       setFase(FASES.PROCESANDO);
       const { texto } = await asistenteApi.transcribir(blob);
       if (!texto || !texto.trim()) {

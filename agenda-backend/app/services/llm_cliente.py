@@ -9,10 +9,28 @@ Motor configurable vía settings.asistente_llm_proveedor: "ollama" (default,
 app/services/llm_privacidad.py para la seudonimización que se aplica antes
 de mandar cualquier dato real).
 """
+import logging
+
 import anthropic
 import requests
 
 from app.core.config import settings
+
+# (2026-09-29) -- antes, cualquier anthropic.APIError (401 de credenciales,
+# 429 de rate limit, 529 "overloaded", timeout, etc.) se envolvía en el
+# mismo mensaje genérico "verifica CLAUDE_API_KEY", sin importar la causa
+# real -- ya causó confusión dos veces (un caso real fue un 401 de verdad,
+# otro fue un hiccup pasajero de la API con la clave sana). El mensaje
+# amigable al usuario se queda igual (nadie quiere ver un traceback en la
+# UI), pero el detalle real ahora se registra aquí para no tener que
+# reproducir el error a mano cada vez que pasa. Mismo patrón que
+# app/services/asistente/whisper_client.py.
+logger = logging.getLogger("llm_cliente")
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+    logger.addHandler(_handler)
 
 _cliente_claude: anthropic.Anthropic | None = None
 
@@ -67,6 +85,7 @@ def _llamar_gemini(prompt: str, *, json_forzado: bool, sistema: str | None) -> s
         )
         respuesta.raise_for_status()
     except requests.RequestException as exc:
+        logger.error("Error real llamando a Gemini: %s: %s", type(exc).__name__, exc)
         raise RuntimeError(
             "No se pudo contactar a la API de Gemini. Verifica GEMINI_API_KEY en .env."
         ) from exc
@@ -107,6 +126,7 @@ def _llamar_claude(prompt: str, *, json_forzado: bool, sistema: str | None) -> s
             **kwargs,
         )
     except anthropic.APIError as exc:
+        logger.error("anthropic.APIError real: %s: %s", type(exc).__name__, exc)
         raise RuntimeError(
             "No se pudo contactar a la API de Claude. Verifica CLAUDE_API_KEY en .env."
         ) from exc

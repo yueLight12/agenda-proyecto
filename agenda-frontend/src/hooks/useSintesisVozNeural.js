@@ -36,6 +36,19 @@ export default function useSintesisVozNeural(voz = VOZ_ASISTENTE_DEFECTO) {
       tokenRef.current += 1;
       const miToken = tokenRef.current;
 
+      // Bug real reportado por Yue (2026-09-29): a diferencia de la voz del
+      // navegador (que useSintesisVoz.js siempre cancelaba antes de hablar
+      // algo nuevo), esta versión nunca detenía el audio que ya estaba
+      // sonando -- si el asistente terminaba de procesar mientras todavía
+      // se escuchaba "Escuché: ..." del relleno de silencio, las dos voces
+      // se oían encimadas. Se detiene cualquier audio en curso (propio o
+      // el de respaldo del navegador) antes de pedir/reproducir el nuevo.
+      if (audioActualRef.current) {
+        audioActualRef.current.pause();
+        audioActualRef.current = null;
+      }
+      navegador.detener();
+
       if (!texto) {
         onFin?.();
         return;
