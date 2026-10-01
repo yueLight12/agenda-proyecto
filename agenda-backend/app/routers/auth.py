@@ -13,6 +13,7 @@ from app.core.security import crear_access_token, hash_password, verificar_passw
 from app.database import get_db
 from app.dependencies import obtener_usuario_actual
 from app.models.correo_alterno import CorreoAlterno
+from app.models.inicio_sesion import InicioSesion
 from app.models.usuario import Usuario
 from app.schemas.usuario import (
     CambiarPasswordRequest,
@@ -91,6 +92,11 @@ def login(
     # entrado a la app, para el aviso por correo -- ver
     # app/services/avisos_acceso.py.
     usuario.ultimo_login = datetime.utcnow()
+    # inicios_sesion (2026-10-01, a petición de Yue: "¿cuántas personas
+    # usaron el sistema por día?") -- a diferencia de ultimo_login (una
+    # columna que se sobreescribe), esto guarda UNA fila por cada login
+    # exitoso, para poder reconstruir un historial real de uso diario.
+    db.add(InicioSesion(usuario_id=usuario.id))
     db.commit()
 
     token = crear_access_token(data={"sub": str(usuario.id)})
